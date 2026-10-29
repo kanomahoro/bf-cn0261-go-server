@@ -264,6 +264,92 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 
 三个端口都要对客户端可达；只开 26100/26102 能登录，但进对局会因为中继连不上而失败。
 
+## 配置说明
+
+配置只有一份文件：`config/server.json`（`--config` 可指向任意路径）。JSON **严格校验**：
+未知字段、类型不符、取值越界都会在启动时报错退出，不会静默忽略。
+
+### 数据表路径（顶层）
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `gameMapsFile` | `config/game_maps.json` | 地图表 |
+| `gameWeaponsFile` | `config/game_weapons.json` | 武器表 |
+| `gameDefenseFile` | `config/game_defense.json` | 防具表 |
+| `gameCharactersFile` | `config/game_characters.json` | 角色 / 频道 / 模式表 |
+| `gameRespawnFile` | `config/game_respawn.json` | 复活延迟表 |
+| `progressionFile` | `config/progression.json` | 等级、奖励、评级表 |
+
+### `network` — 游戏端口（26100）
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `listenAddress` | `0.0.0.0` | 监听地址；本机测试可改 `127.0.0.1` |
+| `listenPort` | `26100` | 游戏/大厅端口 |
+| `maxConnections` | `256` | 并发连接上限 |
+| `idleTimeoutSeconds` | `300` | 连接空闲超时（秒），超时即断开 |
+
+### `relay` — 对局中继（26104）
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `true` | 是否启动中继；关掉后无法进行对局 |
+| `listenAddress` / `listenPort` | `0.0.0.0` / `26104` | 监听地址与端口 |
+| `advertisedAddress` | `127.0.0.1` | **会真实下发客户端**：开对局时写进 S601 的 4 字节 IPv4。对外开服必须填公网 IP |
+| `maxConnections` | `256` | 并发中继连接上限 |
+| `idleTimeoutSeconds` | `120` | 中继连接空闲超时 |
+
+### `database` — MariaDB
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `host` / `port` | `127.0.0.1` / `3306` | 数据库地址 |
+| `databaseName` | `bubblefighter_cn0261` | 库名，迁移里写死，改名需同步改 SQL |
+| `username` | `bfserver` | 运行账号 |
+| `password` | 空 | 留空则读环境变量 `BF_DATABASE_PASSWORD`（配置文件优先） |
+| `connectTimeoutSeconds` / `queryTimeoutSeconds` | `5` / `5` | 连接与查询超时 |
+| `poolSize` | `4` | 连接池大小 |
+| `tlsMode` | `disable` | `require` / `disable`；本地 MariaDB 通常没开 TLS 就填 `disable` |
+| `verifyCertificate` | `false` | `tlsMode: require` 时必须为 `true`，否则配置校验失败 |
+| `caFile` | 空 | 自签 CA 路径，用系统信任链时留空 |
+
+### `authentication` — 登录器认证端（26102）
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `true` | 是否启动认证端；关掉后登录器无法取票 |
+| `listenAddress` / `listenPort` | `0.0.0.0` / `26102` | 监听地址与端口 |
+| `certificateFile` / `privateKeyFile` | `config/authentication_*.pem` | TLS 证书与私钥，用 `./gen-cert.sh` 生成 |
+| `gameHost` | `127.0.0.1` | 预留字段，**服务端不下发**（只做格式校验） |
+| `inviteCode` | 空 | 注册邀请码；留空 = 开放注册，填了则必须一致（常量时间比较） |
+| `registrationsPerHour` / `registrationsPerDay` | `5` / `20` | 按客户端 IP 的注册配额；`0` 表示用默认值 |
+
+### `logging`
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `level` | `info` | `trace`/`debug`/`info`/`warn`/`error` |
+| `directory` | `Logs` | 日志目录，不存在会自动创建 |
+| `maxFileSizeBytes` | `5242880` | 单文件 5 MB 触发轮转 |
+| `maxFiles` | `3` | 保留 3 份历史，合计约 20 MB 上限 |
+
+日志同时写控制台与文件；目录不可写会导致**启动失败**，不会静默降级。
+`debug` 会记录每个进/出包，排查协议问题很有用，但一天能写满 5 MB，日常建议保持 `info`。
+
+### `config/` 目录里的数据表
+
+| 文件 | 内容规模 | 管什么 |
+| --- | --- | --- |
+| `server.json` | 服务端配置 | 上面所有字段 |
+| `game_maps.json` | 57 张地图 | 地图池、主题、每图的默认比分上限与时限 |
+| `game_weapons.json` | 466 把武器 | 武器 ID 白名单与伤害系数（服务端只校验 ID，不计算伤害） |
+| `game_defense.json` | 448 件防具 | 防御修正，开对局时据此生成防御种子表下发 |
+| `game_characters.json` | 11 角色 / 12 频道 / 2 模式 | 角色血量修正、频道与模式元信息 |
+| `game_respawn.json` | 11 角色 + 10 道具 | 复活等待时长（道具优先于角色） |
+| `progression.json` | 10 档等级 | 经验阈值、胜负平奖励、个人分权重、评级与奖牌门槛 |
+
+这些 JSON 都是**运行时读取**，改完重启服务端即生效，不需要重新编译。
+
 ## 命令行参数
 
 | 参数 | 说明 |
@@ -276,6 +362,85 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 | `--nickname <name>` | 角色名，配合 `--create-account` |
 | `--character-type <1\|2>` | 新手角色类型，默认 1 |
 | `--password <pw>` | 账号密码（或环境变量 `BF_ACCOUNT_PASSWORD`） |
+
+## 数据库
+
+建库后共 **23 张表**，全部由 `database/migrations/` 里的 14 份迁移创建，不需要手写任何建表语句。
+
+### 迁移文件（14 份，必须按版本号顺序执行）
+
+`database/migrate.sh` 会从每份 SQL 末尾登记的 `schema_migrations` 版本号自动排序，
+不要按文件名首字母顺序手动执行（外键会失败）。
+
+| 版本 | 文件 | 建了什么 |
+| --- | --- | --- |
+| v1 | `initialize_schema.sql` | 建库 + `schema_migrations` 版本记录表 |
+| v2 | `create_accounts.sql` | `accounts`、`login_tickets` |
+| v3 | `create_characters.sql` | `characters` |
+| v4 | `create_inventory.sql` | `item_definitions`、`character_items` |
+| v5 | `create_character_stats.sql` | `character_stats`（Lucci / 点卷钱包） |
+| v6 | `create_shop.sql` | 商店 5 张表 + `character_item_expirations` + `shop_purchases` |
+| v7 | `create_game_results.sql` | `character_progression`、`game_results`、`game_result_players` |
+| v8 | `expand_shop_cosmetics.sql` | `item_equipment_rules` + 化妆品商品种子 |
+| v9 | `create_shop_characters.sql` | `character_appearances`（角色外观道具） |
+| v10 | `expand_shop_equipment.sql` | 纯数据：武器/装备商品与库存 |
+| v11 | `create_respawn_equipment.sql` | 纯数据：复活与出生装备配置 |
+| v12 | `create_result_awards.sql` | `game_result_awards`（评分/评级/奖牌） |
+| v13 | `create_weapon_presets.sql` | `character_weapon_presets`、`character_weapon_preset_items`、`shop_permanent_stocks` |
+| v14 | `expand_shop_other.sql` | `shop_preview_items` + 其余杂项商品 |
+
+### 表结构（按用途分组）
+
+**账号与角色**
+
+| 表 | 管什么 |
+| --- | --- |
+| `accounts` | 账号（账号名、scrypt 盐与哈希、是否停用） |
+| `login_tickets` | 一次性登录票据（120 秒有效，用后即废） |
+| `characters` | 角色（昵称、角色类型、创角选择），`account_id` 唯一 |
+| `character_stats` | 钱包：`lucci`、`cash` |
+| `character_progression` | 累计经验值 |
+
+**道具与背包**
+
+| 表 | 管什么 |
+| --- | --- |
+| `item_definitions` | 道具定义（名称、装备槽位、是否新手自带） |
+| `character_items` | 角色持有的道具：数量、装备槽位；`(character_id,item_id)` 唯一 |
+| `character_item_expirations` | 限期道具的到期时间（无此行 = 永久） |
+| `item_equipment_rules` | 装备规则：占用槽位位图 + 允许的角色类型掩码 |
+| `character_appearances` | 角色类型 → 外观道具（建号时塞进槽位 63） |
+
+**商店**
+
+| 表 | 管什么 |
+| --- | --- |
+| `shop_main_categories` | 主分类（武器 / 服装 / 角色 / 杂项…） |
+| `shop_sub_categories` | 子分类（步枪 / 副武器 / 特殊武器 307 等）+ 页签类型 |
+| `shop_items` | 上架商品：挂哪个子分类、货币（`lucci`/`cash_cn`）、上下架时间 |
+| `shop_stocks` | 价格档位：`duration_days` + 标价 + 实价 |
+| `shop_permanent_stocks` | 标记某档位为“永久”（如武器预设扩张卡） |
+| `shop_preview_items` | 只展示不可购买的道具 |
+| `shop_purchases` | 购买审计流水（角色、档位、花费、到期时间） |
+
+**对局与结算**
+
+| 表 | 管什么 |
+| --- | --- |
+| `game_results` | 每局一行：房间、模式、地图、双方队分、胜方、结束原因 |
+| `game_result_players` | 每局每玩家一行：泡封数、击爆数、救援数、经验与 Lucci 前后值、等级 |
+| `game_result_awards` | 与玩家行一对一：本局评分、评级、奖牌 |
+
+结算时这三张表 + `character_progression` / `character_stats` 在同一事务里写入，
+所以经验、金币、战绩三者永远一致。
+
+**武器预设与元数据**
+
+| 表 | 管什么 |
+| --- | --- |
+| `character_weapon_presets` | 每个角色的预设槽（2 或 3 个、当前选中项） |
+| `character_weapon_preset_items` | 预设槽里存的武器道具 ID |
+| `schema_migrations` | 已应用的迁移版本（启动时 `CheckSchema` 校验 1..14） |
 
 ## 目录结构
 
