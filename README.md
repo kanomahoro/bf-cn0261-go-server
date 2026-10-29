@@ -124,9 +124,13 @@ cp config/server.json Local/server.json    # Local/ 已在 .gitignore 中排除
 | `relay.listenAddress` | `127.0.0.1` | `0.0.0.0` |
 | `relay.advertisedAddress` | `127.0.0.1` | 服务器**公网 IP** |
 | `authentication.listenAddress` | `127.0.0.1` | `0.0.0.0` |
-| `authentication.gameHost` | `127.0.0.1` | 服务器**公网 IP** |
+| `authentication.gameHost` | `127.0.0.1` | 预留字段，**当前服务端不下发**（只做格式校验），客户端连哪个 IP 由登录器决定 |
 | `authentication.enabled` | `false` | `true`（走登录器注册时） |
 | `database.tlsMode` | 数据库没开 TLS 时改 `disable`，同时 `verifyCertificate: false` | 按数据库实际配置 |
+
+> **`relay.advertisedAddress` 会真实下发给客户端**：开对局时服务端把它作为 4 字节 IPv4
+> 写进 S601（中继端点 + 20 字节 key）。填 `127.0.0.1` 只有本机能进对局，远程客户端会
+> 连不上中继、卡在加载；对外开服必须填公网 IP。
 
 数据库密码有两种来源，**配置文件优先**，留空才读环境变量：
 
