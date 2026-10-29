@@ -1,0 +1,14 @@
+# 本地凭据（数据库密码等）
+.credentials/
+# 本地部署目录：配置副本、TLS 证书与私钥
+Local/
+# 构建产物与运行数据
+bin/
+Logs/
+*.log
+# 证书与私钥，按 README 自行生成
+*.pem
+# 登录器：Python 缓存与打包产物
+__pycache__/
+launcher/dist/
+launcher/build/
