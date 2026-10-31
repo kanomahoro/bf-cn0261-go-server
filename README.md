@@ -2,14 +2,18 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.1.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.1.1-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.1.0**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+当前版本 **v0.1.1**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+
+v0.1.1 修的是一个对局内卡死问题：中继把服务端本应自己消费的控制包（主要是
+`C8`/`C9` 对端直连声明）也转发给了对端，接收方因此尝试建立 P2P 连接，超时几十秒不动。
+现在中继只转发白名单内的对局内状态包，详见[中继转发策略](#中继转发策略)。
 
 ```bash
 git clone https://github.com/kanomahoro/bf-cn0261-go-server.git
@@ -37,7 +41,7 @@ cd bf-cn0261-go-server
 - 结算：每局写 `game_results` / `game_result_players` / `game_result_awards`，经验与 Lucci 落库
 - 商店与背包：目录、购买（Lucci/点卷）、装备、武器预设、期限道具过期清理
 - 认证端：登录器自助注册（邀请码 + 按 IP 限流）、一次性登录票据
-- 中继：对局内 peer 转发（26104），按预约 key 与源 IP 绑定
+- 中继：对局内 peer 转发（26104），按预约 key 与源 IP 绑定，且只转发白名单内的对局内状态包
 
 尚未实现：
 
@@ -473,6 +477,42 @@ gen-cert.sh             生成认证端自签证书
   原版商城没有这个商品，这是本实现的额外设定，改 `internal/store/store.go` 的
   `StarterGrenades` 即可调整。
 
+### 中继转发策略
+
+原版的 relay 不自己转发：它把每个包交给房间协调器，由协调器校验后决定发给谁。
+Go 版保留同样的边界——`internal/net/relay.go` 的 `relayForwardable` 是一份白名单，
+命中才转发给同房间其他成员，其余交给游戏层处理后丢弃。
+
+会转发（对局内 peer 状态）：
+
+| 分类 | 包 id |
+| --- | --- |
+| 动作 | 32779 / 32780 / 32781 / 32782 / 32785 / 32810 / 32811 / 32813 |
+| 开火 | 32898 / 32901 / 32924 |
+| 近身 · 命中 | 32773 / 32777 |
+| 爆炸 · 引爆 · 移除 | 32776 / 32923 / 32900 / 32906 |
+| 生命 · 生命点 | 32787 / 32793 / 32903 / 32807 / 32805 / 32836 / 32801 / 32806 / 32788 / 32790 / 32920 |
+| 踢击 | 32791 / 32792 / 32794 / 32795 / 32796 / 32835 / 32837 / 32815 / 32816 |
+| 移动 · 注视目标 | 32884 / 32885 / 32922 |
+| 复活完成 | 32925 |
+
+**不转发**（服务端自己消费，对端不该看到）：
+
+| 包 | 含义 | 为什么吃掉 |
+| --- | --- | --- |
+| `C1` | `ReqJoinRelaySession` | 中继注册，一个预约只绑一条连接 |
+| `C3` | `RelayUseReport` | 绑定上报者的角色对象，纯服务端状态 |
+| `C8` / `C9` | `RelayPeerRequest` | 声明“某对端我可以直连 / 不再直连” |
+| `C14` / `C18` | 血量重置 / 血量追踪报告 | 诊断数据，只用于服务端比对 |
+| `C20006` | 延迟探测 | 由中继自己应答 |
+| `C32840` | 对端 ping | 原版只回给发送者（`Never broadcast this probe`） |
+| `C32904` | 复活请求镜像 | 服务端已处理 |
+
+> **`C8`/`C9` 就是 v0.1.1 修的那个卡死 bug 的根因。** 把它们转发出去会让接收方
+> 以为已经和对方直连，于是去发起 P2P 连接；纯中继部署下这个连接永远建不起来，
+> 客户端会因此卡住几十秒，然后自己恢复。表现得就是“对局中一方看另一方定住不动，
+> 但伤害还能结算”。以后再动这张白名单前请先读这段。
+
 ## 已知限制
 
 - 仅支持竞技模式（`mode 1`，`sub_mode 0/1/3/4`）；道具战（`mode 3`）会让服务端变成
@@ -492,6 +532,7 @@ gen-cert.sh             生成认证端自签证书
 | 启动报找不到 `authentication_certificate.pem` | `authentication.enabled` 为 true 但没生成证书：跑 `./gen-cert.sh`，或先置为 false |
 | 登录器注册提示"邀请码不正确" | 服务端配了 `authentication.inviteCode`，填入同一个码即可；留空表示开放注册 |
 | 登录器注册提示"服务繁忙" | 触发了按 IP 的注册限流（默认 5 次/小时、20 次/天），等窗口过去或调整配置 |
+| 对局中对方定住不动、几十秒后自己恢复 | v0.1.0 的中继转发 bug（`C8`/`C9` 被转发给对端，客户端去连 P2P 卡住）。升级到 v0.1.1 即可，见[中继转发策略](#中继转发策略) |
 
 ## 许可证
 

@@ -327,10 +327,59 @@ func (r *Relay) handle(conn net.Conn) {
 				if handler != nil && client.joined {
 					handler(roomID, slot, packet)
 				}
-				r.forward(client, packet)
+				// Only in-match peer state may reach another peer. Everything else is
+				// control traffic the server consumes itself (see relayForwardable).
+				if relayForwardable(packet.ID) {
+					r.forward(client, packet)
+				} else {
+					r.log.Debug("[Relay] consumed", "room", roomID, "slot", slot,
+						"id", packet.ID, "len", len(packet.Payload))
+				}
 			}
 		}
 	}
+}
+
+// relayForwardable reports whether one relay packet may be forwarded to the
+// other members. It mirrors the reference server, which only relays in-match
+// peer state: GameRoundCoordinator::HandleRelayPacket consumes everything else
+// itself, so a peer never sees those ids coming from another client.
+//
+// The ids that are deliberately NOT forwarded matter more than the ones that
+// are:
+//
+//   - C1  ReqJoinRelaySession - relay registration, bound to one connection
+//   - C3  RelayUseReport     - binds the reporter's character object
+//   - C8/C9 RelayPeerRequest - "this peer is reachable directly from me" and
+//     the matching revocation. Relaying them makes the receiving client believe
+//     a direct peer link exists, so it starts a P2P attempt; in a relay-only
+//     deployment that attempt cannot succeed and blocks the client for tens of
+//     seconds. This was the cause of the "peer frozen after a kill" bug.
+//   - C14/C18                - health reset / health trace diagnostics
+//   - C20006                 - relay lag probe, answered by the relay itself
+//   - C32840                 - peer ping: the reference echoes it to its sender
+//     only ("Never broadcast this probe")
+//   - C32904                 - respawn request mirror, handled server-side
+func relayForwardable(id uint16) bool {
+	if protocol.IsPeerAction(id) || protocol.IsPeerLife(id) ||
+		protocol.IsPeerKick(id) || protocol.IsPeerExplosion(id) {
+		return true
+	}
+	switch id {
+	case 32898, 32901, 32924: // peer fire
+		return true
+	case 32773, // near attack
+		32777, // hit
+		32900, // detonation
+		32906, // projectile removal
+		32920: // life point report
+		return true
+	case 32884, 32885, 32922: // movement and watch target
+		return true
+	case 32925: // respawn complete, relayed once the server completed it
+		return true
+	}
+	return false
 }
 
 // join binds a connection to its reserved room slot.
