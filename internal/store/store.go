@@ -33,7 +33,7 @@ const CharacterSlot = 63
 const (
 	GrenadeItemID      = 205003
 	GrenadeSlot        = 21
-	StarterGrenades    = 3
+	StarterGrenades    = 100
 	grenadeOccupiedBit = 1 << GrenadeSlot
 )
 
