@@ -76,43 +76,123 @@ cd bf-cn0261-go-server
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建，把版本号写进二进制
-go build -ldflags "-X main.Version=0.1.0" -o bin/bfserver ./cmd/bfserver
+go build -ldflags "-X main.Version=0.1.1" -o bin/bfserver ./cmd/bfserver
 
 ./bin/bfserver --version
-# BubbleFighter CN0261 Go Server v0.1.0  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.1.1  By:rurudoo
 ```
 
 ## 快速开始
 
-### 1. 建库
+### 1. 建库到初始化完成
 
-最省事的是用仓库自带的迁移脚本（它会按每份 SQL 里登记的版本号排序执行，
-**不要**按文件名首字母顺序手动跑，外键会失败）：
+> 前置条件：MariaDB 10.11 已安装并在运行。Debian/Ubuntu 上 `sudo apt install -y
+> mariadb-server && sudo systemctl enable --now mariadb` 即可；Windows 用官方
+> 免安装 zip 解压后跑 `bin\mariadb-install-db.exe --datadir=<数据目录>
+> --service=MariaDB --password=<root密码>`，再 `net start MariaDB`。
+> 这一节从**创建数据库**开始写，到**服务端初始化完成**结束。
 
-```bash
-BF_DB_USER=root BF_DB_PASSWORD='<root密码>' ./database/migrate.sh
-```
-
-也可以手动执行：
-
-```bash
-mysql -u root -p < database/migrations/initialize_schema.sql
-# 然后按 v2..v14 的顺序执行其余 13 份（版本号写在每份文件末尾的 INSERT 里）
-```
-
-迁移完成后 `schema_migrations` 必须正好 14 行：
+#### 1.1 创建数据库
 
 ```sql
-SELECT version, name FROM schema_migrations ORDER BY version;
+CREATE DATABASE IF NOT EXISTS bubblefighter_cn0261
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-建运行账号：
+> 迁移脚本自己也会执行同样的 `CREATE DATABASE IF NOT EXISTS`，所以这一步
+> 重复执行没有副作用；先建的好处是能在这里明确指定字符集。
+
+#### 1.2 创建运行账号
+
+不要用 root 跑服务端：
 
 ```sql
--- MariaDB：必须显式指定密码插件，否则 Go 驱动握手会失败
+-- MariaDB 必须显式指定密码插件，否则 Go 驱动握手会失败
 CREATE USER 'bfserver'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');
 GRANT SELECT, INSERT, UPDATE, DELETE ON bubblefighter_cn0261.* TO 'bfserver'@'127.0.0.1';
+FLUSH PRIVILEGES;
 ```
+
+#### 1.3 初始化表结构（14 份迁移）
+
+建库和全部 23 张表都在 `database/migrations/` 里，不需要手写建表语句。
+顺序**必须按 `schema_migrations` 里的 v1~v14**，不能按文件名首字母（外键会失败）。
+
+Linux / macOS（脚本会自己从每份 SQL 末尾读出**版本号**再排序）：
+
+```bash
+export BF_DB_USER=root BF_DB_PASSWORD='***'
+./database/migrate.sh 127.0.0.1 3306
+```
+
+Windows（没有 bash，逐条执行，顺序就是下面这个）：
+
+```bat
+set M=C:\BF\mariadb\bin\mariadb.exe
+cd /d C:\BF\bf-cn0261-go-server
+
+%M% -u root -p < database\migrations\initialize_schema.sql
+%M% -u root -p < database\migrations\create_accounts.sql
+%M% -u root -p < database\migrations\create_characters.sql
+%M% -u root -p < database\migrations\create_inventory.sql
+%M% -u root -p < database\migrations\create_character_stats.sql
+%M% -u root -p < database\migrations\create_shop.sql
+%M% -u root -p < database\migrations\create_game_results.sql
+%M% -u root -p < database\migrations\expand_shop_cosmetics.sql
+%M% -u root -p < database\migrations\create_shop_characters.sql
+%M% -u root -p < database\migrations\expand_shop_equipment.sql
+%M% -u root -p < database\migrations\create_respawn_equipment.sql
+%M% -u root -p < database\migrations\create_result_awards.sql
+%M% -u root -p < database\migrations\create_weapon_presets.sql
+%M% -u root -p < database\migrations\expand_shop_other.sql
+```
+
+#### 1.4 校验迁移结果
+
+```bash
+mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_migrations ORDER BY version;"
+```
+
+必须**正好 14 行、版本 1..14 连续**。少一行或名字对不上，服务端启动会直接报
+`database schema version mismatch`。
+
+#### 1.5 把密码交给服务端
+
+二选一，**不要把密码提交进 git**：
+
+- 环境变量（推荐）：`database.password` 留空，启动前设 `BF_DATABASE_PASSWORD`
+- 写进配置：`database.password` 填值，并把配置文件权限设为 `600`
+
+配置里的值优先于环境变量；两者都没有时启动会报
+`database password is missing: set database.password or BF_DATABASE_PASSWORD`。
+
+#### 1.6 首次启动，完成初始化
+
+```bash
+./bfserver --check-config   # 只校验配置文件，不连库
+./bfserver                  # 真正启动
+```
+
+服务端启动时自动完成的初始化动作，日志里依次是：
+
+```
+[Database] checking connection and schema version   ← 连库并校验 14 份迁移
+[Database] ensuring the grenade item definition     ← 补齐新手手雷（物品 205003）
+[Database] purging expired login tickets            ← 清理过期登录票据
+[Relay] listening            port=26104
+[Authentication] listening   port=26102
+[Application] ready port=26100 protocol=cn0261-ticket-login
+```
+
+看到 `[Application] ready` 就是**初始化全部完成**，可以直接跑第 5 步建号登录。
+
+排障对应关系：
+
+| 日志表现 | 原因 |
+| --- | --- |
+| 卡在 `checking connection` | 账号/密码不对，或账号没用 `mysql_native_password` |
+| `database schema version mismatch` | 1.3 的 14 份迁移没跑全，或版本号不连续 |
+| `database password is missing` | 1.5 没设 `BF_DATABASE_PASSWORD`，配置里也是空的 |
 
 ### 2. 配置
 
@@ -166,7 +246,7 @@ FORCE=1 ./gen-cert.sh                              # 已存在时覆盖
 正常启动的日志：
 
 ```
-msg="BubbleFighter CN0261 Go Server v0.1.0  By:rurudoo"
+msg="BubbleFighter CN0261 Go Server v0.1.1  By:rurudoo"
 msg="[Application] environment" go=go1.27.3 config=Local/server.json database=bfserver@127.0.0.1:3306/bubblefighter_cn0261 gamePort=26100 authPort=26102 relayPort=26104
 msg="[Application] ready port=26100 protocol=cn0261-ticket-login"
 msg="[Relay] listening" port=26104
@@ -374,7 +454,8 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 ### 迁移文件（14 份，必须按版本号顺序执行）
 
 `database/migrate.sh` 会从每份 SQL 末尾登记的 `schema_migrations` 版本号自动排序，
-不要按文件名首字母顺序手动执行（外键会失败）。
+不要按文件名首字母顺序手动执行（外键会失败）。Windows 上没有 bash，按
+[快速开始 · 1.3](#13-初始化表结构14-份迁移) 里列出的 14 条命令顺序执行即可。
 
 | 版本 | 文件 | 建了什么 |
 | --- | --- | --- |
