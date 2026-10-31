@@ -27,8 +27,15 @@ type relayReservation struct {
 }
 
 // relayRegistrationTimeout bounds how long a relay connection may stay open
-// before it identifies itself, mirroring the reference server's five seconds.
-const relayRegistrationTimeout = 5 * time.Second
+// before it identifies itself.
+//
+// The reference server drops an unidentified connection after five seconds,
+// but a real client only sends ReqJoinRelaySession once its scene finished
+// loading. Two clients sharing one machine, or a slow disk, easily need longer
+// than five seconds, and the match then runs without a relay for that member:
+// peers see it frozen in place for the rest of the round. Twenty seconds still
+// bounds the accept budget without punishing slow loaders.
+const relayRegistrationTimeout = 20 * time.Second
 
 // relayConn is one client connected to the relay port.
 type relayConn struct {
