@@ -104,26 +104,66 @@ CREATE DATABASE IF NOT EXISTS bubblefighter_cn0261
 
 #### 1.2 创建运行账号
 
-不要用 root 跑服务端：
+不要用 root 跑服务端。建账号时有两个容易踩的点：
+
+1. **`localhost` 和 `127.0.0.1` 两个 host 都要建**：MariaDB 把 socket 连接认作
+   `localhost`、把 TCP 连接认作 `127.0.0.1`，只建其中一个会出现“账号明明存在却
+   Access denied”
+2. **必须显式指定 `mysql_native_password`**：`go-sql-driver/mysql` 只认
+   `mysql_native_password` 和 `caching_sha2_password`；账号如果落到
+   `unix_socket` 或 `ed25519` 插件上，服务端连库会直接失败
 
 ```sql
--- MariaDB 必须显式指定密码插件，否则 Go 驱动握手会失败
-CREATE USER 'bfserver'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');
-GRANT SELECT, INSERT, UPDATE, DELETE ON bubblefighter_cn0261.* TO 'bfserver'@'127.0.0.1';
+CREATE USER IF NOT EXISTS 'bfserver'@'127.0.0.1'
+  IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');
+CREATE USER IF NOT EXISTS 'bfserver'@'localhost'
+  IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');
+
+GRANT ALL PRIVILEGES ON bubblefighter_cn0261.* TO 'bfserver'@'127.0.0.1';
+GRANT ALL PRIVILEGES ON bubblefighter_cn0261.* TO 'bfserver'@'localhost';
 FLUSH PRIVILEGES;
 ```
+
+建完立刻核对插件，`plugin` 一列必须是 `mysql_native_password`：
+
+```sql
+SELECT user, host, plugin FROM mysql.user WHERE user = 'bfserver';
+```
+
+几点说明：
+
+- 服务端运行时实际只用到 `SELECT / INSERT / UPDATE / DELETE`（全部代码里没有任何
+  DDL 语句），这里授予 `ALL` 是为了让同一个账号也能跑迁移和日常维护，省掉权限报错
+- `ALL PRIVILEGES` **只作用于 `bubblefighter_cn0261` 这一个库**，也不包含
+  `GRANT OPTION`，所以它既访问不到别的库，也不能给自己或别人授权
+- 如果你的版本上 `PASSWORD()` 函数报 `FUNCTION ... does not exist`，改用
+  `CREATE USER ... IDENTIFIED BY '<密码>';`，再用上面的 `SELECT` 确认插件仍是
+  `mysql_native_password`；若不是，用
+  `ALTER USER 'bfserver'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');` 纠正
+- 账号建好后，`database/migrate.sh` 用默认的 `bfserver` 账号就能直接跑迁移（它有该
+  库的 `CREATE` 权限，可以执行 `CREATE DATABASE IF NOT EXISTS` 和建表）
 
 #### 1.3 初始化表结构（14 份迁移）
 
 建库和全部 23 张表都在 `database/migrations/` 里，不需要手写建表语句。
 顺序**必须按 `schema_migrations` 里的 v1~v14**，不能按文件名首字母（外键会失败）。
 
-Linux / macOS（脚本会自己从每份 SQL 末尾读出**版本号**再排序）：
+Linux / macOS / Termux —— 脚本默认就用 `bfserver` 账号，只需提供密码
+（脚本会自己从每份 SQL 末尾读出**版本号**再排序）：
 
 ```bash
-export BF_DB_USER=root BF_DB_PASSWORD='***'
-./database/migrate.sh 127.0.0.1 3306
+BF_DB_PASSWORD='***' ./database/migrate.sh
 ```
+
+> `BF_DB_PASSWORD` 是**必需**的，脚本不会交互式询问，缺了会直接报
+> `BF_DB_PASSWORD is required`。
+> 想换账号或连接地址时再覆盖默认值：
+> ```bash
+> BF_DB_USER=root BF_DB_PASSWORD='***' ./database/migrate.sh 127.0.0.1 3306
+> ```
+> 这种 `变量=值 命令` 的写法只对当前这一条命令生效，比 `export` 安全——密码不会留在
+> 当前会话里；注意它也会进 shell 历史（介意的话在命令前加一个空格，并设置
+> `HISTCONTROL=ignorespace`）。
 
 Windows（没有 bash，逐条执行，顺序就是下面这个）：
 
