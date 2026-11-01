@@ -80,15 +80,17 @@ rand_str() { # rand_str <长度>：纯字母数字，避免任何需要在命令
   printf '%s' "${pool:0:$1}"
 }
 
-ask() { # ask <变量名> <提示> <默认值>
-  local __var="$1" __prompt="$2" __default="$3" __answer=""
+ask() { # ask <变量名> <提示> <默认值> [mask]
+  local __var="$1" __prompt="$2" __default="$3" __mask="${4:-}" __answer=""
+  local __shown="$__default"
+  [ "$__mask" = "mask" ] && __shown="******"   # 敏感值不在屏幕上回显、也不进日志
   if [ "$FORCE_YES" = "1" ] || [ ! -t 0 ]; then
     printf -v "$__var" '%s' "$__default"
-    info "$__prompt ${__default:-(留空)}  （自动采用）"
+    info "$__prompt ${__shown:-(留空)}  （自动采用）"
     return
   fi
   if [ -n "$__default" ]; then
-    printf '%s [%s]: ' "$__prompt" "$__default"
+    printf '%s [%s]: ' "$__prompt" "$__shown"
   else
     printf '%s: ' "$__prompt"
   fi
@@ -229,7 +231,7 @@ PY
 )
 fi
 [ -n "$INVITE_CODE" ] || INVITE_CODE="$(rand_str 10)"
-ask INVITE_CODE "登录器注册邀请码（玩家注册时要填，回车用默认）" "$INVITE_CODE"
+ask INVITE_CODE "登录器注册邀请码（玩家注册时要填，回车用默认）" "$INVITE_CODE" mask
 INVITE_CODE=$(printf '%s' "$INVITE_CODE" | LC_ALL=C tr -dc 'A-Za-z0-9')
 [ ${#INVITE_CODE} -ge 4 ] || die "邀请码至少 4 位，只能是字母和数字"
 
@@ -254,7 +256,7 @@ else
   MODE="fresh"
 fi
 info "公网 IP：${PUBLIC_IP}"
-info "邀请码：${INVITE_CODE}"
+say_secret "    邀请码：${INVITE_CODE}"   # 邀请码同样只给屏幕，不落日志
 info "数据库密码：已随机生成 24 位，不打印（存在配置文件与 ${SECRET_FILE}）"
 info "模式：$([ "$MODE" = "fresh" ] && echo 全新安装 || echo 更新)"
 
