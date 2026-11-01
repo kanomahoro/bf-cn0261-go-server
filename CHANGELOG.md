@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`tools/bfserver-install.sh`** - a one-shot installer for Debian 12+ amd64
+  cloud hosts, aimed at people who have never administered a Linux server. It
+  installs MariaDB, creates the database and account, downloads the v0.1.3
+  release binary and the matching source tree, applies the fourteen migrations
+  in version order, writes `config/server.json` (including
+  `relay.advertisedAddress`, which defaults to loopback and would otherwise
+  break every remote client's relay connection), generates the 26102
+  self-signed certificate, and registers a hardened systemd unit. Verified end
+  to end on a clean Debian 12 host: install, restart, re-run as an update, and
+  uninstall.
+
+
 ## v0.1.3
 
 ### Fixed

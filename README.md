@@ -47,6 +47,39 @@ cd bf-cn0261-go-server
 > 由使用者自行承担。游戏名称、商标、美术与音频等素材的权利归原权利人所有，
 > 本项目与原开发方、发行方、运营方均无关联。
 
+## 一键安装（Debian 12+，新手推荐）
+
+云主机上只要一条命令。脚本本身在仓库 `tools/bfserver-install.sh`（也可以从 Release
+页面下载），机器上不需要预先放任何文件——二进制和配置由脚本自己从 GitHub 取：
+
+```bash
+sudo bash bfserver-install.sh
+```
+
+脚本按顺序完成 8 步：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载 v0.1.3
+二进制与配置 → 按版本号跑完 14 份迁移 → 生成配置与 26102 自签证书 → 注册 systemd
+服务并启动 → 自检三个端口。
+
+- 全程中文提示，参数都有默认值：公网 IP 自动探测（探测到内网地址会提醒你改）、
+  注册邀请码随机生成、数据库密码随机 24 位
+- 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、
+  `--uninstall`（卸载，数据库默认保留）
+- 安装目录 `/opt/bfserver`，服务名 `bfserver`，日志 `Logs/Server.log`，
+  密码与邀请码记录在 `/root/.bfserver-secrets`
+- **装完记得在云控制台安全组放行 26100 / 26102 / 26104**，只放行 26100 会出现
+  「能登录、进对局转圈」
+
+装完是这个样子：
+
+```
+公网 IP    : 43.155.154.62
+端口       : 游戏 26100 · 认证 26102 · 中继 26104
+数据库密码 : xxxxxxxxxxxxxxxxxxxxxxxx   ← 只显示一次
+注册邀请码 : hGlvxP3fkJ                 ← 玩家用登录器注册时填这个
+```
+
+想自己控制每一步的话，看后面的[快速开始（手动）](#快速开始手动)。
+
 ## 功能范围
 
 已实现：
@@ -98,7 +131,7 @@ go build -ldflags "-X main.Version=0.1.3" -o bin/bfserver ./cmd/bfserver
 # BubbleFighter CN0261 Go Server v0.1.3  By:rurudoo
 ```
 
-## 快速开始
+## 快速开始（手动）
 
 ### 1. 建库到初始化完成
 
@@ -614,6 +647,7 @@ config/                 服务端配置 + 6 份游戏数据表
 database/               14 份迁移 + migrate.sh
 launcher/               登录器源码（Python + tkinter，Windows）
 gen-cert.sh             生成认证端自签证书
+tools/bfserver-install.sh  Debian 12+ 一键安装脚本
 ```
 
 ## 实现说明
