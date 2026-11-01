@@ -61,7 +61,7 @@ sudo bash bfserver-install.sh
 服务并启动 → 自检三个端口。
 
 - 全程中文提示，参数都有默认值：公网 IP 自动探测（探测到内网地址会提醒你改）、
-  注册邀请码随机生成、数据库密码随机 24 位
+  注册邀请码随机生成、数据库密码随机 24 位（不打印，只落盘）
 - 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、
   `--uninstall`（卸载，数据库默认保留）
 - 安装目录 `/opt/bfserver`，服务名 `bfserver`，日志 `Logs/Server.log`，
@@ -74,9 +74,13 @@ sudo bash bfserver-install.sh
 ```
 公网 IP    : 43.155.154.62
 端口       : 游戏 26100 · 认证 26102 · 中继 26104
-数据库密码 : xxxxxxxxxxxxxxxxxxxxxxxx   ← 只显示一次
 注册邀请码 : hGlvxP3fkJ                 ← 玩家用登录器注册时填这个
+配置文件   : /opt/bfserver/config/server.json
+安装记录   : /root/.bfserver-secrets（数据库密码 + 邀请码）
 ```
+
+数据库密码**不打印**，写进 `config/server.json`（600）和 `/root/.bfserver-secrets`
+（600），要看自己去这两个文件里取。
 
 想自己控制每一步的话，看后面的[快速开始（手动）](#快速开始手动)。
 

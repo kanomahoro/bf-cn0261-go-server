@@ -13,7 +13,9 @@
   break every remote client's relay connection), generates the 26102
   self-signed certificate, and registers a hardened systemd unit. Verified end
   to end on a clean Debian 12 host: install, restart, re-run as an update, and
-  uninstall.
+  uninstall. The database password is generated, written to
+  `config/server.json` (600) and `/root/.bfserver-secrets` (600), and never
+  printed or logged - the banner only says where to find it.
 
 
 ## v0.1.3
