@@ -276,7 +276,12 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 	generation := room.generation
 	room.mu.RUnlock()
 	delay := s.respawnDelay(character, items)
-	spawnIndex := uint32(room.Team(slot))*10 + 1
+	// The map catalog owns the number of markers per team; cycling stays inside
+	// what the map actually defines.
+	teamSpawnCount := uint32(4)
+	if gameMap, ok := s.maps.Find(protocol.FromU16(room.SettingCopy().Game.Strings16[1])); ok && gameMap.TeamSpawnCount > 0 {
+		teamSpawnCount = gameMap.TeamSpawnCount
+	}
 	offer := func() {
 		room.mu.RLock()
 		stale := room.generation != generation || !room.Started
@@ -287,6 +292,10 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 		current := room.Life()
 		if current == nil {
 			return
+		}
+		spawnIndex := room.NextSpawnIndex(slot, teamSpawnCount)
+		if spawnIndex == 0 {
+			spawnIndex = uint32(room.Team(slot))*10 + 1
 		}
 		objectID, err := current.OfferRespawn(uint8(slot), spawnIndex)
 		if err != nil {

@@ -66,6 +66,9 @@ type Room struct {
 	seedsSent         bool
 	published         [8]protocol.BattleScore
 	teamScores        [2]uint16
+	// respawnCount rotates the team spawn markers the way the reference does.
+	// It is reset at round start.
+	respawnCount [8]uint32
 
 	tracking int
 	// generation invalidates timers left over from a previous round.
@@ -149,11 +152,22 @@ func (r *Room) ReserveSlot(session *Session, capacity int) (int, uint8, error) {
 	if slot < 0 {
 		return -1, 0, errRoomFull
 	}
-	team := uint8(1)
+	// Balance by count like the reference's ChooseTeam: the smaller team takes the
+	// newcomer, so a four player room ends up 1,2,1,2 instead of 1,2,2,2.
+	first, second := 0, 0
 	for _, entry := range r.slots {
-		if entry.session != nil && entry.team == 1 {
-			team = 2
+		if entry.session == nil {
+			continue
 		}
+		if entry.team == 1 {
+			first++
+		} else if entry.team == 2 {
+			second++
+		}
+	}
+	team := uint8(1)
+	if first > second {
+		team = 2
 	}
 	r.slots[slot] = roomSlot{session: session, team: team,
 		character: session.Character, items: session.Items}
@@ -401,6 +415,54 @@ func (r *Room) StartedReport() bool {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.Started
+}
+
+// NextSpawnIndex returns the spawn marker for the next respawn of one slot and
+// advances that slot's counter.
+//
+// The reference formula is team*10 + (slot/2 + respawn_count) % team_spawn_count
+// + 1, which keeps teammates apart only because retail seats them on 0/2 and
+// 1/3. This server also allows 0/1 and 2/3, where slot/2 is identical for both
+// teammates and they would share a marker. The ordinal inside the team is used
+// instead, so the first member of a team takes marker 1, the second marker 2,
+// and each respawn advances by one.
+func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if slot < 0 || slot >= maxRoomSlots || teamSpawnCount == 0 {
+		return 0
+	}
+	team := r.slots[slot].team
+	if team == 0 {
+		return 0
+	}
+	// Each teammate owns a disjoint slice of the team's markers and rotates
+	// inside it. The reference advances by one marker per respawn for the whole
+	// team, so two teammates walk the same ring one step apart and eventually
+	// respawn onto each other; with a private slice that cannot happen.
+	ordinal, teamSize := uint32(0), uint32(0)
+	for other := 0; other < maxRoomSlots; other++ {
+		if r.slots[other].session == nil || r.slots[other].team != team {
+			continue
+		}
+		teamSize++
+		if other < slot {
+			ordinal++
+		}
+	}
+	if teamSize == 0 {
+		return 0
+	}
+	stride := teamSpawnCount / teamSize
+	if stride == 0 {
+		stride = 1
+	}
+	base := ordinal * stride
+	// The rotation stays inside the private slice: base is added after the
+	// modulo, otherwise it would wrap back onto the first teammate's markers.
+	index := uint32(team)*10 + base + r.respawnCount[slot]%stride + 1
+	r.respawnCount[slot]++
+	return index
 }
 
 // Life returns the life tracker.
@@ -1045,6 +1107,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.cancelConfirmed = [8]bool{}
 	room.characterReported = [8]bool{}
 	room.seedsSent = false
+	room.respawnCount = [8]uint32{}
 	room.mu.Unlock()
 	for _, member := range room.View() {
 		if member.Occupied {
@@ -1109,7 +1172,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		room.loadingTimer.Stop()
 	}
 	room.loadingTimer = time.AfterFunc(loadingTimeout, func() {
-		s.log.Info("loading timed out", "room", room.ID)
+		s.log.Warn("loading timed out", "room", room.ID)
 		s.cancelRound(room)
 	})
 	room.mu.Unlock()
@@ -1235,7 +1298,21 @@ func (s *Server) startRound(room *Room, tracking int) {
 	if duration == 0 {
 		duration = 240000
 	}
+	first, second := 0, 0
+	for slot := range room.slots {
+		if room.slots[slot].session == nil {
+			continue
+		}
+		if room.slots[slot].team == 2 {
+			second++
+		} else {
+			first++
+		}
+	}
 	room.mu.Unlock()
+
+	s.log.Info("[Round] started", "room", room.ID, "team1", first, "team2", second,
+		"durationMs", duration)
 
 	room.Broadcast(protocol.CreateGameStartReply(duration, uint32(tracking)))
 
@@ -1362,6 +1439,13 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	} else if teamScores[1] > teamScores[0] {
 		winner = 2
 	}
+	reason := "score"
+	if timeExpired {
+		reason = "time"
+	}
+	s.log.Info("[Round] ended", "room", room.ID, "winner", winner,
+		"first", teamScores[0], "second", teamScores[1], "reason", reason)
+
 	players := make([]store.ResultPlayer, 0, 8)
 	for _, member := range members {
 		if !member.Occupied {
@@ -1438,14 +1522,32 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	// S729 result screen: computed from the committed progress of each slot.
 	rows := make([]protocol.GameResultPlayer, 0, len(members))
+	// The result screen must report exactly what settlement stored, otherwise a
+	// character at the level cap is shown more experience than the database keeps.
+	maxExperience := s.prog.MaxExperience()
 	for _, player := range players {
-		before := player.ExperienceGain
+		before := uint32(0)
 		for _, member := range members {
 			if member.Occupied && uint8(member.Slot) == player.Slot {
 				before = member.Character.Experience
 			}
 		}
-		after := before + player.ExperienceGain
+		// Same helper settlement uses, so the screen and the database cannot drift.
+		after, appliedGain := store.ClampGain(before, player.ExperienceGain, maxExperience)
+		// Same rule for the wallet: report what settlement actually stored.
+		lucciBefore := uint32(0)
+		for _, member := range members {
+			if member.Occupied && uint8(member.Slot) == player.Slot {
+				lucciBefore = member.Character.Lucci
+			}
+		}
+		lucciAfter, appliedLucci := store.ClampGain(lucciBefore, player.LucciGain, store.MaxLucci)
+		if appliedGain != player.ExperienceGain || appliedLucci != player.LucciGain {
+			s.log.Info("settlement clamped", "room", room.ID, "slot", player.Slot,
+				"experienceBefore", before, "experienceAfter", after,
+				"experienceGain", appliedGain, "lucciBefore", lucciBefore,
+				"lucciAfter", lucciAfter, "lucciGain", appliedLucci)
+		}
 		award := s.prog.EvaluateResult(player.Bubbles, player.Pangs, player.Rescues)
 		levelBefore, _, _ := s.prog.Level(before)
 		level, levelStart, nextLevel := s.prog.Level(after)
@@ -1461,8 +1563,8 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			LevelStart:     levelStart,
 			Experience:     after,
 			NextLevel:      nextLevel,
-			ExperienceGain: player.ExperienceGain,
-			LucciGain:      player.LucciGain,
+			ExperienceGain: appliedGain,
+			LucciGain:      appliedLucci,
 			LevelUp:        level > levelBefore,
 			AwardScore:     award.Score,
 			AwardGrade:     award.Grade,
@@ -1474,7 +1576,9 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	if resultReply, err := protocol.CreateGameResultReply(teamScores, rows); err == nil {
 		room.Broadcast(resultReply)
 	} else {
-		s.log.Debug("game result packet rejected", "room", room.ID, "error", err)
+		// Without this packet the client has no result screen at all, so it must
+		// not disappear into the debug stream.
+		s.log.Warn("game result packet rejected", "room", room.ID, "error", err)
 	}
 	room.Broadcast(protocol.CreateGameEndReply(timeExpired))
 
@@ -1531,13 +1635,13 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 					// the client keeps showing the old totals until the next login.
 					fresh, err := s.db.CharacterByAccount(member.Session.Account.ID)
 					if err != nil {
-						s.log.Debug("character reload failed", "session", member.Session.ID, "error", err)
+						s.log.Warn("character reload failed", "session", member.Session.ID, "error", err)
 						continue
 					}
 					member.Session.Character = fresh
 					room.SetProfile(member.Slot, fresh, member.Items)
 					if err := s.sendUserStatFor(member.Session, fresh, member.Items); err != nil {
-						s.log.Debug("user stat refresh failed", "session", member.Session.ID, "error", err)
+						s.log.Warn("user stat refresh failed", "session", member.Session.ID, "error", err)
 					}
 				}
 				s.cancelRound(room)

@@ -75,12 +75,52 @@ func (g *Game) release() {
 }
 
 type connection struct {
-	conn   net.Conn
-	idle   time.Duration
-	log    *slog.Logger
-	codec  *protocol.LambdaCodec
-	mu     sync.Mutex
+	conn  net.Conn
+	idle  time.Duration
+	log   *slog.Logger
+	codec *protocol.LambdaCodec
+	mu    sync.Mutex
+	// closed guards the outbound queue: writes never block a caller.
 	closed bool
+	out    chan []byte
+	queued int
+}
+
+// maxQueuedBytes mirrors the reference's per-session send queue limit. A client
+// that stops reading is disconnected instead of blocking everyone else.
+const maxQueuedBytes = 8 * 1024 * 1024
+
+// maxOutboundFrames bounds the queue depth (frame count, not only bytes).
+const maxOutboundFrames = 8192
+
+// writeLoop drains the outbound queue. It is the only writer of this socket.
+func (c *connection) writeLoop() {
+	for frame := range c.out {
+		if _, err := c.conn.Write(frame); err != nil {
+			c.closeWithReason("write failed")
+			return
+		}
+		c.mu.Lock()
+		c.queued -= len(frame)
+		c.mu.Unlock()
+	}
+}
+
+// closeWithReason marks the connection closed and drops the peer. Queued frames
+// are discarded, exactly like the reference's Stop on a failed send.
+func (c *connection) closeWithReason(reason string) {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return
+	}
+	c.closed = true
+	queued := c.queued
+	c.mu.Unlock()
+	if c.log != nil {
+		c.log.Warn("[Network] closing connection", "reason", reason, "queuedBytes", queued)
+	}
+	_ = c.conn.Close()
 }
 
 // Touch refreshes the idle deadline. Relay traffic counts as activity for the
@@ -105,29 +145,31 @@ var framePool = sync.Pool{New: func() any { buf := make([]byte, 0, 256); return 
 
 func (c *connection) Send(p protocol.Packet) error {
 	// Encoding is stateful (the cipher advances per frame), and broadcasts reach
-	// this connection from other players' goroutines, so both steps share a lock.
+	// this connection from other players' goroutines, so it shares a lock.
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if c.closed {
+		c.mu.Unlock()
 		return nil
 	}
 	if c.log != nil {
 		c.log.Debug("outbound", "id", p.ID, "len", len(p.Payload))
 	}
-	// Frames are written and dropped, so one scratch buffer per send can come
-	// from a pool instead of allocating a fresh slice for every packet.
-	buffer := framePool.Get().(*[]byte)
-	frame, err := c.codec.EncodeInto((*buffer)[:0], p)
+	frame, err := c.codec.Encode(p)
 	if err != nil {
-		framePool.Put(buffer)
+		c.mu.Unlock()
 		return err
 	}
-	_, err = c.conn.Write(frame)
-	if cap(frame) <= pooledFrameLimit {
-		*buffer = frame
-		framePool.Put(buffer)
+	// Queue instead of writing: a peer that stops reading must never block the
+	// goroutine that is broadcasting to everybody else.
+	if c.queued+len(frame) > maxQueuedBytes || len(c.out) >= maxOutboundFrames {
+		c.mu.Unlock()
+		c.closeWithReason("send queue limit reached")
+		return nil
 	}
-	return err
+	c.queued += len(frame)
+	c.out <- frame
+	c.mu.Unlock()
+	return nil
 }
 
 func (g *Game) handle(ctx context.Context, id uint64, conn net.Conn) {
@@ -148,7 +190,14 @@ func (g *Game) handle(ctx context.Context, id uint64, conn net.Conn) {
 	if _, err := conn.Write(protocol.Greeting()); err != nil {
 		return
 	}
-	client := &connection{conn: conn, idle: time.Duration(g.cfg.Network.IdleTimeoutSeconds) * time.Second, log: g.log, codec: protocol.NewLambdaCodec(protocol.EndpointServer)}
+	client := &connection{
+		conn:  conn,
+		idle:  time.Duration(g.cfg.Network.IdleTimeoutSeconds) * time.Second,
+		log:   g.log,
+		codec: protocol.NewLambdaCodec(protocol.EndpointServer),
+		out:   make(chan []byte, maxOutboundFrames),
+	}
+	go client.writeLoop()
 	session = g.server.NewSession(id, client)
 	// Real clients send C1 before anything else; enforce it only on live
 	// connections so unit tests can drive handlers directly.

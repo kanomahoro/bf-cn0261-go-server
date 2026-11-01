@@ -315,5 +315,5 @@ func (s *Service) SaveResult(result store.Result) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
-	return s.db.SaveResult(result, s.progression.Level)
+	return s.db.SaveResult(result, s.progression.Level, s.progression.MaxExperience())
 }

@@ -260,17 +260,41 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 			return err
 		}
 		s.tryRespawn(room, session.slot)
+	case 32925:
+		// The client tells the relay stream that its respawn finished. Complete it
+		// here so a client whose C704 was lost cannot stay stuck in the confirmed
+		// state, and let the relay forward the packet to the observers.
+		offered := life.SpawnIndex(uint8(session.slot))
+		if err := life.AdoptSpawnIndex(uint8(session.slot), request.Value); err != nil {
+			return err
+		}
+		completed, err := life.CompleteRespawn(uint8(session.slot), objectID, request.Value)
+		if err != nil {
+			return err
+		}
+		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
+			"spawn", request.Value, "offered", offered, "path", 32925,
+			"adopted", offered != request.Value, "applied", completed)
 	case 704:
+		offered := life.SpawnIndex(uint8(session.slot))
 		confirmed, err := life.ConfirmRespawn(uint8(session.slot), objectID, request.Value)
 		if err != nil {
 			return err
 		}
 		if !confirmed {
+			// Clients echo C704 once more after the state is back to active; that
+			// repeat is expected, so it only belongs in the debug stream.
+			s.log.Debug("[Respawn] confirmation ignored", "room", room.ID, "slot", session.slot,
+				"offered", offered, "confirmed", request.Value, "reason", "state")
 			return nil
 		}
-		if _, err := life.CompleteRespawn(uint8(session.slot), objectID, request.Value); err != nil {
+		completed, err := life.CompleteRespawn(uint8(session.slot), objectID, request.Value)
+		if err != nil {
 			return err
 		}
+		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
+			"spawn", request.Value, "offered", offered, "path", 704,
+			"adopted", offered != request.Value, "applied", completed)
 		room.Broadcast(protocol.CreateRespawnReply(objectID, request.Value))
 	}
 	return nil

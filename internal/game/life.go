@@ -86,6 +86,32 @@ func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 	return nil
 }
 
+// AdoptSpawnIndex lets the client's own marker win, as long as it still belongs
+// to the team block. Anything outside the block is a protocol error.
+func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if slot >= 8 || l.players[slot].objectID == 0 {
+		return fmt.Errorf("spawn adoption requires an initialized player")
+	}
+	player := &l.players[slot]
+	if spawnIndex/10 != uint32(player.team) || spawnIndex%10 < 1 || spawnIndex%10 > 8 {
+		return fmt.Errorf("respawn confirmation changed the selected spawn")
+	}
+	player.spawnIndex = spawnIndex
+	return nil
+}
+
+// SpawnIndex returns the marker the server last offered to one slot.
+func (l *BattleLife) SpawnIndex(slot uint8) uint32 {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if slot >= 8 {
+		return 0
+	}
+	return l.players[slot].spawnIndex
+}
+
 // Reset clears the whole tracker for a new round.
 func (l *BattleLife) Reset() {
 	l.mu.Lock()
@@ -543,7 +569,14 @@ func (l *BattleLife) ConfirmRespawn(slot uint8, objectID, spawnIndex uint32) (bo
 		return false, nil
 	}
 	if spawnIndex != player.spawnIndex {
-		return false, fmt.Errorf("respawn confirmation changed the selected spawn")
+		// The client answers with the marker it actually used. It is authoritative
+		// for its own character, and refusing here would skip the S707 broadcast
+		// that tells every observer the respawn finished, so adopt a marker that
+		// still belongs to the team block and only reject anything outside it.
+		if spawnIndex/10 != uint32(player.team) || spawnIndex%10 < 1 || spawnIndex%10 > 8 {
+			return false, fmt.Errorf("respawn confirmation changed the selected spawn")
+		}
+		player.spawnIndex = spawnIndex
 	}
 	player.state = stateRespawnConfirmed
 	return true, nil

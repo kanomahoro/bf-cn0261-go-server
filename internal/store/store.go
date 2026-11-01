@@ -538,6 +538,46 @@ const (
 	StarterCash  = 5_000_000
 )
 
+// MaxLucci is the highest balance settlement will store or report. Anything a
+// match would add past it is clamped and the result screen reports the gain that
+// was actually applied, so the interface and the database always agree.
+const MaxLucci = 10_000_000
+
+// NormalizeTotal pins a stored total to its cap. A value can only exceed the cap
+// through legacy data or a manual edit; the result row requires
+// `before + gain = after`, so the baseline has to be normalized as well.
+func NormalizeTotal(value, cap uint32) uint32 {
+	if cap > 0 && value > cap {
+		return cap
+	}
+	return value
+}
+
+// ClampGain applies one settlement gain to a stored total and reports the total
+// that is actually stored plus the gain that was actually applied. A stored
+// value above the cap is normalized first, because the result row enforces
+// `before + gain = after` and a legacy value would otherwise fail settlement.
+// A cap of zero means "no cap".
+func ClampGain(before, gain, cap uint32) (after, applied uint32) {
+	if cap > 0 && before > cap {
+		before = cap
+	}
+	// Sum in 64 bits: with no cap configured a stored total can already sit near
+	// the uint32 ceiling and the addition would wrap.
+	total := uint64(before) + uint64(gain)
+	if cap > 0 && total > uint64(cap) {
+		total = uint64(cap)
+	}
+	after = uint32(total)
+	if after > before {
+		applied = after - before
+		if applied > gain {
+			applied = gain
+		}
+	}
+	return after, applied
+}
+
 // Item is one inventory row.
 type Item struct {
 	RowID        uint64
@@ -1307,7 +1347,7 @@ type Result struct {
 type LevelFn func(experience uint32) (level, start, next uint32)
 
 // SaveResult writes a finished match, awards and progression updates.
-func (db *DB) SaveResult(result Result, levels LevelFn) error {
+func (db *DB) SaveResult(result Result, levels LevelFn, maxExperience uint32) error {
 	ctx, cancel := db.ctx()
 	defer cancel()
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -1337,12 +1377,28 @@ func (db *DB) SaveResult(result Result, levels LevelFn) error {
 			 WHERE c.id = ?`, player.CharacterID).Scan(&experienceBefore, &lucciBefore); err != nil {
 			return err
 		}
-		experienceAfter := experienceBefore + player.ExperienceGain
-		lucciAfter := lucciBefore + player.LucciGain
+		// Both totals are clamped the same way the reference clamps experience
+		// (min(total + gain, cap)). The baseline is normalized first: the result row
+		// enforces `before + gain = after`, so a legacy value above the cap has to
+		// be pinned before the gain is applied, or the insert is rejected.
+		experienceBefore = NormalizeTotal(experienceBefore, maxExperience)
+		lucciBefore = NormalizeTotal(lucciBefore, MaxLucci)
+		experienceAfter, appliedGain := ClampGain(experienceBefore, player.ExperienceGain, maxExperience)
+		lucciAfter, appliedLucci := ClampGain(lucciBefore, player.LucciGain, MaxLucci)
 		levelAfter, levelStart, nextLevel := levels(experienceAfter)
 		levelBefore, _, _ := levels(experienceBefore)
+		// The result table only accepts levels 1..200.
 		if levelAfter < 1 {
 			levelAfter = 1
+		}
+		if levelAfter > 200 {
+			levelAfter = 200
+		}
+		if levelBefore < 1 {
+			levelBefore = 1
+		}
+		if levelBefore > 200 {
+			levelBefore = 200
 		}
 		if levelStart > experienceAfter {
 			levelStart = experienceAfter
@@ -1359,7 +1415,7 @@ func (db *DB) SaveResult(result Result, levels LevelFn) error {
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
 			resultID, player.Slot, player.CharacterID, player.AccountID, player.Nickname,
 			player.Team, player.Bubbles, player.Pangs, player.Rescues, experienceBefore,
-			experienceAfter, lucciBefore, lucciAfter, player.ExperienceGain, player.LucciGain,
+			experienceAfter, lucciBefore, lucciAfter, appliedGain, appliedLucci,
 			levelAfter, levelStart, nextLevel, levelBefore)
 		if err != nil {
 			return mapError(err)

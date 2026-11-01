@@ -2,18 +2,34 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.1.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.1.3-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.1.1**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+当前版本 **v0.1.3**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
 
-v0.1.1 修的是一个对局内卡死问题：中继把服务端本应自己消费的控制包（主要是
-`C8`/`C9` 对端直连声明）也转发给了对端，接收方因此尝试建立 P2P 连接，超时几十秒不动。
-现在中继只转发白名单内的对局内状态包，详见[中继转发策略](#中继转发策略)。
+v0.1.3 修三处：
+
+1. **对局内「有人像雕像」的卡死**，根因是**同步阻塞写**：服务端每帧都是持锁
+   `conn.Write`，而中继在一个 goroutine 里按顺序写给所有对端，只要有一台客户端短暂
+   不读（卡顿、后台、加载），整条转发循环连同后面所有人的流都被堵住——被堵的那台读
+   方向正常，还在发位置、照常掉血泡封，但别人收不到它的位置。现在两条连接都改成
+   **入队 + 独立 writer goroutine**，队列超限只断开那一条连接，见
+   [发送队列与背压](#发送队列与背压)。
+2. **复活点和队友重叠**：同队两人总是落在同一个标记上，连续复活也不轮换。现在是
+   **每名队友独享队内一段标记**（`stride = team_spawn_count / 本队人数`），两人一队时
+   一人用 1~4、另一人用 5~8，互不干扰；同时进房改为按人数较少的一队分配，见
+   [复活点](#复活点) 与 [队伍分配与平衡](#队伍分配与平衡)。
+3. **结算的经验与金币会「界面多给、库里少存」**：写库和结果界面各算一遍，夹断规则不
+   一致；存量越界数据还会让 `game_result_players` 的 `before + gain = after` 约束
+   拒绝插入，整局结算失败。现在两处共用一个夹紧函数，界面上报的是**实际到账值**，见
+   [结算与上限](#结算与上限)。
+
+v0.1.1 的白名单（中继只转发对局内状态包、其余服务端自己消费）是与原版对齐的正确行为，
+保留不变，但它**不是**那次卡死的修复，见[中继转发策略](#中继转发策略)。
 
 ```bash
 git clone https://github.com/kanomahoro/bf-cn0261-go-server.git
@@ -76,10 +92,10 @@ cd bf-cn0261-go-server
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建，把版本号写进二进制
-go build -ldflags "-X main.Version=0.1.1" -o bin/bfserver ./cmd/bfserver
+go build -ldflags "-X main.Version=0.1.3" -o bin/bfserver ./cmd/bfserver
 
 ./bin/bfserver --version
-# BubbleFighter CN0261 Go Server v0.1.1  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.1.3  By:rurudoo
 ```
 
 ## 快速开始
@@ -286,7 +302,7 @@ FORCE=1 ./gen-cert.sh                              # 已存在时覆盖
 正常启动的日志：
 
 ```
-msg="BubbleFighter CN0261 Go Server v0.1.1  By:rurudoo"
+msg="BubbleFighter CN0261 Go Server v0.1.3  By:rurudoo"
 msg="[Application] environment" go=go1.27.3 config=Local/server.json database=bfserver@127.0.0.1:3306/bubblefighter_cn0261 gamePort=26100 authPort=26102 relayPort=26104
 msg="[Application] ready port=26100 protocol=cn0261-ticket-login"
 msg="[Relay] listening" port=26104
@@ -460,6 +476,21 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 日志同时写控制台与文件；目录不可写会导致**启动失败**，不会静默降级。
 `debug` 会记录每个进/出包，排查协议问题很有用，但一天能写满 5 MB，日常建议保持 `info`。
 
+级别约定（改日志时照着来）：
+
+| 级别 | 写什么 | 例子 |
+| --- | --- | --- |
+| `info` | 一局的骨架：开局、结束、结算落库；一局对局下来几行而已 | `[Round] started`、`[Round] ended`、`settlement clamped` |
+| `warn` | 玩家能感知、但服务端自己扛过去的问题 | `game result packet rejected`、`character reload failed`、`loading timed out`、`[Relay] registration timeout` |
+| `error` | 数据写不进去、连接 panic、启动失败 | `settlement failed`、`startup failed` |
+| `debug` | 单个包的故事：进/出包、复活细节、被规则丢弃的包、重复到的确认包 | `inbound`、`[Relay] inbound`、`[Respawn] completed`、`[Respawn] confirmation ignored` |
+
+原则：**INFO 回答「这一局发生了什么」，DEBUG 回答「这个包发生了什么」。** 复活属于后者
+——一局可能复活几十次，对开服的人没有信息量，所以 `[Respawn] completed` 放在 DEBUG，
+一行说清（下发的 `spawn`、客户端回传值、是否采纳、状态是否推进）；重复到达的确认包同样
+只在 DEBUG。**INFO 下打一局通常只有 3 行**：`[Round] started`、`[Round] ended`、
+`round cancelled`；出现夹断时再多一行 `settlement clamped`。
+
 ### `config/` 目录里的数据表
 
 | 文件 | 内容规模 | 管什么 |
@@ -588,8 +619,7 @@ gen-cert.sh             生成认证端自签证书
 ## 实现说明
 
 - **并发模型**：原版是 Boost.Asio 单线程事件循环，状态天然无锁；Go 版改为每连接
-  一个 goroutine，共享状态加锁，且**所有网络写在锁外**（先取快照再发送，避免慢客户端
-  拖住整个房间）。
+  一个 goroutine，共享状态加锁，网络写统一走每连接一条发送队列（见下一节）。
 - **受害者上报**：与原版一致，服务端不计算伤害，只校验客户端上报的击倒/泡封/救援/
   踢击事件并计分；队伍分 = 该队成员 Pang 数之和，达到 `game.values128[0]`（默认 20）结束对局。
 - **单频道**：服务端只运行大厅频道 `60/0`。客户端工具栏仍显示两个频道，选第二个会收到
@@ -597,6 +627,96 @@ gen-cert.sh             生成认证端自签证书
 - **新手手雷**：新建角色额外获得 100 颗手雷（物品 205003）并装备在特殊武器槽 21。
   原版商城没有这个商品，这是本实现的额外设定，改 `internal/store/store.go` 的
   `StarterGrenades` 即可调整。
+
+### 发送队列与背压
+
+原版 `TcpListener::Send` 从不直接写 socket：每帧入队后立即返回，由独立协程
+`async_write`；队列超过 `kMaxQueuedBytes`（8 MiB）就 `Stop()` 那个 session——只断它，
+绝不影响其他连接。
+
+Go 版两条连接（26100 游戏端口、26104 中继端口）采用同样的模型：
+
+- `connection.Send` / `relayConn.send` 只做编码 + 入队，调用方**永不阻塞**
+- 每条连接一个 writer goroutine，是该 socket 唯一的写入者
+- 上限 8 MiB 或 8192 帧，超限时关闭这条连接并打 WARN
+  （`[Network] closing connection` / `[Relay] write failed; closing connection`）
+
+这条不是优化，是正确性：转发循环是「一个 goroutine 顺序写给所有对端」，只要允许
+同步写，一台客户端不读就能让整个房间的同步流停摆。改动前请确认这一约束仍然成立。
+
+### 复活点
+
+复活（`S708`）携带的地图标记编号由服务端决定：
+
+```
+stride      = team_spawn_count / 本队人数
+spawn_index = team * 10 + teammate_ordinal * stride + respawn_count % stride + 1
+```
+
+- `team_spawn_count` 来自地图表（本项目 57 张图都是 8），编号只会落在该地图定义过的
+  T11..T18 / T21..T28 之内，不会把角色丢到地图外
+- **每个队友独占队内一段标记**：两人一队时各 4 个点，第一个人用 1~4、第二个人用 5~8，
+  各自在自己的份额里轮换。所以**无论座位怎么排、死亡次数怎么错开，队友都不会重叠**
+- 原版是整队共用一条环形标记（`slot/2 + respawn_count`，每次 +1），两个队友只差一步，
+  死几次之后就会踩到对方正在站着的点上——v0.1.2 及更早版本照搬了这条环形，现场表现为
+  「复活后和队友叠在同一个点」，所以改成分段独占
+- 每次复活 `respawn_count++`，`respawn_count` 每局清零
+
+复活的收尾有两条路径：游戏连接的 `C704` 和中继上的 `P32925`（客户端上报“复活完成”）。
+任一条到达都会把角色状态推回 `active` 并广播 `S707`，所以即使某一条丢了，角色也不会
+卡在“已确认未激活”的状态里。客户端回传的标记只要在本队区块内就以客户端为准。
+
+`BattleLife.OfferRespawn` 还会校验 `spawn_index/10 == team` 且
+`spawn_index%10 ∈ [1,8]`，不合法时宁可不发 `S708`；这条校验是最后一道闸，正常路径下
+`NextSpawnIndex` 已经保证了范围。
+
+### 结算与上限
+
+结算写库与结果界面（`S729`）共用同一个夹紧函数 `store.ClampGain`：
+先归一化存量越界值，再加增益并夹断，返回**实际到账值**。
+
+```
+before'  = min(before, cap)          # NormalizeTotal，先钉住基值
+after    = min(before' + gain, cap)  # 64 位求和，避免无上限配置时回绕
+applied  = after - before'           # 界面与结果表都显示这个值
+```
+
+为什么必须先归一化基值：`game_result_players` 上有
+`CHECK (experience_before + experience_gain = experience_after)`（金币同理）。只夹
+结果值、把 9000 这样的存量越界值原样写进去，`9000 + 0 ≠ 4500`，插入会被数据库拒绝，
+结算重试三次全失败后整局取消——**一局白打，且没有结算界面**。
+
+| 项 | 上限 | 常量 | 到顶时 |
+| --- | --- | --- | --- |
+| 经验 | 等级表最后一级阈值（本项目 4500） | `Progression.MaxExperience()` | 界面 +0 |
+| 金币 | 10,000,000 | `store.MaxLucci` | 界面 +0 |
+
+- 经验对齐原版 `Advance` 的 `min(experience + gain, thresholds.back())`
+- **读取侧保持严格**：越界数据在登录时直接报错（`S105` 发不出去），不会悄悄修补，
+  需要用 SQL 手工压回上限
+- 发生夹断时打一行 INFO `settlement clamped`，经验与金币各自的 `before/after/gain` 都在
+  里面，现场可以直接对数；`S729` 被协议拒绝、角色重载失败、`S105` 刷新失败这三种玩家能
+  感知的错误是 WARN
+
+### 队伍分配与平衡
+
+进房时按**人数较少的一队**分配（原版 `ChooseTeam` 同款），手动换队（`C515`）受
+「一队最多占满 8 个座位的一半」限制，和原版 `kRoomCapacity / 2` 一致。
+
+八人依次进房的结果：
+
+| 顺序 | 分到 | 顺序 | 分到 |
+| --- | --- | --- | --- |
+| 1 | 队 1 | 5 | 队 1 |
+| 2 | 队 2 | 6 | 队 2 |
+| 3 | 队 1 | 7 | 队 1 |
+| 4 | 队 2 | 8 | 队 2 |
+
+最终 `4 : 4`，座位 `1,2,1,2,1,2,1,2`。开局要求两队人数相等且除房主外全部就绪，
+否则房主会收到 `StartUnequal` / `StartNotReady` 的失败提示。
+
+房间容量取房间设置里的 `capacity`，`≤0` 或 `>8` 时按 8 处理；中途有人退出后新人补位
+仍按「人少的那队」分配，所以队伍不会越走越偏。
 
 ### 中继转发策略
 
@@ -629,10 +749,10 @@ Go 版保留同样的边界——`internal/net/relay.go` 的 `relayForwardable` 
 | `C32840` | 对端 ping | 原版只回给发送者（`Never broadcast this probe`） |
 | `C32904` | 复活请求镜像 | 服务端已处理 |
 
-> **`C8`/`C9` 就是 v0.1.1 修的那个卡死 bug 的根因。** 把它们转发出去会让接收方
-> 以为已经和对方直连，于是去发起 P2P 连接；纯中继部署下这个连接永远建不起来，
-> 客户端会因此卡住几十秒，然后自己恢复。表现得就是“对局中一方看另一方定住不动，
-> 但伤害还能结算”。以后再动这张白名单前请先读这段。
+> **不要把这张白名单当成卡死修复。** 它是与原版对齐的语义修正（原版同样不下发这些包），
+> 但 v0.1.1 之后问题依旧复现——真正的根因是同步阻塞写，见[发送队列与背压](#发送队列与背压)。
+> 转发 `C8`/`C9` 会让对端误以为存在直连、进而发起注定失败的 P2P 尝试，属于应当避免的
+> 行为，所以白名单继续保留。以后再动它之前请把这两段一起读。
 
 ## 已知限制
 
@@ -653,7 +773,11 @@ Go 版保留同样的边界——`internal/net/relay.go` 的 `relayForwardable` 
 | 启动报找不到 `authentication_certificate.pem` | `authentication.enabled` 为 true 但没生成证书：跑 `./gen-cert.sh`，或先置为 false |
 | 登录器注册提示"邀请码不正确" | 服务端配了 `authentication.inviteCode`，填入同一个码即可；留空表示开放注册 |
 | 登录器注册提示"服务繁忙" | 触发了按 IP 的注册限流（默认 5 次/小时、20 次/天），等窗口过去或调整配置 |
-| 对局中对方定住不动、几十秒后自己恢复 | v0.1.0 的中继转发 bug（`C8`/`C9` 被转发给对端，客户端去连 P2P 卡住）。升级到 v0.1.1 即可，见[中继转发策略](#中继转发策略) |
+| 对局中对方定住不动、自己还在掉血/泡封 | v0.1.2 及更早版本的同步阻塞写缺陷（一台客户端不读就堵住整个转发循环）。升级到 v0.1.3 即可，见[发送队列与背压](#发送队列与背压) |
+| 复活后和队友叠在同一个点 | v0.1.2 及更早版本没有实现复活点轮换。升级到 v0.1.3 即可，见[复活点](#复活点) |
+| 满级角色打完一局经验一点不涨 | 正常：经验在结算时被夹到等级表上限（4500），界面显示 +0。日志里有 `settlement clamped` 即生效 |
+| 金币到 1000 万后不再增加 | 正常：金币上限 `store.MaxLucci = 10,000,000`，超出部分不发放，界面显示实际到账值 |
+| 打完一局没有结算界面 | 说明 `S729` 被协议校验拒绝。搜日志 `game result packet rejected`（WARN），常见原因是角色数据异常（账号 id 或昵称校验不通过） |
 
 ## 许可证
 

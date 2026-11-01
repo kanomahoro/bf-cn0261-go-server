@@ -31,17 +31,20 @@ type relayReservation struct {
 //
 // The reference server drops an unidentified connection after five seconds,
 // but a real client only sends ReqJoinRelaySession once its scene finished
-// loading. Two clients sharing one machine, or a slow disk, easily need longer
-// than five seconds, and the match then runs without a relay for that member:
-// peers see it frozen in place for the rest of the round. Twenty seconds still
-// bounds the accept budget without punishing slow loaders.
-const relayRegistrationTimeout = 20 * time.Second
+// loading. Machines that are busy with several clients, or a slow disk, easily
+// need longer than five seconds, and the match then runs without a relay for
+// that member: peers see it frozen in place for the rest of the round. Thirty
+// seconds still bounds the accept budget without punishing slow loaders.
+const relayRegistrationTimeout = 30 * time.Second
 
 // relayConn is one client connected to the relay port.
 type relayConn struct {
 	conn   net.Conn
 	codec  *protocol.LambdaCodec
 	mu     sync.Mutex
+	out    chan []byte
+	queued int
+	closed bool
 	roomID uint16
 	slot   uint8
 	joined bool
@@ -50,14 +53,49 @@ type relayConn struct {
 	released bool
 }
 
+// writeLoop drains one relay connection's outbound queue.
+func (r *relayConn) writeLoop(log *slog.Logger) {
+	for frame := range r.out {
+		if _, err := r.conn.Write(frame); err != nil {
+			r.mu.Lock()
+			if !r.closed {
+				r.closed = true
+				if log != nil {
+					log.Warn("[Relay] write failed; closing connection", "room", r.roomID, "slot", r.slot)
+				}
+			}
+			r.mu.Unlock()
+			_ = r.conn.Close()
+			return
+		}
+		r.mu.Lock()
+		r.queued -= len(frame)
+		r.mu.Unlock()
+	}
+}
+
+// send queues one frame. A peer that stops reading is disconnected instead of
+// blocking the goroutine that is forwarding to everybody else.
 func (r *relayConn) send(p protocol.Packet) {
-	frame, err := r.codec.Encode(p)
-	if err != nil {
+	r.mu.Lock()
+	if r.closed {
+		r.mu.Unlock()
 		return
 	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	_, _ = r.conn.Write(frame)
+	frame, err := r.codec.Encode(p)
+	if err != nil {
+		r.mu.Unlock()
+		return
+	}
+	if r.queued+len(frame) > maxQueuedBytes || len(r.out) >= maxOutboundFrames {
+		r.closed = true
+		r.mu.Unlock()
+		_ = r.conn.Close()
+		return
+	}
+	r.queued += len(frame)
+	r.out <- frame
+	r.mu.Unlock()
 }
 
 // RelayDisconnectHandler reports that a member's relay transport went away
@@ -251,7 +289,11 @@ func (r *Relay) Serve(ctx context.Context) error {
 }
 
 func (r *Relay) handle(conn net.Conn) {
-	client := &relayConn{conn: conn, codec: protocol.NewLambdaCodec(protocol.EndpointServer)}
+	client := &relayConn{
+		conn:  conn,
+		codec: protocol.NewLambdaCodec(protocol.EndpointServer),
+		out:   make(chan []byte, maxOutboundFrames),
+	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			r.log.Error("[Relay] connection panic", "panic", recovered)
@@ -267,6 +309,7 @@ func (r *Relay) handle(conn net.Conn) {
 	if _, err := conn.Write(protocol.Greeting()); err != nil {
 		return
 	}
+	go client.writeLoop(r.log)
 	// A connection that never identifies itself would sit in the accept budget
 	// until the idle timeout; the reference server drops it after five seconds.
 	timeout := r.registrationTimeout
@@ -278,7 +321,7 @@ func (r *Relay) handle(conn net.Conn) {
 		joined := client.joined
 		r.mu.Unlock()
 		if !joined {
-			r.log.Info("[Relay] registration timeout", "remote", conn.RemoteAddr().String())
+			r.log.Warn("[Relay] registration timeout", "remote", conn.RemoteAddr().String())
 			conn.Close()
 		}
 	})

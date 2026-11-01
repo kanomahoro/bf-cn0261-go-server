@@ -272,6 +272,16 @@ func (p Progression) EvaluateResult(bubbles, pangs, rescues uint16) Award {
 
 // Level returns the level, its starting experience and the next level
 // threshold for a total experience value.
+// MaxExperience returns the last configured level threshold. The reference
+// clamps a character's total experience to it, so a stored value can never grow
+// past the table.
+func (p Progression) MaxExperience() uint32 {
+	if len(p.LevelExperience) == 0 {
+		return 0
+	}
+	return p.LevelExperience[len(p.LevelExperience)-1]
+}
+
 func (p Progression) Level(experience uint32) (level, start, next uint32) {
 	if len(p.LevelExperience) == 0 {
 		return 1, 0, experience

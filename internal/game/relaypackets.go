@@ -153,7 +153,7 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	if room == nil || !room.StartedReport() {
 		return
 	}
-	s.log.Info("relay transport lost; cancelling round",
+	s.log.Warn("relay transport lost; cancelling round",
 		"room", roomID, "slot", slot)
 	s.cancelRound(room)
 }
