@@ -40,6 +40,8 @@ say()   {
 ok()    { say "${c_g}  ✓${c_reset} $*"; }
 info()  { say "    $*"; }
 warn()  { say "${c_y}  !${c_reset} $*"; }
+# 敏感值只给屏幕，绝不进日志文件
+say_secret() { printf '%s\n' "$*"; }
 die()   { say "${c_r}  ✗ $*${c_reset}"; exit 1; }
 step()  { STEP=$1; say ""; say "${c_b}${c_c}[$1/$TOTAL_STEPS] $2${c_reset}"; }
 TOTAL_STEPS=8
@@ -140,6 +142,9 @@ fi
 # ============================================================================
 # 1. 环境体检
 # ============================================================================
+
+[ -f "$LOG_FILE" ] || : > "$LOG_FILE"
+chmod 600 "$LOG_FILE" 2>/dev/null || true
 
 say "${c_b}泡泡战士 CN0261 服务端 · 安装程序 v${VERSION}${c_reset}"
 say "日志：${LOG_FILE}"
@@ -250,7 +255,7 @@ else
 fi
 info "公网 IP：${PUBLIC_IP}"
 info "邀请码：${INVITE_CODE}"
-info "数据库密码：${DB_PASS:0:4}……（共 24 位，装完会完整告诉你）"
+info "数据库密码：已随机生成 24 位，装完完整显示（不写日志）"
 info "模式：$([ "$MODE" = "fresh" ] && echo 全新安装 || echo 更新)"
 
 # ============================================================================
@@ -517,8 +522,8 @@ say "${c_g}${c_b}─────────────────────
 say " 公网 IP    : ${c_b}${PUBLIC_IP}${c_reset}"
 say " 端口       : 游戏 26100 · 认证 26102 · 中继 26104"
 say " 数据库     : ${DB_NAME} / 用户 ${DB_USER}"
-say " ${c_y}数据库密码 : ${DB_PASS}${c_reset}"
-say " ${c_y}注册邀请码 : ${INVITE_CODE}${c_reset}   ← 玩家用登录器注册时要填这个"
+say_secret " ${c_y}数据库密码 : ${DB_PASS}${c_reset}"
+say_secret " ${c_y}注册邀请码 : ${INVITE_CODE}${c_reset}   ← 玩家用登录器注册时要填这个"
 say " 配置文件   : ${PREFIX}/config/server.json（权限 600）"
 say " 安装记录   : ${SECRET_FILE}（上面两项也存这里，别外传）"
 say " 运行日志   : ${PREFIX}/Logs/Server.log"
