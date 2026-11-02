@@ -417,9 +417,12 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		s.log.Warn("dropped item rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
-	if !s.cfg.ItemMode.AcceptClientBoxDrops {
-		s.log.Debug("client box request ignored: acceptClientBoxDrops is off",
-			"room", room.ID, "slot", session.slot, "kind", request.Kind)
+	if request.Kind == 0 && !s.cfg.ItemMode.AcceptRandomBoxDrops {
+		// A random box is what the client asks for on every knock-down. The 2015
+		// game does not place one there, so the request is dropped: honouring it
+		// litters the map with neutral question boxes.
+		s.log.Info("knock-down box request ignored (not an original behaviour)",
+			"room", room.ID, "slot", session.slot)
 		return nil
 	}
 	room.mu.Lock()
@@ -445,6 +448,17 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	state.lastID++
 	objectID := state.lastID
 	state.dropped[objectID] = request.Kind
+	// A thrown item leaves the hand: without this the round keeps believing the slot
+	// is occupied, refuses every later pickup and the player cannot use what it does
+	// not know about.
+	thrownSlot := -1
+	if request.Kind != 0 {
+		if held := state.held[session.slot]; held != nil {
+			if slot, ok := held.remove(request.Kind); ok {
+				thrownSlot = slot
+			}
+		}
+	}
 	room.mu.Unlock()
 
 	// The client states the class itself (10000 for an ordinary throw, 20000 for a
@@ -454,7 +468,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: 0,
 	}))
 	s.log.Info("[Supplies] box dropped", "room", room.ID, "slot", session.slot,
-		"kind", request.Kind, "object", objectID, "class", class)
+		"kind", request.Kind, "object", objectID, "class", class, "thrown_slot", thrownSlot)
 	return nil
 }
 
@@ -566,6 +580,17 @@ func (h *heldItems) use() (kind uint32, slot int, ok bool) {
 	kind, slot = h.kinds[h.selected], h.selected
 	h.kinds[h.selected] = 0
 	return kind, slot, true
+}
+
+// remove clears the slot that holds the given kind and reports which one it was.
+func (h *heldItems) remove(kind uint32) (int, bool) {
+	for slot := range h.kinds {
+		if h.kinds[slot] == kind {
+			h.kinds[slot] = 0
+			return slot, true
+		}
+	}
+	return -1, false
 }
 
 // trySwitch selects the other slot when it holds an item.
@@ -686,7 +711,7 @@ func (s *Server) runSupplies(room *Room, state *supplyRound) {
 // handleItemPeerPacket takes one item packet a client reported, whichever
 // connection it arrived on: the creation envelope is checked, a box is
 // remembered by its own id and the packet is passed to the other members.
-func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet) error {
+func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, viaRelay bool) error {
 	room := session.room
 	if room == nil || !seated(session) || !s.itemMode(room) {
 		return nil
@@ -698,28 +723,37 @@ func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet) 
 	if packet.ID == 32832 {
 		s.noteClientBox(room, objectID, box)
 	}
-	s.forwardItemPacket(room, session.slot, packet)
+	s.forwardItemPacket(room, session.slot, packet, viaRelay)
 	return nil
 }
 
 // forwardItemPacket relays one client-reported item packet to the other members
 // over their relay connections when the round runs the item mode. The clients
 // own these events; the server only keeps them inside the match.
-func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet) {
-	if s.relay == nil || !s.itemMode(room) {
+func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet, viaRelay bool) {
+	if !s.itemMode(room) {
 		return
 	}
+	sent := 0
 	for _, member := range room.View() {
 		if !member.Occupied || member.Slot == from {
 			continue
 		}
-		// Same transport it arrived on, with the game connection as the fallback
-		// for a member whose relay never joined.
-		if s.relay.SendToSlot(room.ID, uint8(member.Slot), packet) {
+		// The client dispatches these ids per connection, so the packet has to reach
+		// the peers on the same transport the sender used: a game-connection report
+		// that came back over the relay is parsed by a different handler (or not at
+		// all), which is how an item effect ends up visible only to the player who
+		// used it.
+		if viaRelay && s.relay != nil && s.relay.SendToSlot(room.ID, uint8(member.Slot), packet) {
+			sent++
 			continue
 		}
-		_ = member.Session.Send(packet)
+		if member.Session.Send(packet) == nil {
+			sent++
+		}
 	}
+	s.log.Debug("[Supplies] item packet forwarded", "room", room.ID, "id", packet.ID,
+		"bytes", len(packet.Payload), "from", from, "to", sent, "relay", viaRelay)
 }
 
 // itemRelayAllowed checks one client-reported item packet before it reaches the

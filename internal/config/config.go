@@ -128,13 +128,11 @@ type ItemMode struct {
 	// grants leave a phantom item that occupies a slot, cannot be used and stops
 	// further pickups. Turn this off to let the client own the slot.
 	ServerGrantsItem bool `json:"serverGrantsItem"`
-	// AcceptClientBoxDrops honours a client's request to put a box on the map
-	// (C2S gcpReqCreateItem). It is on by default because that is what the client
-	// uses for the boxes a round drops outside the map points and the respawn boxes
-	// - a real round shows one per knock-down, always kind 0 (a random box) with the
-	// ordinary-throw class. Turn it off to see the round without them: throwing a
-	// held item at another player would then not produce a box either.
-	AcceptClientBoxDrops bool `json:"acceptClientBoxDrops"`
+	// AcceptRandomBoxDrops honours a client's request to place a random box (kind 0).
+	// It is off by default: the client asks for one on every knock-down, which the
+	// 2015 game does not do, and honouring it fills the map with neutral question
+	// boxes. A request with a real kind is a thrown held item and is always honoured.
+	AcceptRandomBoxDrops bool `json:"acceptRandomBoxDrops"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

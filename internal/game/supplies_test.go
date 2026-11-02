@@ -479,3 +479,65 @@ func TestOtherColourPickupRefusedWhenEnforced(t *testing.T) {
 		t.Fatal("a refused box must stay on the map")
 	}
 }
+
+// dropBody builds the C2S gcpReqCreateItem body: six floats, the kind and two words.
+func dropBody(kind, class uint32) []byte {
+	w := protocol.NewWriter()
+	for _, v := range []float32{1, 2, 3, 0, 0, 0} {
+		w.Float(v)
+	}
+	w.Unsigned(kind)
+	w.Unsigned(0)
+	w.Unsigned(class)
+	return w.Payload()
+}
+
+// TestKnockDownBoxRequestIgnored covers the request the client sends on every
+// knock-down: a kind-0 random box, which the 2015 game does not place.
+func TestKnockDownBoxRequestIgnored(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	packet := protocol.Packet{ID: protocol.CCreateItem, Payload: dropBody(0, 10000)}
+	if err := server.handleCreateItem(session, packet); err != nil {
+		t.Fatalf("handleCreateItem: %v", err)
+	}
+	if len(room.supplies.dropped) != 0 {
+		t.Fatalf("a knock-down box request must be refused, dropped=%v", room.supplies.dropped)
+	}
+	if room.supplies.lastID != supplyObjectIDBase {
+		t.Fatal("a refused request must not consume a box id")
+	}
+}
+
+// TestThrownItemLeavesTheSlot keeps the round's slot state in step with the
+// client: throwing the held item clears the slot, otherwise every later pickup is
+// refused as "every item slot is taken".
+func TestThrownItemLeavesTheSlot(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	held := &heldItems{}
+	held.add(0, 138)
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{},
+		held: map[int]*heldItems{0: held}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	packet := protocol.Packet{ID: protocol.CCreateItem, Payload: dropBody(138, 10000)}
+	if err := server.handleCreateItem(session, packet); err != nil {
+		t.Fatalf("handleCreateItem: %v", err)
+	}
+	if held.kinds[0] != 0 {
+		t.Fatalf("the thrown item is still held: %v", held.kinds)
+	}
+	if len(room.supplies.dropped) != 1 {
+		t.Fatalf("the thrown box was not tracked: %v", room.supplies.dropped)
+	}
+}
