@@ -49,6 +49,8 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
+	// grantRepeatDelay is how long the server waits before repeating an item grant.
+	grantRepeatDelay = 350 * time.Millisecond
 	// respawnBoxWindow is how long after a seat comes back its client's random-box
 	// request counts as the respawn box. The 2015 client asks for it about five
 	// seconds after the revive.
@@ -427,11 +429,52 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	// a second grant would leave a phantom item that blocks the slot and cannot be
 	// used. itemMode.serverGrantsItem decides who owns the slot.
 	if s.cfg.ItemMode.ServerGrantsItem {
-		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
+		grant := protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot))
+		room.Broadcast(grant)
+		// A grant that lands while the client is still showing the previous pickup is
+		// sometimes dropped: the item then exists here and nowhere else, which used to
+		// block the seat for the rest of the round. One delayed repeat is harmless - it
+		// only runs while the slot still holds this kind - and gives the client a
+		// second chance to take it.
+		go s.repeatGrant(room, seat, itemSlot, kind, grant)
 	}
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
 	return nil
+}
+
+// repeatGrant sends the same item grant once more a moment later, but only while
+// the slot still holds that kind: a repeat for an item the client already used
+// would put it back.
+func (s *Server) repeatGrant(room *Room, seat, slot int, kind uint32, grant protocol.Packet) {
+	time.Sleep(grantRepeatDelay)
+	room.mu.RLock()
+	alive := grantStillHeldLocked(room, seat, slot, kind)
+	room.mu.RUnlock()
+	if !alive {
+		return
+	}
+	for _, member := range room.View() {
+		if member.Occupied && member.Slot == seat {
+			_ = member.Session.Send(grant)
+			break
+		}
+	}
+}
+
+// grantStillHeldLocked reports whether the round is still running and the slot
+// still holds this kind, which is what makes repeating a grant safe. The caller
+// holds the room mutex.
+func grantStillHeldLocked(room *Room, seat, slot int, kind uint32) bool {
+	state := room.supplies
+	if state == nil || state.round != room.tracking || !room.Started {
+		return false
+	}
+	held := state.held[seat]
+	if held == nil || slot < 0 || slot >= len(held.kinds) {
+		return false
+	}
+	return held.kinds[slot] == kind
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every
