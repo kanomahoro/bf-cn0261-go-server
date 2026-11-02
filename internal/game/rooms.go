@@ -57,6 +57,8 @@ type Room struct {
 	life         *BattleLife
 	pings        *PingTracker
 	defenseSeeds map[int]defenseSeeds
+	// supplies is the item-mode state of the running round, nil in other modes.
+	supplies *supplyRound
 
 	phase             int
 	loadingTimer      *time.Timer
@@ -1316,6 +1318,14 @@ func (s *Server) startRound(room *Room, tracking int) {
 
 	room.Broadcast(protocol.CreateGameStartReply(duration, uint32(tracking)))
 
+	// The item mode's box refresh starts with play and stops with the round.
+	room.mu.Lock()
+	supplies := room.supplies
+	room.mu.Unlock()
+	if supplies != nil {
+		s.startSupplies(room, supplies)
+	}
+
 	room.mu.Lock()
 	if room.endTimer != nil {
 		room.endTimer.Stop()
@@ -1354,6 +1364,7 @@ func (s *Server) cancelRound(room *Room) {
 	room.Setting.State = phaseOpen
 	room.life = nil
 	room.pings = nil
+	room.supplies = nil
 	room.defenseSeeds = map[int]defenseSeeds{}
 	room.defenseConfirmed = [8]bool{}
 	room.cancelConfirmed = [8]bool{}
@@ -1411,6 +1422,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	teamScores := room.teamScores
 	life := room.life
 	room.life = nil
+	room.supplies = nil
 	room.published = [8]protocol.BattleScore{}
 	room.teamScores = [2]uint16{}
 	setting := room.Setting

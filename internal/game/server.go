@@ -368,6 +368,16 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 			return fmt.Errorf("%w: expected empty peer table report", protocol.ErrInvalidPacket)
 		}
 		return nil
+	case 702: // ReqReportMapData superseded by the item mode's supply report
+		return s.handleMapReport(session, packet)
+	case 707: // EatItem: pick up a map box
+		return s.handleEatItem(session, packet)
+	case 708: // UseItem: spend the held item
+		return s.handleUseItem(session, packet)
+	case 728: // ReqCreateItem: throw a box
+		return s.handleCreateItem(session, packet)
+	case 744: // SwitchItemSlot
+		return s.handleSwitchItemSlot(session, packet)
 	case 801: // EnterShop
 		return s.handleShopEntry(session, packet)
 	case 802: // EnterInventory

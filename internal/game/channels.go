@@ -130,20 +130,14 @@ func (d *ChannelDirectory) Cancel(sessionID uint64, accountID uint32) {
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
 //
-// Only the normal mode (1) is accepted. The reference implementation also lets
-// the item mode (3) through, but it never implements a single item-mode rule —
-// no box spawning, no pickup or use validation, and C2015/C2017 are dropped on
-// purpose — so a mode-3 room would be a client-authoritative free-for-all with
-// the server scoring it as an ordinary match. Gate it off rather than advertise
-// a mode this server does not run.
-//
-// To bring it back, port the item-mode round logic first (the cn-717 dialect
-// has the reference tables: map-supplies.yaml for box/pickup payloads and
-// mode-control.yaml for the rules) and then accept mode 3 here again;
-// world.Maps.Candidates already filters maps by their itemMode flag.
+// The normal mode (1) and the item battle (3) are accepted. The 2015 client owns
+// the item mode's rules; the server owns the box kinds the build offers, the box
+// ownership it reports and the refresh of the host's map points (see
+// internal/game/supplies.go). world.Maps.Candidates already filters maps by
+// their itemMode flag.
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
-	if request.Mode != 1 {
+	if request.Mode != 1 && request.Mode != itemModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {
@@ -183,7 +177,11 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		if !ok {
 			return setting, fmt.Errorf("unknown map resource")
 		}
-		if !entry.NormalMode {
+		if request.Mode == itemModeID {
+			if !entry.ItemMode {
+				return setting, fmt.Errorf("map does not support the item mode")
+			}
+		} else if !entry.NormalMode {
 			return setting, fmt.Errorf("map does not support the normal mode")
 		}
 		if first, third := protocol.FromU16(request.Strings16[1]), protocol.FromU16(request.Strings16[3]); first != "" && third != "" && first != third {
