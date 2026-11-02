@@ -308,8 +308,8 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
 	room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
-	s.log.Debug("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
-		"item_slot", itemSlot, "object", objectID)
+	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
+		"item_slot", itemSlot, "object", objectID, "tracked", target != nil)
 	return nil
 }
 
@@ -340,6 +340,7 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
+	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind, "item_slot", itemSlot)
 	return nil
 }
 
@@ -386,6 +387,8 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	room.Broadcast(protocol.CreateSupplyCreate(objectID, class, protocol.SupplyReportPoint{
 		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: 0,
 	}))
+	s.log.Info("[Supplies] box dropped", "room", room.ID, "slot", session.slot,
+		"kind", request.Kind, "object", objectID, "class", class)
 	return nil
 }
 
@@ -422,6 +425,8 @@ func (s *Server) handleSwitchItemSlot(session *Session, packet protocol.Packet) 
 		return session.Send(protocol.CreateSupplySlotChanged(uint32(seat), uint32(itemSlot), kind, 1))
 	}
 	room.Broadcast(changed)
+	s.log.Info("[Supplies] item slot switched", "room", room.ID, "slot", seat,
+		"item_slot", itemSlot, "kind", kind)
 	return nil
 }
 
