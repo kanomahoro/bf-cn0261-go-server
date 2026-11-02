@@ -383,10 +383,10 @@ func TestUnknownBoxPickupIsIgnored(t *testing.T) {
 	}
 }
 
-// TestMapBoxScheduleIsOnByDefault covers the schedule gate: a real 2015 round
-// showed the client placing no map-point boxes while its C702 report states the
-// points, so the server spawns them unless the option is turned on to disable it.
-func TestMapBoxScheduleIsOnByDefault(t *testing.T) {
+// TestMapBoxScheduleIsAlwaysOn covers the schedule: a real 2015 round showed the
+// client placing no map-point boxes while its C702 report states the points, so
+// the server is the only source of them and always runs the schedule.
+func TestMapBoxScheduleIsAlwaysOn(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -398,21 +398,7 @@ func TestMapBoxScheduleIsOnByDefault(t *testing.T) {
 	running := state.running
 	room.mu.RUnlock()
 	if !running {
-		t.Fatal("the map box schedule must be on by default")
-	}
-
-	// The switch turns it off; a fresh state has to be refused.
-	server.cfg.ItemMode.DisableMapReportSpawns = true
-	off := &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		points:  []*supplyPoint{{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, MinMs: 1000, MaxMs: 2000}}},
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
-	room.supplies = off
-	server.startSupplies(room, off)
-	room.mu.RLock()
-	runningOff := off.running
-	room.mu.RUnlock()
-	if runningOff {
-		t.Fatal("disableMapReportSpawns must stop the schedule")
+		t.Fatal("the map box schedule must run for every item round")
 	}
 }
 
@@ -437,60 +423,6 @@ func TestOtherColourPickupIsStillGranted(t *testing.T) {
 	}
 	if held := room.supplies.held[0]; held == nil || held.kinds[0] != 138 {
 		t.Fatalf("held = %+v, want kind 138", held)
-	}
-}
-
-// TestPickupCreatesTheStateOnDemand covers a round whose state does not exist yet:
-// it is created for the pickup, and a box nothing announced is still refused.
-func TestPickupCreatesTheStateOnDemand(t *testing.T) {
-	server := newTestServer()
-	room := testItemRoom()
-	session := &Session{slot: 3, room: room}
-	room.slots[3].session = session
-	room.slots[3].team = 1
-	if room.supplies != nil {
-		t.Fatal("the room should start with no item-mode state")
-	}
-
-	body := protocol.NewWriter()
-	body.Unsigned(0x9999)
-	body.Unsigned(136)
-	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
-		t.Fatalf("handleEatItem: %v", err)
-	}
-	if room.supplies == nil {
-		t.Fatal("the pickup did not create the round's state")
-	}
-	if held := room.supplies.held[3]; held != nil && held.kinds[0] != 0 {
-		t.Fatalf("an unknown box must not be granted: %+v", held)
-	}
-}
-
-// TestOtherColourPickupRefusedWhenEnforced covers itemMode.enforceBoxColour: the
-// colour is bound to the team, so with the option on the other team's box is
-// refused and stays on the map.
-func TestOtherColourPickupRefusedWhenEnforced(t *testing.T) {
-	server := newTestServer()
-	server.cfg.ItemMode.EnforceBoxColour = true
-	room := testItemRoom()
-	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, held: map[int]*heldItems{},
-		clientBoxes: map[uint32]clientBox{0x6161: {kind: 138, team: 2}}}
-	session := &Session{slot: 0, room: room}
-	room.slots[0].session = session
-	room.slots[0].team = 1
-
-	body := protocol.NewWriter()
-	body.Unsigned(0x6161)
-	body.Unsigned(138)
-	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
-		t.Fatalf("handleEatItem: %v", err)
-	}
-	if held := room.supplies.held[0]; held != nil && held.kinds[0] != 0 {
-		t.Fatalf("the other team's colour was granted: %+v", held)
-	}
-	if _, ok := room.supplies.clientBoxes[0x6161]; !ok {
-		t.Fatal("a refused box must stay on the map")
 	}
 }
 

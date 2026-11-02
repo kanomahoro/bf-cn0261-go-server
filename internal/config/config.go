@@ -103,36 +103,13 @@ type Config struct {
 	Database           Database       `json:"database"`
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
-	ItemMode           ItemMode       `json:"itemMode"`
-}
-
-// ItemMode holds the item battle (client mode 3) options.
-type ItemMode struct {
-	// DisableMapReportSpawns turns off the server-side box schedule that the host's
-	// C702 report drives. Spawning is ON by default: a real 2015 round showed the
-	// client placing no map-point boxes at all while its C702 report states the
-	// points exactly (points=4, kinds accepted, intervals stated), so the server is
-	// the only source of the point boxes. Set it when a build is found to place the
-	// point boxes itself, or the map would show two boxes per point.
-	DisableMapReportSpawns bool `json:"disableMapReportSpawns"`
-	// EnforceBoxColour refuses a pickup whose box colour is the other team's. The
-	// colour is bound to the team (red/blue) and the clients refuse it themselves
-	// (kr-812 sub_6378A0), so this only adds server-side authority. It is off by
-	// default while the colour word's numbering is being confirmed on a real
-	// client: a wrong mapping would make a player unable to take their own boxes,
-	// which is worse than the client-only check the mode ships with.
-	EnforceBoxColour bool `json:"enforceBoxColour"`
-	// ServerGrantsItem makes the server tell a picker which item it now holds
-	// (S2C gspAddItemToSlot). It is on by default because that is what the
-	// reference does, but the 2015 client may grant the item itself as well: two
-	// grants leave a phantom item that occupies a slot, cannot be used and stops
-	// further pickups. Turn this off to let the client own the slot.
-	ServerGrantsItem bool `json:"serverGrantsItem"`
-	// AcceptRandomBoxDrops honours a client's request to place a random box (kind 0).
-	// It is off by default: the client asks for one on every knock-down, which the
-	// 2015 game does not do, and honouring it fills the map with neutral question
-	// boxes. A request with a real kind is a thrown held item and is always honoured.
-	AcceptRandomBoxDrops bool `json:"acceptRandomBoxDrops"`
+	// DeprecatedItemMode swallows the itemMode block that older configuration
+	// files carry. The four switches it held are gone: the behaviour they selected
+	// (server-spawned point boxes, a logged-only colour check on client-made boxes,
+	// a server-issued item grant, and a respawn-window-only random box) is now what
+	// the server always does. The field exists so an old file still loads, because
+	// the decoder refuses unknown keys.
+	DeprecatedItemMode json.RawMessage `json:"itemMode,omitempty"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

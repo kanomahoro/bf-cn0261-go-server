@@ -453,8 +453,6 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 | `gameMapsFile` | `config/game_maps.json` | 地图表 |
 | `gameWeaponsFile` | `config/game_weapons.json` | 武器表 |
 | `gameDefenseFile` | `config/game_defense.json` | 防具表 |
-| `itemMode.disableMapReportSpawns` | `false` | 关掉服务端按房主 C702 报告刷地图点位箱的行为。默认不关：实测 2015 客户端不会自己放点位箱子，点位箱由服务端生成；若某版本自己会放，打开它避免一个点位两个箱子 |
-| `itemMode.enforceBoxColour` | `false` | 是否由服务端硬拒别队颜色的箱子。颜色跟队伍绑定、客户端本来就会拒绝（kr-812 sub_6378A0），开启只增加服务端权威；默认关是因为颜色字的编号要先在真机确认，映射错了会导致连自己的箱子都捡不起来 |
 | `gameCharactersFile` | `config/game_characters.json` | 角色 / 频道 / 模式表 |
 | `gameRespawnFile` | `config/game_respawn.json` | 复活延迟表 |
 | `progressionFile` | `config/progression.json` | 等级、奖励、评级表 |

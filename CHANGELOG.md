@@ -26,15 +26,14 @@
     （`points=4 refused=0 intervals=true`，种类和队伍全部通过校验，说明十五个向量的
     顺序猜对了），而 2015 客户端**并不会自己放地图点位的箱子**——一局里桌子上一
     个都没有。所以服务端刷箱现在是**默认开启**的：开局立刻在每个点位放一个箱子，
-    之后按各自间隔补；`itemMode.disableMapReportSpawns` 用来关掉它（当某个版本
-    确认自己会放点位箱子时）。
+    之后按各自间隔补。
   - **未知箱子也认**：既然箱子由客户端创建，服务端没登记过编号的拾取请求同样
     成立（种类要在 `ItemSpecItem` 清单内，两个道具槽仍然限制持有量），否则一旦
     客户端换了创建包的时机，整局道具就全捡不起来。
   - **颜色规则**：红/蓝跟队伍**固定绑定**，别队的箱子客户端自己就不让捡
-    （kr-812 `sub_6378A0`）。服务端按 `32832` 里的颜色字再核一遍：默认只记
-    WARN，把 `itemMode.enforceBoxColour` 打开后改为硬拒（颜色字编号需先在真机
-    确认，映射错了会让玩家连自己的箱子都捡不起来）。
+    （kr-812 `sub_6378A0`）。服务端对客户端自建的箱子只按 `32832` 里的颜色字
+    记一条 WARN 后放行——颜色字编号尚未在真机确认，映射错了会让玩家连自己的箱子
+    都捡不起来；地图点位箱（颜色来自房主报告）仍然硬拒别队的。
   - **拾取与发放**：`C707 gcpEatItem` 通过后广播 `S712 gspItemEaten` +
     `S713 gspAddItemToSlot`。会被拒的只有三种：种类不在 `ItemSpecItem` 清单内、
     箱子是本局**已知点位**上的别队箱子、以及**两个道具槽都占满**（此时箱子留在
@@ -59,7 +58,7 @@
     击倒时和复活后几秒。2015 原版只有后者。真机日志显示复活箱在复活请求之后约
     4.7 秒由**同一个座位**发出，于是现在按"复活窗口"区分：复活后 12 秒内的
     `kind=0` 请求被接受，并且带上该座位的队伍颜色（客户端据此画成红/蓝箱）；
-    窗口之外的随机箱请求拒绝（`itemMode.acceptRandomBoxDrops` 可以放开）。
+    窗口之外的随机箱请求拒绝。
     真正把手持道具扔出去（`kind` 非 0）始终允许，并且会清掉对应槽位。
   - **4 种"拾取即生效"的道具**（10/11/15/16）不占槽位，单独处理。
   - **`S714` 必须照发**：曾经推断"客户端自己会通知其他人，服务端不必发"，结果是
@@ -151,6 +150,17 @@ Known caveat: the air strike (kind 136) shows its effect on both clients but dea
 no damage. The log shows the client sends no area-effect packet for it (only the
 direct-use packet and the object deletions), which this server forwards verbatim,
 so the damage path is inside the client; nothing on the server side is missing.
+
+### The itemMode configuration block is gone (2026-11-03)
+
+The four switches only ever described how the item battle was being figured out, and
+every one of them is now settled: point boxes are always spawned from the host's map
+report, a client-made box with the other team's colour is logged and allowed, the
+server always grants the picked item, and only the respawn box is honoured. They are
+removed from `config/server.json` and from the `Config` type, and the behaviour is
+stated where it is used. An old file that still carries the block keeps loading - the
+`itemMode` key is accepted and ignored, so nobody has to edit their configuration to
+upgrade - but a `config/server.json` from this build no longer has it.
 
 ### The item grant is sent once (2026-11-03)
 

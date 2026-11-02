@@ -266,8 +266,7 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	}
 	s.log.Info("[Supplies] map report", "room", room.ID, "points", len(points),
 		"refused", refused, "intervals", report.IntervalsStated,
-		"kinds", kinds, "teams", teams,
-		"server_spawn", !s.cfg.ItemMode.DisableMapReportSpawns)
+		"kinds", kinds, "teams", teams)
 	if playing {
 		s.startSupplies(room, state)
 	}
@@ -334,18 +333,19 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 				found = true
 				// The colour is bound to the team and the clients refuse the other
 				// team's box themselves (kr-812 sub_6378A0). The server only makes it
-				// authoritative when itemMode.enforceBoxColour is on: until the colour
-				// word's numbering is confirmed on a real client, a wrong mapping would
-				// stop a player from taking their own boxes.
+				// authoritative: the colour word's numbering is not confirmed on a real
+				// client, and a wrong mapping would stop a player from taking its own
+				// boxes.
+				// The colour word's numbering is only trusted so far: a wrong mapping would
+				// stop a player from taking their own boxes, which is worse than the check
+				// the client already does itself (kr-812 sub_6378A0), so a cross-colour
+				// pickup of a client-made box is logged and allowed. A server-made point
+				// box is still refused above, because there the colour comes from the map
+				// report rather than from a client.
 				if created.team != 0 && created.team != uint32(team) {
-					if s.cfg.ItemMode.EnforceBoxColour {
-						found = false
-						refusal = "a pickup of the other team's colour"
-					} else {
-						s.log.Warn("item mode: pickup of the other team's colour",
-							"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
-							"seat_team", suppliesColorName(uint32(team)))
-					}
+					s.log.Warn("item mode: pickup of the other team's colour",
+						"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
+						"seat_team", suppliesColorName(uint32(team)))
 				}
 			}
 		}
@@ -414,10 +414,9 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	room.mu.Unlock()
 
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	// The client that picked the box may already have put the item in its own slot;
-	// a second grant would leave a phantom item that blocks the slot and cannot be
-	// used. itemMode.serverGrantsItem decides who owns the slot.
-	if s.cfg.ItemMode.ServerGrantsItem {
+	// The server owns the slot: the client was verified not to add the item itself,
+	// so without this grant the box would vanish and the item bar stay empty.
+	{
 		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
 		// One grant, no repeats.
 		//
@@ -461,11 +460,10 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 	}
 	room.mu.Unlock()
 	if !found {
-		// The client asked to spend an item the round does not have for it. Either
-		// the client owns the slot itself (see itemMode.serverGrantsItem) or the two
+		// The client asked to spend an item the round does not have for it: the two
 		// sides disagree about what that seat holds.
 		s.log.Info("item use without a held item; nothing broadcast",
-			"room", room.ID, "slot", seat, "grants_item", s.cfg.ItemMode.ServerGrantsItem)
+			"room", room.ID, "slot", seat)
 		return nil
 	}
 	// The picker's own client applies the item from this packet: with it withheld a
@@ -497,8 +495,12 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		back := room.respawnAt[session.slot]
 		team := room.slots[session.slot].team
 		room.mu.RUnlock()
+		// Only the respawn box is honoured. The client asks for a random box on every
+		// knock-down too, which the 2015 game does not do; honouring it fills the map
+		// with neutral question boxes. A request naming a real kind is a thrown item
+		// and is handled below.
 		inside := !back.IsZero() && time.Since(back) <= respawnBoxWindow
-		if !inside && !s.cfg.ItemMode.AcceptRandomBoxDrops {
+		if !inside {
 			s.log.Debug("knock-down box request ignored", "room", room.ID, "slot", session.slot,
 				"since_respawn_ms", time.Since(back).Milliseconds())
 			return nil
@@ -723,9 +725,6 @@ func markSupplyRefusal(state *supplyRound) bool {
 
 // startSupplies begins the box refresh loop once play starts.
 func (s *Server) startSupplies(room *Room, state *supplyRound) {
-	if s.cfg.ItemMode.DisableMapReportSpawns {
-		return
-	}
 	room.mu.Lock()
 	if !supplyStartsLocked(room, state) {
 		room.mu.Unlock()

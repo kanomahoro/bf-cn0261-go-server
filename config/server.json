@@ -48,11 +48,5 @@
         "directory": "Logs",
         "maxFileSizeBytes": 5242880,
         "maxFiles": 3
-    },
-    "itemMode": {
-        "disableMapReportSpawns": false,
-        "enforceBoxColour": false,
-        "serverGrantsItem": true,
-        "acceptRandomBoxDrops": false
     }
 }
