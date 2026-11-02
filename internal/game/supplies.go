@@ -407,11 +407,15 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	itemSlot = held.firstEmpty()
 	if itemSlot < 0 {
-		itemSlot = 0
+		// The client asked for a box while this round believes both slots are taken,
+		// so the table is wrong somewhere. Clearing it and starting from slot 0 keeps
+		// a stale entry from surviving the rest of the round.
 		if log := markSupplyRefusal(state); log {
-			s.log.Warn("item slot state disagreed with the client; slot 0 replaced",
+			s.log.Warn("item slot state disagreed with the client; slots cleared",
 				"room", room.ID, "slot", seat, "held", held.kinds)
 		}
+		*held = heldItems{}
+		itemSlot = 0
 	}
 	// Commit: the box leaves the map and the item enters the slot.
 	if target != nil {
@@ -509,8 +513,11 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 			"room", room.ID, "slot", seat, "grants_item", s.cfg.ItemMode.ServerGrantsItem)
 		return nil
 	}
-	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
-	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind, "item_slot", itemSlot)
+	if s.cfg.ItemMode.BroadcastItemUsed {
+		room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
+	}
+	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind,
+		"item_slot", itemSlot, "broadcast", s.cfg.ItemMode.BroadcastItemUsed)
 	return nil
 }
 

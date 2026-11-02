@@ -53,6 +53,7 @@
         "disableMapReportSpawns": false,
         "enforceBoxColour": false,
         "serverGrantsItem": true,
-        "acceptRandomBoxDrops": false
+        "acceptRandomBoxDrops": false,
+        "broadcastItemUsed": false
     }
 }
