@@ -128,13 +128,6 @@ type ItemMode struct {
 	// grants leave a phantom item that occupies a slot, cannot be used and stops
 	// further pickups. Turn this off to let the client own the slot.
 	ServerGrantsItem bool `json:"serverGrantsItem"`
-	// BroadcastItemUsed makes the server tell every member which item a seat spent
-	// (S2C gspItemUsed). It is off by default: a real round shows the client sending
-	// its own gppUseItemDirect for every use (twelve uses, twelve forwards), so this
-	// packet only repeats what the peers already know - and it would carry the kind
-	// from this server's slot table, which is exactly the table that can disagree
-	// with the client.
-	BroadcastItemUsed bool `json:"broadcastItemUsed"`
 	// AcceptRandomBoxDrops honours a client's request to place a random box (kind 0).
 	// It is off by default: the client asks for one on every knock-down, which the
 	// 2015 game does not do, and honouring it fills the map with neutral question

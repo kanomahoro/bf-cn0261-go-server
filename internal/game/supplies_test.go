@@ -79,18 +79,17 @@ func TestMapPointKinds(t *testing.T) {
 	}
 }
 
-// TestCarriedKinds keeps the carried set at the item-mode sheet plus the immediate
-// kinds: the reference's fifty-eight row list is a union of several sheets,
-// including the zombie-PVE table, and four real rounds only produced these fifteen.
-func TestCarriedKinds(t *testing.T) {
-	for _, kind := range []uint32{0, 101, 102, 108, 109, 115, 120, 123, 127, 128, 130, 136, 137, 138, 139, 141, 10, 11, 15, 16} {
-		if !carriedKind(kind) {
-			t.Fatalf("kind %d must be a carried kind", kind)
+// TestKnownCarriedKinds covers the diagnostic set, not a refusal: a pickup is never
+// refused on its kind, but an unfamiliar one is logged.
+func TestKnownCarriedKinds(t *testing.T) {
+	for _, kind := range []uint32{101, 102, 108, 109, 115, 120, 123, 127, 128, 130, 136, 137, 138, 139, 141, 10, 11, 15, 16} {
+		if !knownCarriedKind(kind) {
+			t.Fatalf("kind %d must be known", kind)
 		}
 	}
-	for _, kind := range []uint32{103, 104, 112, 121, 129, 142, 201, 229, 1000} {
-		if carriedKind(kind) {
-			t.Fatalf("kind %d is not in the 2015 item sheet", kind)
+	for _, kind := range []uint32{0, 104, 112, 201, 229, 1000} {
+		if knownCarriedKind(kind) {
+			t.Fatalf("kind %d is not in the sheets this server knows", kind)
 		}
 	}
 }
@@ -606,10 +605,9 @@ func TestRespawnBoxIsAcceptedWithTeamColour(t *testing.T) {
 	}
 }
 
-// TestKindOutsideTheSheetIsRefused keeps the carried check honest: a kind the 2015
-// item sheet does not name (104 here, which only the zombie-PVE table carries) is
-// refused rather than handed to the seat.
-func TestKindOutsideTheSheetIsRefused(t *testing.T) {
+// TestUnfamiliarKindIsStillGranted keeps a box whose kind no sheet in this server
+// names: the client already took the box, so refusing would just lose the item.
+func TestUnfamiliarKindIsStillGranted(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -625,11 +623,8 @@ func TestKindOutsideTheSheetIsRefused(t *testing.T) {
 	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
 		t.Fatalf("handleEatItem: %v", err)
 	}
-	if held := room.supplies.held[0]; held != nil && held.kinds[0] != 0 {
-		t.Fatalf("kind 104 must not be carried: %+v", held)
-	}
-	if _, still := room.supplies.clientBoxes[0x3131]; !still {
-		t.Fatal("a refused pickup must leave the box on the map")
+	if held := room.supplies.held[0]; held == nil || held.kinds[0] != 104 {
+		t.Fatalf("kind 104 must be granted: %+v", held)
 	}
 }
 

@@ -186,15 +186,12 @@ func seated(session *Session) bool {
 	return session.slot >= 0 && session.slot < maxRoomSlots
 }
 
-// carriedKind reports whether a box may hold this kind once opened.
-//
-// The set is the item-mode sheet (mapPointKinds) plus the immediate kinds. The
-// reference's wider random_supply_item_kinds list is a union of several sheets -
-// it includes the zombie-PVE table and later builds' rows - so it is not what a
-// 2015 item battle can drop: four real rounds only ever produced these fifteen.
-// A kind outside this set is refused and logged, never granted silently.
-func carriedKind(kind uint32) bool {
-	return kind == 0 || mapPointKinds[kind] || immediateKinds[kind]
+// knownCarriedKind reports whether the kind appears in a sheet this server was told
+// about. An unfamiliar kind is only logged: the client decides what a box contains
+// and removes the box the moment it picks it, so refusing one loses the item (a
+// real round showed the box disappear and the HUD stay empty).
+func knownCarriedKind(kind uint32) bool {
+	return mapPointKinds[kind] || immediateKinds[kind]
 }
 
 // immediateKinds are the kinds that apply the moment they are picked up instead of
@@ -309,11 +306,14 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	team := room.slots[seat].team
+	if kind != 0 && !knownCarriedKind(kind) {
+		if log := markSupplyRefusal(state); log {
+			s.log.Warn("box carried a kind outside the known sheets; granted anyway",
+				"room", room.ID, "slot", seat, "kind", kind)
+		}
+	}
 	refusal := ""
-	switch {
-	case !carriedKind(kind):
-		refusal = "a pickup of an unknown item kind"
-	default:
+	{
 		for _, point := range state.points {
 			if point.ActiveID == 0 || point.ActiveID != objectID {
 				continue
@@ -501,11 +501,10 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 			"room", room.ID, "slot", seat, "grants_item", s.cfg.ItemMode.ServerGrantsItem)
 		return nil
 	}
-	if s.cfg.ItemMode.BroadcastItemUsed {
-		room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
-	}
-	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind,
-		"item_slot", itemSlot, "broadcast", s.cfg.ItemMode.BroadcastItemUsed)
+	// The picker's own client applies the item from this packet: with it withheld a
+	// whole round's items could not be used at all.
+	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
+	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind, "item_slot", itemSlot)
 	return nil
 }
 
@@ -550,14 +549,11 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		}
 		return nil
 	}
-	if !carriedKind(request.Kind) {
-		log := markSupplyRefusal(state)
-		room.mu.Unlock()
-		if log {
-			s.log.Warn("item mode refused a box; further refusals this round are not logged",
-				"room", room.ID, "reason", "a thrown box of an unknown kind")
+	if request.Kind != 0 && !knownCarriedKind(request.Kind) {
+		if log := markSupplyRefusal(state); log {
+			s.log.Warn("a thrown box carried a kind outside the known sheets; kept anyway",
+				"room", room.ID, "kind", request.Kind)
 		}
-		return nil
 	}
 	state.lastID++
 	objectID := state.lastID
