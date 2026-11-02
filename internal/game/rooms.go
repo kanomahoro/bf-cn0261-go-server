@@ -1110,6 +1110,9 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.characterReported = [8]bool{}
 	room.seedsSent = false
 	room.respawnCount = [8]uint32{}
+	// A fresh round starts with no item-mode state; the host reports its map
+	// points after the map loads.
+	room.supplies = nil
 	room.mu.Unlock()
 	for _, member := range room.View() {
 		if member.Occupied {

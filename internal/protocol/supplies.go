@@ -44,6 +44,16 @@ const (
 // leading word.
 const supplyReportVectors = 15
 
+// maxSupplyVectorEntries bounds a counted vector that does not describe the
+// supply points themselves: the report's earlier vectors describe the map's
+// other objects, which can outnumber the points.
+const maxSupplyVectorEntries = 4096
+
+// maxMapCoordinate rejects a report whose "positions" cannot be map positions.
+// The 2015 maps fit in a few thousand units, so anything past this is a layout
+// mismatch rather than a real point.
+const maxMapCoordinate = 100000
+
 // SupplyReportPoint is one map supply point the host reported.
 type SupplyReportPoint struct {
 	X, Y, Z float32
@@ -159,7 +169,7 @@ func ReadSupplyReport(packet Packet, maxPoints int) (SupplyReport, error) {
 		return report, err
 	}
 	// Vector 0: unused words.
-	if _, err := r.readUnsignedList(maxPoints); err != nil {
+	if _, err := r.readUnsignedList(maxSupplyVectorEntries); err != nil {
 		return report, err
 	}
 	positions, err := r.readPositionList(maxPoints)
@@ -186,15 +196,15 @@ func ReadSupplyReport(packet Packet, maxPoints int) (SupplyReport, error) {
 	for vector := 6; vector < supplyReportVectors; vector++ {
 		switch vector {
 		case 7, 11: // two more position vectors
-			if _, err := r.readPositionList(maxPoints); err != nil {
+			if _, err := r.readPositionList(maxSupplyVectorEntries); err != nil {
 				return report, err
 			}
 		case 14: // the trailing name vector
-			if err := r.readTextList(maxPoints); err != nil {
+			if err := r.readTextList(maxSupplyVectorEntries); err != nil {
 				return report, err
 			}
 		default:
-			if _, err := r.readUnsignedList(maxPoints); err != nil {
+			if _, err := r.readUnsignedList(maxSupplyVectorEntries); err != nil {
 				return report, err
 			}
 		}
@@ -205,8 +215,13 @@ func ReadSupplyReport(packet Packet, maxPoints int) (SupplyReport, error) {
 	}
 	report.Points = make([]SupplyReportPoint, len(positions))
 	for i := range positions {
-		if !finite(positions[i].X) || !finite(positions[i].Y) || !finite(positions[i].Z) {
-			return report, fmt.Errorf("%w: supply position is not finite", ErrInvalidPacket)
+		if !finite(positions[i].X) || !finite(positions[i].Y) || !finite(positions[i].Z) ||
+			absGreater(positions[i].X, maxMapCoordinate) || absGreater(positions[i].Y, maxMapCoordinate) ||
+			absGreater(positions[i].Z, maxMapCoordinate) {
+			return report, fmt.Errorf("%w: supply positions are not map coordinates", ErrInvalidPacket)
+		}
+		if kinds[i] > 0xFFFF {
+			return report, fmt.Errorf("%w: supply kind %d", ErrInvalidPacket, kinds[i])
 		}
 		report.Points[i] = SupplyReportPoint{
 			X: positions[i].X, Y: positions[i].Y, Z: positions[i].Z,
@@ -231,7 +246,9 @@ func ReadSupplyPickup(packet Packet) (objectID, kind uint32, err error) {
 	if kind, err = r.Unsigned(); err != nil {
 		return 0, 0, err
 	}
-	return objectID, kind, r.RequireEnd()
+	// Trailing words are tolerated: a mismatch in the tail must not cost the
+	// round its pickups, only the fields above are read.
+	return objectID, kind, nil
 }
 
 // ReadSupplyDrop decodes C728: six floats and three words.
@@ -268,7 +285,7 @@ func ReadSupplyDrop(packet Packet) (SupplyDropRequest, error) {
 		return request, err
 	}
 	request.Class = class
-	return request, r.RequireEnd()
+	return request, nil
 }
 
 // ReadSupplyCreate decodes the ten-word creation envelope the clients exchange
@@ -304,7 +321,7 @@ func ReadSupplyCreate(packet Packet, maxKind uint32) (objectID, class uint32, po
 	if maxKind > 0 && point.Kind > maxKind {
 		return 0, 0, point, fmt.Errorf("%w: created box kind %d", ErrInvalidPacket, point.Kind)
 	}
-	return objectID, class, point, r.RequireEnd()
+	return objectID, class, point, nil
 }
 
 // CreateSupplyCreate builds S711 with the ten-word creation envelope.
@@ -358,6 +375,11 @@ func CreateSupplySlotChanged(seat, slot, kind, result uint32) Packet {
 	w.Unsigned(kind)
 	w.Unsigned(result)
 	return Packet{ID: SSwitchItemSlot, Payload: w.Payload()}
+}
+
+// absGreater reports whether a coordinate is outside the map's usable range.
+func absGreater(v float32, limit float64) bool {
+	return math.Abs(float64(v)) > limit
 }
 
 // finite reports whether a float is usable as a coordinate.
