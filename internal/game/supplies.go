@@ -186,21 +186,15 @@ func seated(session *Session) bool {
 	return session.slot >= 0 && session.slot < maxRoomSlots
 }
 
-// carriedKinds is the set of kinds a box may hold once it is opened: the
-// ItemSpec rows the 2015 builds put in a random box (the reference's
-// random_supply_item_kinds). It is wider than mapPointKinds because a random box
-// resolves to something the map point itself never names - refusing those is what
-// made a picked box look like it could not be taken.
-var carriedKinds = map[uint32]bool{
-	101: true, 102: true, 104: true, 108: true, 109: true, 112: true, 115: true,
-	120: true, 121: true, 122: true, 123: true, 124: true, 125: true, 126: true,
-	127: true, 128: true, 129: true, 130: true, 131: true, 132: true, 134: true,
-	135: true, 136: true, 137: true, 138: true, 139: true, 141: true, 142: true,
-	143: true, 144: true, 145: true, 146: true, 147: true, 201: true, 203: true,
-	204: true, 207: true, 208: true, 209: true, 210: true, 211: true, 212: true,
-	213: true, 214: true, 215: true, 217: true, 218: true, 219: true, 220: true,
-	221: true, 222: true, 223: true, 224: true, 225: true, 226: true, 227: true,
-	228: true, 229: true,
+// carriedKind reports whether a box may hold this kind once opened.
+//
+// The set is the item-mode sheet (mapPointKinds) plus the immediate kinds. The
+// reference's wider random_supply_item_kinds list is a union of several sheets -
+// it includes the zombie-PVE table and later builds' rows - so it is not what a
+// 2015 item battle can drop: four real rounds only ever produced these fifteen.
+// A kind outside this set is refused and logged, never granted silently.
+func carriedKind(kind uint32) bool {
+	return kind == 0 || mapPointKinds[kind] || immediateKinds[kind]
 }
 
 // immediateKinds are the kinds that apply the moment they are picked up instead of
@@ -211,12 +205,6 @@ var immediateKinds = map[uint32]bool{10: true, 11: true, 15: true, 16: true}
 // box and is always allowed.
 func mapPointKind(kind uint32) bool {
 	return kind == 0 || mapPointKinds[kind]
-}
-
-// carriedKind reports whether a box may hold this kind once opened. The immediate
-// kinds count too: they apply on pickup instead of taking a slot.
-func carriedKind(kind uint32) bool {
-	return kind == 0 || carriedKinds[kind] || immediateKinds[kind]
 }
 
 // handleMapReport accepts the host's map supply report (C702) and starts the box

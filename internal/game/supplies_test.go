@@ -79,17 +79,18 @@ func TestMapPointKinds(t *testing.T) {
 	}
 }
 
-// TestCarriedKinds covers what a random box may hold once opened: the sheet is
-// wider than the map points' kinds, which is why a picked box used to be refused.
+// TestCarriedKinds keeps the carried set at the item-mode sheet plus the immediate
+// kinds: the reference's fifty-eight row list is a union of several sheets,
+// including the zombie-PVE table, and four real rounds only produced these fifteen.
 func TestCarriedKinds(t *testing.T) {
-	for _, kind := range []uint32{0, 101, 102, 104, 108, 112, 115, 120, 121, 129, 136, 141, 146, 201, 229} {
+	for _, kind := range []uint32{0, 101, 102, 108, 109, 115, 120, 123, 127, 128, 130, 136, 137, 138, 139, 141, 10, 11, 15, 16} {
 		if !carriedKind(kind) {
 			t.Fatalf("kind %d must be a carried kind", kind)
 		}
 	}
-	for _, kind := range []uint32{103, 116, 133, 230, 1000} {
+	for _, kind := range []uint32{103, 104, 112, 121, 129, 142, 201, 229, 1000} {
 		if carriedKind(kind) {
-			t.Fatalf("kind %d is not in the random box sheet", kind)
+			t.Fatalf("kind %d is not in the 2015 item sheet", kind)
 		}
 	}
 }
@@ -605,9 +606,10 @@ func TestRespawnBoxIsAcceptedWithTeamColour(t *testing.T) {
 	}
 }
 
-// TestCarriedKindOutsideTheMapSheetIsGranted covers a random box that opens into
-// an item the map points never name (kind 104 here): it must still be taken.
-func TestCarriedKindOutsideTheMapSheetIsGranted(t *testing.T) {
+// TestKindOutsideTheSheetIsRefused keeps the carried check honest: a kind the 2015
+// item sheet does not name (104 here, which only the zombie-PVE table carries) is
+// refused rather than handed to the seat.
+func TestKindOutsideTheSheetIsRefused(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -623,8 +625,11 @@ func TestCarriedKindOutsideTheMapSheetIsGranted(t *testing.T) {
 	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
 		t.Fatalf("handleEatItem: %v", err)
 	}
-	if held := room.supplies.held[0]; held == nil || held.kinds[0] != 104 {
-		t.Fatalf("kind 104 was not carried: %+v", held)
+	if held := room.supplies.held[0]; held != nil && held.kinds[0] != 0 {
+		t.Fatalf("kind 104 must not be carried: %+v", held)
+	}
+	if _, still := room.supplies.clientBoxes[0x3131]; !still {
+		t.Fatal("a refused pickup must leave the box on the map")
 	}
 }
 
