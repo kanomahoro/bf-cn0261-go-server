@@ -12,3 +12,4 @@ Logs/
 __pycache__/
 launcher/dist/
 launcher/build/
+dist/
