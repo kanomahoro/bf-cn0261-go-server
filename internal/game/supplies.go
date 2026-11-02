@@ -49,6 +49,10 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
+	// fullRefusalWindow and fullRefusalLimit decide when a full slot table is treated
+	// as stale instead of the box being refused again.
+	fullRefusalWindow = 15 * time.Second
+	fullRefusalLimit  = 3
 	// grantRepeatDelay and grantRepeatDelay2 are how long the server waits before
 	// repeating an item grant.
 	grantRepeatDelay  = 350 * time.Millisecond
@@ -151,6 +155,10 @@ type supplyRound struct {
 	// refusal is set once a refused box is logged, so a client that keeps asking
 	// cannot flood the log.
 	refusal bool
+	// fullRefusals counts how often a seat was refused while this round believed both
+	// slots were taken, so a table that no longer matches the client can unstick.
+	fullRefusals  map[int]int
+	fullRefusedAt map[int]time.Time
 }
 
 // itemMode reports whether the room runs the item battle.
@@ -397,16 +405,38 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	itemSlot = held.firstEmpty()
 	if itemSlot < 0 {
-		// Both slots are taken, so the box is not touched at all: it stays on the map
-		// for somebody else. Taking it would either drop the new item (what the client
-		// does) or silently replace a held one.
-		log := markSupplyRefusal(state)
-		room.mu.Unlock()
-		if log {
-			s.log.Info("item pickup refused: both slots are taken",
-				"room", room.ID, "slot", seat, "object", objectID, "held", held.kinds)
+		// Both slots are taken, so the box is normally left alone: the client asks even
+		// when its hands are full, and taking it would drop the item. But the client
+		// also asks when this table is simply out of date, so a seat that keeps being
+		// refused is treated as evidence that the table is wrong: it is cleared and the
+		// box is taken rather than locking the seat out for the round.
+		if state.fullRefusals == nil {
+			state.fullRefusals = map[int]int{}
 		}
-		return nil
+		if state.fullRefusedAt == nil {
+			state.fullRefusedAt = map[int]time.Time{}
+		}
+		count := 1
+		if last, ok := state.fullRefusedAt[seat]; ok && time.Since(last) <= fullRefusalWindow {
+			count = state.fullRefusals[seat] + 1
+		}
+		state.fullRefusedAt[seat] = time.Now()
+		state.fullRefusals[seat] = count
+		if count < fullRefusalLimit {
+			log := markSupplyRefusal(state)
+			room.mu.Unlock()
+			if log {
+				s.log.Info("item pickup refused: both slots are taken",
+					"room", room.ID, "slot", seat, "object", objectID, "held", held.kinds,
+					"again", count)
+			}
+			return nil
+		}
+		s.log.Warn("item slot table looked stale; slots cleared and the box taken",
+			"room", room.ID, "slot", seat, "held", held.kinds, "refusals", count)
+		*held = heldItems{}
+		state.fullRefusals[seat] = 0
+		itemSlot = 0
 	}
 	// Commit: the box leaves the map and the item enters the slot.
 	if target != nil {
@@ -671,11 +701,13 @@ func supplyStateLocked(room *Room) *supplyRound {
 		return state
 	}
 	state := &supplyRound{
-		round:       room.tracking,
-		lastID:      supplyObjectIDBase,
-		dropped:     map[uint32]uint32{},
-		clientBoxes: map[uint32]clientBox{},
-		held:        map[int]*heldItems{},
+		round:         room.tracking,
+		lastID:        supplyObjectIDBase,
+		dropped:       map[uint32]uint32{},
+		clientBoxes:   map[uint32]clientBox{},
+		held:          map[int]*heldItems{},
+		fullRefusals:  map[int]int{},
+		fullRefusedAt: map[int]time.Time{},
 	}
 	room.supplies = state
 	return state
