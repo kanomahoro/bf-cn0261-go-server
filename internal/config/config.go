@@ -112,10 +112,12 @@ type ItemMode struct {
 	// derived from the host's C702 supply report. It is off by default because the
 	// boxes are the clients' job: they place them from the map's own resources and
 	// refresh them on their own interval, and the 2015 clients also announce each
-	// box over the relay. The reference server cannot spawn them at all for these
-	// builds (its schedule is only mounted on the modern typed round), so turning
-	// this on is an extension of this server, not a parity switch, and it would
-	// duplicate the boxes the clients already placed.
+	// box over the relay. The reference wires the same server-side path up for these
+	// builds, but it depends on the host's C702 report and that report does not
+	// reach it on a real 2015 client, so in practice the server spawns nothing.
+	// Turning this on duplicates the intent of that path (and needs C702 too); it
+	// must stay off while the clients still place the boxes themselves or the map
+	// would show two boxes per point.
 	SpawnFromMapReport bool `json:"spawnFromMapReport"`
 	// EnforceBoxColour refuses a pickup whose box colour is the other team's. The
 	// colour is bound to the team (red/blue) and the clients refuse it themselves
