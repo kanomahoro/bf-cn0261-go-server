@@ -75,6 +75,9 @@ var itemModeKinds = map[uint32]bool{
 	141: true, // shieldField
 }
 
+// supplyCreateBodyBytes is the size of the ten-word box creation envelope.
+const supplyCreateBodyBytes = 40
+
 // clientBox is one box a client created and announced.
 type clientBox struct {
 	kind uint32
@@ -217,9 +220,18 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	playing := room.Started && room.phase == phasePlaying
 	room.mu.Unlock()
 
+	// The kinds and colours decide what the boxes look like; keep them in the log so
+	// a round can be checked against what the map is expected to place.
+	kinds := make([]uint32, 0, len(points))
+	teams := make([]uint32, 0, len(points))
+	for _, point := range points {
+		kinds = append(kinds, point.Kind)
+		teams = append(teams, point.Team)
+	}
 	s.log.Info("[Supplies] map report", "room", room.ID, "points", len(points),
 		"refused", refused, "intervals", report.IntervalsStated,
-		"server_spawn", s.cfg.ItemMode.SpawnFromMapReport)
+		"kinds", kinds, "teams", teams,
+		"server_spawn", !s.cfg.ItemMode.DisableMapReportSpawns)
 	if playing {
 		s.startSupplies(room, state)
 	}
@@ -352,7 +364,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
 	}
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
-		"item_slot", itemSlot, "object", objectID, "tracked", target != nil)
+		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
 	return nil
 }
 
@@ -573,7 +585,7 @@ func markSupplyRefusal(state *supplyRound) bool {
 
 // startSupplies begins the box refresh loop once play starts.
 func (s *Server) startSupplies(room *Room, state *supplyRound) {
-	if !s.cfg.ItemMode.SpawnFromMapReport {
+	if s.cfg.ItemMode.DisableMapReportSpawns {
 		return
 	}
 	room.mu.Lock()
@@ -713,6 +725,14 @@ func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet)
 // either way.
 func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID uint32, box clientBox, allowed bool) {
 	if packet.ID != 32832 { // gppCreateMapItem
+		return 0, clientBox{}, true
+	}
+	if len(packet.Payload) != supplyCreateBodyBytes {
+		// The same opcode also carries the client's smaller map objects: a thrown
+		// banana arrives as three words (object, kind, owner) and is nobody's box
+		// envelope. Forward it untouched and do not track it as a box.
+		s.log.Debug("client map object is not a box envelope; forwarding it unread",
+			"room", room.ID, "bytes", len(packet.Payload))
 		return 0, clientBox{}, true
 	}
 	objectID, _, point, err := protocol.ReadSupplyCreate(packet, 0)

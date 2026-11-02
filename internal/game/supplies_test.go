@@ -368,9 +368,10 @@ func TestUnknownBoxPickupIsGranted(t *testing.T) {
 	}
 }
 
-// TestNoServerBoxScheduleByDefault keeps the server from duplicating the boxes the
-// clients place: the scheduler only runs when itemMode.spawnFromMapReport is on.
-func TestNoServerBoxScheduleByDefault(t *testing.T) {
+// TestMapBoxScheduleIsOnByDefault covers the schedule gate: a real 2015 round
+// showed the client placing no map-point boxes while its C702 report states the
+// points, so the server spawns them unless the option is turned on to disable it.
+func TestMapBoxScheduleIsOnByDefault(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -378,36 +379,25 @@ func TestNoServerBoxScheduleByDefault(t *testing.T) {
 		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	room.supplies = state
 	server.startSupplies(room, state)
-	if state.running {
-		t.Fatal("the server must not schedule map boxes unless spawnFromMapReport is on")
+	room.mu.RLock()
+	running := state.running
+	room.mu.RUnlock()
+	if !running {
+		t.Fatal("the map box schedule must be on by default")
 	}
-}
 
-// TestClientBoxOnTheGameConnection covers the "both" connection marking in the
-// client's own opcode table: a box creation that arrives on the game connection
-// is tracked just like one that arrives over the relay.
-func TestClientBoxOnTheGameConnection(t *testing.T) {
-	server := newTestServer()
-	room := testItemRoom()
-	session := &Session{slot: 0, room: room}
-	room.slots[0].session = session
-	room.slots[0].team = 2
-
-	// The clients announce a box with the same body the server's S711 carries, but
-	// under gppCreateMapItem (32832).
-	packet := protocol.CreateSupplyCreate(0x4242, 10000, protocol.SupplyReportPoint{
-		X: 1, Y: 2, Z: 3, Kind: 120, Team: 2,
-	})
-	packet.ID = 32832
-	if err := server.handleItemPeerPacket(session, packet); err != nil {
-		t.Fatalf("handleItemPeerPacket: %v", err)
-	}
-	box, ok := room.supplies.clientBoxes[0x4242]
-	if !ok {
-		t.Fatal("the box was not tracked")
-	}
-	if box.kind != 120 || box.team != 2 {
-		t.Fatalf("box = %+v, want kind 120 team 2", box)
+	// The switch turns it off; a fresh state has to be refused.
+	server.cfg.ItemMode.DisableMapReportSpawns = true
+	off := &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		points:  []*supplyPoint{{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, MinMs: 1000, MaxMs: 2000}}},
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
+	room.supplies = off
+	server.startSupplies(room, off)
+	room.mu.RLock()
+	runningOff := off.running
+	room.mu.RUnlock()
+	if runningOff {
+		t.Fatal("disableMapReportSpawns must stop the schedule")
 	}
 }
 

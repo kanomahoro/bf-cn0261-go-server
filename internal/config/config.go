@@ -108,17 +108,13 @@ type Config struct {
 
 // ItemMode holds the item battle (client mode 3) options.
 type ItemMode struct {
-	// SpawnFromMapReport makes the server create the map boxes itself, on a timer
-	// derived from the host's C702 supply report. It is off by default because the
-	// boxes are the clients' job: they place them from the map's own resources and
-	// refresh them on their own interval, and the 2015 clients also announce each
-	// box over the relay. The reference wires the same server-side path up for these
-	// builds, but it depends on the host's C702 report and that report does not
-	// reach it on a real 2015 client, so in practice the server spawns nothing.
-	// Turning this on duplicates the intent of that path (and needs C702 too); it
-	// must stay off while the clients still place the boxes themselves or the map
-	// would show two boxes per point.
-	SpawnFromMapReport bool `json:"spawnFromMapReport"`
+	// DisableMapReportSpawns turns off the server-side box schedule that the host's
+	// C702 report drives. Spawning is ON by default: a real 2015 round showed the
+	// client placing no map-point boxes at all while its C702 report states the
+	// points exactly (points=4, kinds accepted, intervals stated), so the server is
+	// the only source of the point boxes. Set it when a build is found to place the
+	// point boxes itself, or the map would show two boxes per point.
+	DisableMapReportSpawns bool `json:"disableMapReportSpawns"`
 	// EnforceBoxColour refuses a pickup whose box colour is the other team's. The
 	// colour is bound to the team (red/blue) and the clients refuse it themselves
 	// (kr-812 sub_6378A0), so this only adds server-side authority. It is off by
