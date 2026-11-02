@@ -137,6 +137,21 @@
   座位；等待房间、加载阶段和已离开的会话都改不动道具槽状态。地图报告是全流程里
   唯一允许在加载阶段到达的包（房主在地图加载完就发）。
 
+### Verified on a real client (2026-11-03)
+
+All fifteen item kinds of the 2015 item sheet were exercised on real clients and
+behave correctly: booster, shield, ghost, needle, freezeCannon, medipack,
+camouflage, polymorph, banana, teamAngel, airBomb, turret, bazooka, machinegun and
+shieldField. Also verified: the map-point boxes spawn and refresh, the respawn box
+appears in the seat's team colour, a knock-down no longer drops a box, a full item
+bar does not take a box it cannot hold onto (known caveat below), the two slots
+and the Alt switch work, and the item bar is empty after a respawn.
+
+Known caveat: the air strike (kind 136) shows its effect on both clients but deals
+no damage. The log shows the client sends no area-effect packet for it (only the
+direct-use packet and the object deletions), which this server forwards verbatim,
+so the damage path is inside the client; nothing on the server side is missing.
+
 ### Known limits
 
 - 这一版的道具战**尚未在真机上验收**。包布局取自 2015 客户端的读取函数
