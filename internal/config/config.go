@@ -109,10 +109,13 @@ type Config struct {
 // ItemMode holds the item battle (client mode 3) options.
 type ItemMode struct {
 	// SpawnFromMapReport makes the server create the map boxes itself, on a timer
-	// derived from the host's C702 supply report. It is off by default: the 2015
-	// clients create their own boxes and report them over the relay, and the
-	// reference server's own map-report handler never runs for these builds, so a
-	// server-side schedule would only duplicate what the clients already placed.
+	// derived from the host's C702 supply report. It is off by default because the
+	// boxes are the clients' job: they place them from the map's own resources and
+	// refresh them on their own interval, and the 2015 clients also announce each
+	// box over the relay. The reference server cannot spawn them at all for these
+	// builds (its schedule is only mounted on the modern typed round), so turning
+	// this on is an extension of this server, not a parity switch, and it would
+	// duplicate the boxes the clients already placed.
 	SpawnFromMapReport bool `json:"spawnFromMapReport"`
 	// EnforceBoxColour refuses a pickup whose box colour is the other team's. The
 	// colour is bound to the team (red/blue) and the clients refuse it themselves
