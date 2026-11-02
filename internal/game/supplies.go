@@ -21,16 +21,24 @@ const (
 	itemModeID = 3
 
 	// supplyObjectIDBase keeps server-created boxes clear of character objects
-	// (1000000 + 100000 per seat) and of the star range (0x64000000).
-	supplyObjectIDBase = 0x63000000
+	// (1000000 + 100000 per seat) and leaves 0x63000000 to the NPC-kill Lucci
+	// items the reference reserves for it.
+	supplyObjectIDBase = 0x62000000
 
 	// maxSupplyPoints bounds one host map report.
 	maxSupplyPoints = 256
-	// maxDroppedSupplies bounds the thrown boxes one round keeps.
-	maxDroppedSupplies = 256
+	// maxDroppedSupplies bounds the thrown boxes one round keeps, matching the
+	// reference's max_dropped_supplies.
+	maxDroppedSupplies = 512
 	// maxClientBoxes bounds the boxes the clients created themselves that the
 	// round still tracks.
 	maxClientBoxes = 512
+	// nativeItemSlots is how many items a seat may hold. The 2015 builds hold two
+	// (the reference's native_item_slot_count), and the client switches between
+	// them with C744.
+	nativeItemSlots = 2
+	// noItemKind is the kind word that means "this slot is empty" on the wire.
+	noItemKind = 0xFFFFFFFF
 	// supplyPoll is the box refresh loop's resolution.
 	supplyPoll = 250 * time.Millisecond
 	// defaultSupplyMinMs and defaultSupplyMaxMs are the interval the original
@@ -40,9 +48,9 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
-	// maxSupplyIntervalMs bounds a host-stated refresh interval; the reference
-	// host states 30000 at most.
-	maxSupplyIntervalMs = 600000
+	// maxSupplyIntervalMs bounds a host-stated refresh interval (the reference
+	// accepts up to one hour and states 30000 at most).
+	maxSupplyIntervalMs = 3600000
 )
 
 // itemModeKinds is the set of box kinds the cn-717 item sheet offers. Every
@@ -85,16 +93,41 @@ type supplyRound struct {
 	// clientBoxes holds the boxes the clients created over the relay, keyed by
 	// the id they chose, so a pickup of one still reaches every member.
 	clientBoxes map[uint32]uint32
-	held        map[int]uint32
-	running     bool
+	// held is the per-seat item slots; a seat holds at most nativeItemSlots.
+	held    map[int]*heldItems
+	running bool
 	// refusal is set once a refused box is logged, so a client that keeps asking
 	// cannot flood the log.
 	refusal bool
 }
 
-// ItemMode reports whether the room runs the item battle.
+// itemMode reports whether the room runs the item battle.
 func (s *Server) itemMode(room *Room) bool {
 	return room.SettingCopy().Game.Mode == itemModeID
+}
+
+// suppliesPlaying reports whether the room is in play, which is when the item
+// battle accepts pickups, uses, slot switches and thrown boxes. The map report is
+// the only one accepted earlier, because the host sends it while the map loads.
+func suppliesPlaying(room *Room) bool {
+	room.mu.RLock()
+	defer room.mu.RUnlock()
+	return room.Started && room.phase == phasePlaying
+}
+
+// suppliesReportable reports whether a round is loading or running, the two
+// states the reference accepts a map report in.
+func suppliesReportable(room *Room) bool {
+	room.mu.RLock()
+	defer room.mu.RUnlock()
+	if !room.Started {
+		return false
+	}
+	switch room.phase {
+	case phaseLoading, phaseCountdown, phasePlaying:
+		return true
+	}
+	return false
 }
 
 // seated reports whether a session owns a room slot, so the slot index can be
@@ -116,6 +149,11 @@ func itemModeAccepts(kind uint32) bool {
 func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error {
 	room := session.room
 	if room == nil || !seated(session) || !s.itemMode(room) {
+		return nil
+	}
+	if !suppliesReportable(room) {
+		s.log.Debug("map supply report ignored: the round is not loading or running",
+			"room", room.ID, "slot", session.slot)
 		return nil
 	}
 	report, err := protocol.ReadSupplyReport(packet, maxSupplyPoints)
@@ -144,25 +182,17 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 		points = append(points, &supplyPoint{SupplyReportPoint: entry})
 	}
 	room.mu.Lock()
-	round := room.tracking
 	// A report that arrives while the round already runs and already has points is
 	// a repeat; one that arrives during loading is the same round's first report,
 	// because the round token only advances when the countdown starts.
 	if existing := room.supplies; existing != nil && len(existing.points) > 0 &&
-		(existing.round == round || room.Started) {
+		(existing.round == room.tracking || room.Started) {
 		room.mu.Unlock()
 		s.log.Debug("map supply report ignored: already prepared", "room", room.ID)
 		return nil
 	}
-	state := &supplyRound{
-		round:       round,
-		lastID:      supplyObjectIDBase,
-		points:      points,
-		dropped:     map[uint32]uint32{},
-		clientBoxes: map[uint32]uint32{},
-		held:        map[int]uint32{},
-	}
-	room.supplies = state
+	state := supplyStateLocked(room)
+	state.points = points
 	playing := room.Started && room.phase == phasePlaying
 	room.mu.Unlock()
 
@@ -179,7 +209,7 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 // only be eaten by that team.
 func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
 		return nil
 	}
 	objectID, kind, err := protocol.ReadSupplyPickup(packet)
@@ -189,8 +219,9 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	seat := session.slot
 
-	var pickedKind uint32
-	known := false
+	var target *supplyPoint
+	found := false
+	itemSlot := -1
 	room.mu.Lock()
 	state := room.supplies
 	if state == nil || state.round != room.tracking {
@@ -204,68 +235,77 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	team := room.slots[seat].team
-	if !itemModeAccepts(kind) {
+	refusal := ""
+	switch {
+	case !itemModeAccepts(kind):
+		refusal = "a pickup of an unoffered kind"
+	default:
+		for _, point := range state.points {
+			if point.ActiveID == 0 || point.ActiveID != objectID {
+				continue
+			}
+			if point.Kind != 0 && point.Kind != kind {
+				continue
+			}
+			if point.Team != 0 && point.Team != uint32(team) {
+				refusal = "a pickup of another team's box"
+				break
+			}
+			target, found = point, true
+			break
+		}
+		if !found && refusal == "" {
+			// A thrown box or a box the clients created carries its own kind.
+			if thrown, ok := state.dropped[objectID]; ok && (thrown == 0 || thrown == kind) {
+				found = true
+			} else if created, ok := state.clientBoxes[objectID]; ok && (created == 0 || created == kind) {
+				found = true
+			}
+		}
+	}
+	if refusal != "" {
 		log := markSupplyRefusal(state)
 		room.mu.Unlock()
 		if log {
 			s.log.Warn("item mode refused a box; further refusals this round are not logged",
-				"room", room.ID, "reason", "a pickup of an unoffered kind")
+				"room", room.ID, "reason", refusal)
 		}
 		return nil
 	}
-	for _, point := range state.points {
-		if point.ActiveID == 0 || point.ActiveID != objectID {
-			continue
-		}
-		if point.Kind != 0 && point.Kind != kind {
-			continue
-		}
-		if point.Team != 0 && point.Team != uint32(team) {
-			log := markSupplyRefusal(state)
-			room.mu.Unlock()
-			if log {
-				s.log.Warn("item mode refused a box; further refusals this round are not logged",
-					"room", room.ID, "reason", "a pickup of another team's box")
-			}
-			return nil
-		}
-		point.ActiveID = 0
-		pickedKind, known = kind, true
-		break
-	}
-	if !known {
-		// A thrown box carries the kind it was thrown with.
-		if thrown, ok := state.dropped[objectID]; ok && (thrown == 0 || thrown == kind) {
-			delete(state.dropped, objectID)
-			pickedKind, known = kind, true
-		}
-	}
-	if !known {
-		// A box the clients created themselves; the round tracked its id so the
-		// pickup still reaches every member.
-		if created, ok := state.clientBoxes[objectID]; ok && (created == 0 || created == kind) {
-			delete(state.clientBoxes, objectID)
-			pickedKind, known = kind, true
-		}
-	}
-	if known {
-		if previous, ok := state.held[seat]; ok && previous != pickedKind {
-			s.log.Debug("held item replaced", "room", room.ID, "slot", seat,
-				"was", previous, "now", pickedKind)
-		}
-		state.held[seat] = pickedKind
-	}
-	room.mu.Unlock()
-
-	if !known {
-		// Not a box this server created: the clients own it and report the
-		// pickup between themselves.
+	if !found {
+		room.mu.Unlock()
+		// Not a box this server tracks: the clients own it and report the pickup
+		// between themselves.
 		s.log.Debug("item pickup ignored: unknown box", "room", room.ID, "slot", seat, "object", objectID)
 		return nil
 	}
+	// The item goes into the first empty slot. A seat that already holds every
+	// slot cannot take the box, and the box stays where it is for somebody else.
+	held := state.held[seat]
+	if held == nil {
+		held = &heldItems{}
+	}
+	if itemSlot = held.firstEmpty(); itemSlot < 0 {
+		room.mu.Unlock()
+		s.log.Debug("item pickup ignored: every item slot is taken",
+			"room", room.ID, "slot", seat, "object", objectID)
+		return nil
+	}
+	// Commit: the box leaves the map and the item enters the slot.
+	if target != nil {
+		target.ActiveID = 0
+	} else {
+		delete(state.dropped, objectID)
+		delete(state.clientBoxes, objectID)
+	}
+	state.held[seat] = held
+	held.add(itemSlot, kind)
+	room.mu.Unlock()
+
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), pickedKind, 0))
-	s.log.Debug("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", pickedKind, "object", objectID)
+	room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
+	s.log.Debug("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
+		"item_slot", itemSlot, "object", objectID)
 	return nil
 }
 
@@ -273,7 +313,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 // member which item the seat spent.
 func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
 		return nil
 	}
 	if len(packet.Payload) != 0 {
@@ -281,18 +321,21 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 	}
 	seat := session.slot
 	kind := uint32(0)
+	itemSlot := 0
 	found := false
 	room.mu.Lock()
-	if state := room.supplies; state != nil && state.round == room.tracking {
-		kind, found = state.held[seat]
-		delete(state.held, seat)
+	if state := room.supplies; state != nil && state.round == room.tracking &&
+		room.slots[seat].session == session {
+		if held := state.held[seat]; held != nil {
+			kind, itemSlot, found = held.use()
+		}
 	}
 	room.mu.Unlock()
 	if !found {
-		s.log.Debug("item use ignored: no held item", "room", room.ID, "slot", seat)
+		s.log.Debug("item use ignored: no held item in the selected slot", "room", room.ID, "slot", seat)
 		return nil
 	}
-	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, 0))
+	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
 	return nil
 }
 
@@ -300,7 +343,7 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 // creation envelope the client's box handler expects.
 func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
 		return nil
 	}
 	request, err := protocol.ReadSupplyDrop(packet)
@@ -309,13 +352,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		return nil
 	}
 	room.mu.Lock()
-	state := room.supplies
-	if state == nil || state.round != room.tracking {
-		state = &supplyRound{round: room.tracking, lastID: supplyObjectIDBase,
-			dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{},
-			held: map[int]uint32{}}
-		room.supplies = state
-	}
+	state := supplyStateLocked(room)
 	if len(state.dropped) >= maxDroppedSupplies {
 		log := markSupplyRefusal(state)
 		room.mu.Unlock()
@@ -339,34 +376,129 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	state.dropped[objectID] = request.Kind
 	room.mu.Unlock()
 
+	// The client states the class itself (10000 for an ordinary throw, 20000 for a
+	// thrown box); it is passed through untouched.
 	class := request.Class
-	if class == 0 {
-		class = ordinaryCreationClass
-	}
 	room.Broadcast(protocol.CreateSupplyCreate(objectID, class, protocol.SupplyReportPoint{
 		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: 0,
 	}))
 	return nil
 }
 
-// handleSwitchItemSlot answers a slot switch (C744). The 2015 builds hold a
-// single native slot, so the selection never changes; a nonzero result tells the
-// client to keep its own.
+// handleSwitchItemSlot answers a slot switch (C744). The 2015 builds hold two
+// native slots: a switch to the occupied one is accepted and told to every
+// member, and a switch that has nothing to select is answered to the requester
+// alone with a nonzero result, which leaves its selection unchanged.
 func (s *Server) handleSwitchItemSlot(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
 		return nil
 	}
 	if len(packet.Payload) != 0 {
 		return nil
 	}
-	kind := uint32(0)
+	seat := session.slot
+	kind := uint32(noItemKind)
+	itemSlot := 0
+	switched := false
 	room.mu.Lock()
-	if state := room.supplies; state != nil && state.round == room.tracking {
-		kind = state.held[session.slot]
+	if state := room.supplies; state != nil && state.round == room.tracking &&
+		room.slots[seat].session == session {
+		if held := state.held[seat]; held != nil {
+			switched = held.trySwitch()
+			itemSlot = held.selected
+			kind = held.selectedKind()
+		}
 	}
 	room.mu.Unlock()
-	return session.Send(protocol.CreateSupplySlotChanged(uint32(session.slot), 0, kind, 1))
+	changed := protocol.CreateSupplySlotChanged(uint32(seat), uint32(itemSlot), kind, 0)
+	if !switched {
+		// Nothing to switch to: only the requester is told, and it keeps its own
+		// selection (a nonzero result leaves it unchanged).
+		return session.Send(protocol.CreateSupplySlotChanged(uint32(seat), uint32(itemSlot), kind, 1))
+	}
+	room.Broadcast(changed)
+	return nil
+}
+
+// supplyStateLocked returns the round's item-mode state, creating it when there
+// is none. The caller holds the room mutex. A state whose round token is behind
+// the room's belongs to the round that is starting now, so it is adopted instead
+// of replaced: replacing it would drop the map points the host already reported
+// or the boxes the clients already announced.
+func supplyStateLocked(room *Room) *supplyRound {
+	if state := room.supplies; state != nil && state.round <= room.tracking {
+		state.round = room.tracking
+		return state
+	}
+	state := &supplyRound{
+		round:       room.tracking,
+		lastID:      supplyObjectIDBase,
+		dropped:     map[uint32]uint32{},
+		clientBoxes: map[uint32]uint32{},
+		held:        map[int]*heldItems{},
+	}
+	room.supplies = state
+	return state
+}
+
+// heldItems is one seat's native item slots. The 2015 client keeps two: a
+// pickup fills the first empty one, use spends the selected one and C744 switches
+// the selection to the other, exactly like the reference's HeldSupplyItems.
+type heldItems struct {
+	kinds    [nativeItemSlots]uint32
+	selected int
+}
+
+// firstEmpty returns the first slot without an item, or -1 when every slot is
+// taken.
+func (h *heldItems) firstEmpty() int {
+	for slot := range h.kinds {
+		if h.kinds[slot] == 0 {
+			return slot
+		}
+	}
+	return -1
+}
+
+// add stores one item and selects its slot when the previous selection was
+// empty.
+func (h *heldItems) add(slot int, kind uint32) {
+	if slot < 0 || slot >= len(h.kinds) {
+		return
+	}
+	if h.kinds[h.selected] == 0 {
+		h.selected = slot
+	}
+	h.kinds[slot] = kind
+}
+
+// selectedKind returns the kind in the selected slot, or noItemKind.
+func (h *heldItems) selectedKind() uint32 {
+	if kind := h.kinds[h.selected]; kind != 0 {
+		return kind
+	}
+	return noItemKind
+}
+
+// use spends the selected item and keeps the selection.
+func (h *heldItems) use() (kind uint32, slot int, ok bool) {
+	if h.kinds[h.selected] == 0 {
+		return 0, h.selected, false
+	}
+	kind, slot = h.kinds[h.selected], h.selected
+	h.kinds[h.selected] = 0
+	return kind, slot, true
+}
+
+// trySwitch selects the other slot when it holds an item.
+func (h *heldItems) trySwitch() bool {
+	other := 1 - h.selected
+	if h.kinds[other] == 0 {
+		return false
+	}
+	h.selected = other
+	return true
 }
 
 // markSupplyRefusal flags the first refused box of a round. The caller holds the
@@ -480,16 +612,13 @@ func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet)
 		if !member.Occupied || member.Slot == from {
 			continue
 		}
-		s.relay.SendToSlot(room.ID, uint8(member.Slot), packet)
+		// Same transport it arrived on, with the game connection as the fallback
+		// for a member whose relay never joined.
+		if s.relay.SendToSlot(room.ID, uint8(member.Slot), packet) {
+			continue
+		}
+		_ = member.Session.Send(packet)
 	}
-}
-
-// serverOwnsBoxes reports whether the running round creates the map boxes from
-// the host's map report.
-func (s *Server) serverOwnsBoxes(room *Room) bool {
-	room.mu.RLock()
-	defer room.mu.RUnlock()
-	return room.supplies != nil && len(room.supplies.points) > 0
 }
 
 // itemRelayAllowed checks one client-reported item packet before it reaches the
@@ -527,13 +656,7 @@ func (s *Server) noteClientBox(room *Room, objectID, kind uint32) {
 		return
 	}
 	room.mu.Lock()
-	state := room.supplies
-	if state == nil || state.round != room.tracking {
-		state = &supplyRound{round: room.tracking, lastID: supplyObjectIDBase,
-			dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{},
-			held: map[int]uint32{}}
-		room.supplies = state
-	}
+	state := supplyStateLocked(room)
 	if len(state.clientBoxes) < maxClientBoxes {
 		state.clientBoxes[objectID] = kind
 	}
@@ -541,12 +664,16 @@ func (s *Server) noteClientBox(room *Room, objectID, kind uint32) {
 }
 
 // isItemRelayPacket reports whether a relay packet belongs to the item family.
+// The 2015 round feed does not route any of these, so an item-mode round is the
+// only place where they may reach another client.
 func isItemRelayPacket(id uint16) bool {
 	switch id {
 	case 32832, // gppCreateMapItem: the host scheduled a box
 		32824, // gppItemUseResult: a seat used an item
+		32829, // gppHitByItem: an item hit a character
 		32888, // gppSyncUseItemSimply
 		32894, // gppUseItemDirect
+		32909, // gppStormDamagerItemId: an item's area effect
 		32929: // gppUseItemDirectAtPos
 		return true
 	}

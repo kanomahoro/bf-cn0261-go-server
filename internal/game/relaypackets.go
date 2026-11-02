@@ -102,12 +102,6 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		if !s.itemMode(room) {
 			return nil
 		}
-		if packet.ID == 32832 && s.serverOwnsBoxes(room) {
-			// The round refreshes the host's map points itself; forwarding this box
-			// would duplicate the one S711 already created.
-			s.log.Debug("client box ignored: the round owns the map points", "room", room.ID)
-			return nil
-		}
 		objectID, kind, allowed := s.itemRelayAllowed(room, packet)
 		if !allowed {
 			return nil

@@ -158,7 +158,7 @@ func TestClientBoxPickupIsGranted(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]uint32{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 2, room: room}
 	room.slots[2].session = session
 	room.slots[2].team = 1
@@ -177,8 +177,8 @@ func TestClientBoxPickupIsGranted(t *testing.T) {
 	if _, still := room.supplies.clientBoxes[0x1234]; still {
 		t.Fatal("the picked box must be removed from the round")
 	}
-	if kind := room.supplies.held[2]; kind != 138 {
-		t.Fatalf("held kind = %d, want 138", kind)
+	if held := room.supplies.held[2]; held == nil || held.selectedKind() != 138 {
+		t.Fatalf("held slot = %+v, want kind 138", held)
 	}
 }
 
@@ -190,7 +190,7 @@ func TestItemPickupRefusesOtherTeamBox(t *testing.T) {
 	point := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, Team: 2},
 		ActiveID: 0x0BAD}
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase, points: []*supplyPoint{point},
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]uint32{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 0, room: room}
 	room.slots[0].session = session
 	room.slots[0].team = 1
@@ -204,7 +204,143 @@ func TestItemPickupRefusesOtherTeamBox(t *testing.T) {
 	if point.ActiveID == 0 {
 		t.Fatal("a refused pickup must leave the box on the map")
 	}
-	if kind, held := room.supplies.held[0]; held {
-		t.Fatalf("the other team's box was granted as kind %d", kind)
+	if held, ok := room.supplies.held[0]; ok && held.selectedKind() == 101 {
+		t.Fatal("the other team's box was granted")
+	}
+}
+
+// TestHeldItemsTwoSlots covers the reference's HeldSupplyItems: two slots, the
+// first empty one is filled, use spends the selected slot and keeps the
+// selection, and switching only works when the other slot holds an item.
+func TestHeldItemsTwoSlots(t *testing.T) {
+	var held heldItems
+	if slot := held.firstEmpty(); slot != 0 {
+		t.Fatalf("first empty slot = %d, want 0", slot)
+	}
+	if held.selectedKind() != noItemKind {
+		t.Fatal("an empty seat must report the empty kind word")
+	}
+	held.add(0, 138)
+	if held.selected != 0 || held.selectedKind() != 138 {
+		t.Fatalf("first pickup: selected %d kind %d", held.selected, held.selectedKind())
+	}
+	// The second pickup takes slot 1 and leaves the selection alone.
+	held.add(held.firstEmpty(), 120)
+	if held.kinds[1] != 120 || held.selected != 0 {
+		t.Fatalf("second pickup: kinds %v selected %d", held.kinds, held.selected)
+	}
+	// Switching moves the selection to the occupied slot.
+	if !held.trySwitch() || held.selected != 1 {
+		t.Fatal("switch to the occupied slot must succeed")
+	}
+	// Using spends the selected slot only and keeps the selection.
+	kind, slot, ok := held.use()
+	if !ok || kind != 120 || slot != 1 {
+		t.Fatalf("use = (%d, %d, %v), want (120, 1, true)", kind, slot, ok)
+	}
+	if held.kinds[1] != 0 || held.selected != 1 || held.kinds[0] != 138 {
+		t.Fatalf("after use: kinds %v selected %d", held.kinds, held.selected)
+	}
+	// The other slot still holds an item, so switching back succeeds.
+	if !held.trySwitch() || held.selected != 0 {
+		t.Fatal("switch back to the remaining item must succeed")
+	}
+	if kind, slot, ok := held.use(); !ok || kind != 138 || slot != 0 {
+		t.Fatalf("second use = (%d, %d, %v), want (138, 0, true)", kind, slot, ok)
+	}
+	// With every slot empty, neither switching nor using does anything.
+	if held.trySwitch() {
+		t.Fatal("switch with every slot empty must fail")
+	}
+	if _, _, ok := held.use(); ok {
+		t.Fatal("an empty selected slot must not produce a use")
+	}
+}
+
+// TestPickupFillsBothSlotsThenRefuses checks the pickup path: two boxes fill the
+// two slots, the third leaves the box on the map.
+func TestPickupFillsBothSlotsThenRefuses(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+	room.supplies = state
+	first := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 138}, ActiveID: 0x101}
+	second := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 120}, ActiveID: 0x102}
+	third := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 101}, ActiveID: 0x103}
+	state.points = []*supplyPoint{first, second, third}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+
+	pick := func(objectID, kind uint32) {
+		body := protocol.NewWriter()
+		body.Unsigned(objectID)
+		body.Unsigned(kind)
+		if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+			t.Fatalf("handleEatItem: %v", err)
+		}
+	}
+	pick(0x101, 138)
+	pick(0x102, 120)
+	if held := state.held[0]; held == nil || held.kinds != [nativeItemSlots]uint32{138, 120} {
+		t.Fatalf("held = %+v", held)
+	}
+	pick(0x103, 101)
+	if third.ActiveID == 0 {
+		t.Fatal("a pickup with every slot taken must leave the box on the map")
+	}
+	if held := state.held[0]; held.kinds[0] != 138 || held.kinds[1] != 120 {
+		t.Fatalf("the refused pickup changed the slots: %v", held.kinds)
+	}
+}
+
+// TestUseAndSwitchAreRefusedOutsidePlay keeps the item handlers to a running
+// round: a waiting room must not broadcast anything.
+func TestUseAndSwitchAreRefusedOutsidePlay(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.phase = phaseOpen
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	if err := server.handleUseItem(session, protocol.Packet{ID: protocol.CUseItem}); err != nil {
+		t.Fatalf("handleUseItem: %v", err)
+	}
+	if err := server.handleSwitchItemSlot(session, protocol.Packet{ID: protocol.CSwitchItemSlot}); err != nil {
+		t.Fatalf("handleSwitchItemSlot: %v", err)
+	}
+	if held := room.supplies.held[0]; held != nil {
+		t.Fatal("a waiting room must not touch the slot state")
+	}
+}
+
+// TestSupplyStateAdoptsTheStartingRound covers the ordering the host can produce:
+// a box or a drop creates the state while the room is still loading (one round
+// token behind), and the map report then has to land in the same state instead of
+// replacing it.
+func TestSupplyStateAdoptsTheStartingRound(t *testing.T) {
+	room := &Room{tracking: 5}
+	early := &supplyRound{round: 4, dropped: map[uint32]uint32{0x11: 138},
+		clientBoxes: map[uint32]uint32{0x12: 120}, held: map[int]*heldItems{}}
+	room.supplies = early
+
+	state := supplyStateLocked(room)
+	if state != early {
+		t.Fatal("the loading-time state must be reused, not replaced")
+	}
+	if state.round != 5 {
+		t.Fatalf("round token = %d, want 5", state.round)
+	}
+	if len(state.dropped) != 1 || len(state.clientBoxes) != 1 {
+		t.Fatalf("boxes were lost: dropped %v client %v", state.dropped, state.clientBoxes)
+	}
+
+	// A state that claims a round ahead of the room is not this round's.
+	room.supplies = &supplyRound{round: 9}
+	if state := supplyStateLocked(room); state.round != 5 {
+		t.Fatalf("a state ahead of the room must be replaced, got round %d", state.round)
 	}
 }
