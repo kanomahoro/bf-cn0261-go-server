@@ -397,14 +397,16 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	itemSlot = held.firstEmpty()
 	if itemSlot < 0 {
-		// The client asked for a box while this round believes both slots are taken.
-		// Overwrite slot 0 and leave the other one alone: clearing both would throw
-		// away an item the seat may really hold.
-		if log := markSupplyRefusal(state); log {
-			s.log.Warn("item slot state disagreed with the client; slot 0 overwritten",
-				"room", room.ID, "slot", seat, "held", held.kinds)
+		// Both slots are taken, so the box is not touched at all: it stays on the map
+		// for somebody else. Taking it would either drop the new item (what the client
+		// does) or silently replace a held one.
+		log := markSupplyRefusal(state)
+		room.mu.Unlock()
+		if log {
+			s.log.Info("item pickup refused: both slots are taken",
+				"room", room.ID, "slot", seat, "object", objectID, "held", held.kinds)
 		}
-		itemSlot = 0
+		return nil
 	}
 	// Commit: the box leaves the map and the item enters the slot.
 	if target != nil {

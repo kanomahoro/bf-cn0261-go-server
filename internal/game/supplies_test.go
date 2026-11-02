@@ -272,10 +272,9 @@ func TestHeldItemsTwoSlots(t *testing.T) {
 	}
 }
 
-// TestPickupReplacesTheOldestSlotWhenTheStateDisagrees covers a seat whose two
-// slots this round already believes are full: the client asked for a third box, so
-// it must be taken rather than refused, and the served slot is replaced.
-func TestPickupReplacesTheOldestSlotWhenTheStateDisagrees(t *testing.T) {
+// TestPickupLeavesTheBoxWhenBothSlotsAreTaken covers the rule the original follows:
+// with two items in hand a box is not touched, so it stays on the map.
+func TestPickupLeavesTheBoxWhenBothSlotsAreTaken(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -302,11 +301,11 @@ func TestPickupReplacesTheOldestSlotWhenTheStateDisagrees(t *testing.T) {
 		t.Fatalf("held = %+v", held)
 	}
 	pick(0x103, 101)
-	if third.ActiveID != 0 {
-		t.Fatal("the third box must be taken, not left on the map")
+	if third.ActiveID == 0 {
+		t.Fatal("with both slots taken the box must stay on the map")
 	}
-	if held := state.held[0]; held.kinds[0] != 101 {
-		t.Fatalf("slot 0 was not replaced: %v", held.kinds)
+	if held := state.held[0]; held.kinds != [nativeItemSlots]uint32{138, 120} {
+		t.Fatalf("the refused pickup changed the slots: %v", held.kinds)
 	}
 }
 
