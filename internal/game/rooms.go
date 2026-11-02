@@ -71,6 +71,9 @@ type Room struct {
 	// respawnCount rotates the team spawn markers the way the reference does.
 	// It is reset at round start.
 	respawnCount [8]uint32
+	// respawnAt records when each seat last came back, so the box the client
+	// places a few seconds after a respawn can be told from a knock-down box.
+	respawnAt [maxRoomSlots]time.Time
 
 	tracking int
 	// generation invalidates timers left over from a previous round.

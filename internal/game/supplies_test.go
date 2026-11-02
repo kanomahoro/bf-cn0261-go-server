@@ -568,3 +568,25 @@ func TestUseFallsBackToTheOtherSlot(t *testing.T) {
 		t.Fatal("an empty seat must not produce a use")
 	}
 }
+
+// TestRespawnBoxIsAcceptedWithTeamColour covers the box the client asks for a few
+// seconds after a respawn: it is the only kind-0 request that is honoured, and it
+// carries the seat's team so the client draws it in that colour.
+func TestRespawnBoxIsAcceptedWithTeamColour(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	session := &Session{slot: 1, room: room}
+	room.slots[1].session = session
+	room.slots[1].team = 2
+	server.noteRespawn(room, 1)
+
+	if err := server.handleCreateItem(session, protocol.Packet{ID: protocol.CCreateItem, Payload: dropBody(0, 10000)}); err != nil {
+		t.Fatalf("handleCreateItem: %v", err)
+	}
+	room.mu.RLock()
+	tracked := len(room.supplies.dropped)
+	room.mu.RUnlock()
+	if tracked != 1 {
+		t.Fatalf("the respawn box was not created, dropped=%d", tracked)
+	}
+}

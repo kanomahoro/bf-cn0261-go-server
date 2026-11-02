@@ -272,6 +272,9 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		if err != nil {
 			return err
 		}
+		if completed {
+			s.noteRespawn(room, session.slot)
+		}
 		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 32925,
 			"adopted", offered != request.Value, "applied", completed)
@@ -292,9 +295,13 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		if err != nil {
 			return err
 		}
+		if completed {
+			s.noteRespawn(room, session.slot)
+		}
 		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 704,
 			"adopted", offered != request.Value, "applied", completed)
+		s.noteRespawn(room, session.slot)
 		room.Broadcast(protocol.CreateRespawnReply(objectID, request.Value))
 	}
 	return nil

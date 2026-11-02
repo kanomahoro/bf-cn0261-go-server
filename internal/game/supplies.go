@@ -49,6 +49,10 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
+	// respawnBoxWindow is how long after a seat comes back its client's random-box
+	// request counts as the respawn box. The 2015 client asks for it about five
+	// seconds after the revive.
+	respawnBoxWindow = 12 * time.Second
 	// maxSupplyIntervalMs bounds a host-stated refresh interval (the reference
 	// accepts up to one hour and states 30000 at most).
 	maxSupplyIntervalMs = 3600000
@@ -437,13 +441,23 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		s.log.Warn("dropped item rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
-	if request.Kind == 0 && !s.cfg.ItemMode.AcceptRandomBoxDrops {
-		// A random box is what the client asks for on every knock-down. The 2015
-		// game does not place one there, so the request is dropped: honouring it
-		// litters the map with neutral question boxes.
-		s.log.Info("knock-down box request ignored (not an original behaviour)",
-			"room", room.ID, "slot", session.slot)
-		return nil
+	// A kind-0 request is a random box. The client sends one on every knock-down,
+	// which the 2015 game does not do, and one a few seconds after a respawn, which
+	// it does: that is the box the player finds at the spawn point in its team's
+	// colour. So a random box is only honoured inside the respawn window.
+	boxTeam := uint32(0)
+	if request.Kind == 0 {
+		room.mu.RLock()
+		back := room.respawnAt[session.slot]
+		team := room.slots[session.slot].team
+		room.mu.RUnlock()
+		inside := !back.IsZero() && time.Since(back) <= respawnBoxWindow
+		if !inside && !s.cfg.ItemMode.AcceptRandomBoxDrops {
+			s.log.Debug("knock-down box request ignored", "room", room.ID, "slot", session.slot,
+				"since_respawn_ms", time.Since(back).Milliseconds())
+			return nil
+		}
+		boxTeam = uint32(team)
 	}
 	room.mu.Lock()
 	state := supplyStateLocked(room)
@@ -485,10 +499,11 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	// thrown box); it is passed through untouched.
 	class := request.Class
 	room.Broadcast(protocol.CreateSupplyCreate(objectID, class, protocol.SupplyReportPoint{
-		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: 0,
+		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: boxTeam,
 	}))
-	s.log.Info("[Supplies] box dropped", "room", room.ID, "slot", session.slot,
-		"kind", request.Kind, "object", objectID, "class", class, "thrown_slot", thrownSlot)
+	s.log.Info("[Supplies] box created", "room", room.ID, "slot", session.slot,
+		"kind", request.Kind, "object", objectID, "class", class,
+		"team", boxTeam, "thrown_slot", thrownSlot)
 	return nil
 }
 
@@ -530,6 +545,17 @@ func (s *Server) handleSwitchItemSlot(session *Session, packet protocol.Packet) 
 	s.log.Info("[Supplies] item slot switched", "room", room.ID, "slot", seat,
 		"item_slot", itemSlot, "kind", kind)
 	return nil
+}
+
+// noteRespawn records when a seat came back, so the box its client requests shortly
+// afterwards can be told from a knock-down box.
+func (s *Server) noteRespawn(room *Room, slot int) {
+	if slot < 0 || slot >= maxRoomSlots {
+		return
+	}
+	room.mu.Lock()
+	room.respawnAt[slot] = time.Now()
+	room.mu.Unlock()
 }
 
 // supplyStateLocked returns the round's item-mode state, creating it when there
