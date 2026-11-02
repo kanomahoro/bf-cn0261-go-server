@@ -708,3 +708,23 @@ func TestRespawnKeepsTheItemSlots(t *testing.T) {
 		t.Fatalf("a respawn must keep the items: %v", held.kinds)
 	}
 }
+
+// TestRespawnReplaysHeldGrants covers the blank item bar: the items survive the
+// death, but the client does not redraw them, so they are granted again on respawn.
+func TestRespawnReplaysHeldGrants(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	held := &heldItems{}
+	held.add(0, 138)
+	held.add(1, 141)
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{},
+		held: map[int]*heldItems{0: held}}
+
+	// No session is seated, so the replay has nobody to send to; the point of this
+	// test is that the items themselves are untouched.
+	server.noteRespawn(room, 0)
+	if held.kinds != [nativeItemSlots]uint32{138, 141} {
+		t.Fatalf("a respawn must keep the items: %v", held.kinds)
+	}
+}

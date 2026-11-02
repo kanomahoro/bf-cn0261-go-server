@@ -397,14 +397,13 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	itemSlot = held.firstEmpty()
 	if itemSlot < 0 {
-		// The client asked for a box while this round believes both slots are taken,
-		// so the table is wrong somewhere. Clearing it and starting from slot 0 keeps
-		// a stale entry from surviving the rest of the round.
+		// The client asked for a box while this round believes both slots are taken.
+		// Overwrite slot 0 and leave the other one alone: clearing both would throw
+		// away an item the seat may really hold.
 		if log := markSupplyRefusal(state); log {
-			s.log.Warn("item slot state disagreed with the client; slots cleared",
+			s.log.Warn("item slot state disagreed with the client; slot 0 overwritten",
 				"room", room.ID, "slot", seat, "held", held.kinds)
 		}
-		*held = heldItems{}
 		itemSlot = 0
 	}
 	// Commit: the box leaves the map and the item enters the slot.
@@ -644,9 +643,35 @@ func (s *Server) noteRespawn(room *Room, slot int) {
 	}
 	room.mu.Lock()
 	room.respawnAt[slot] = time.Now()
-	// The items a seat holds survive its death: that is how the 2015 game plays and
-	// how this round has always behaved. Only the respawn timestamp is recorded.
+	// The items a seat holds survive its death: that is how the 2015 game plays. The
+	// client, however, does not redraw them on respawn, so a seat would come back
+	// with a blank item bar while this round still holds both items - and the first
+	// use then spends the invisible old item. Replaying the grants makes the bar
+	// match again.
+	var replay []protocol.Packet
+	if state := room.supplies; state != nil && state.round == room.tracking {
+		if held := state.held[slot]; held != nil {
+			for index, kind := range held.kinds {
+				if kind != 0 {
+					replay = append(replay, protocol.CreateSupplyGranted(uint32(slot), kind, uint32(index)))
+				}
+			}
+		}
+	}
 	room.mu.Unlock()
+	if len(replay) == 0 {
+		return
+	}
+	for _, member := range room.View() {
+		if !member.Occupied || member.Slot != slot {
+			continue
+		}
+		for _, packet := range replay {
+			_ = member.Session.Send(packet)
+		}
+		break
+	}
+	s.log.Debug("item grants replayed on respawn", "room", room.ID, "slot", slot, "count", len(replay))
 }
 
 // supplyStateLocked returns the round's item-mode state, creating it when there
