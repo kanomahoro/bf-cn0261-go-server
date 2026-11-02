@@ -454,6 +454,7 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 | `gameWeaponsFile` | `config/game_weapons.json` | 武器表 |
 | `gameDefenseFile` | `config/game_defense.json` | 防具表 |
 | `itemMode.spawnFromMapReport` | `false` | 是否由服务端按房主的地图报告定时刷道具箱。默认关闭：2015 客户端自己生成箱子并通过中继互通，服务端再刷一遍会出现重复箱子 |
+| `itemMode.enforceBoxColour` | `false` | 是否由服务端硬拒别队颜色的箱子。颜色跟队伍绑定、客户端本来就会拒绝（kr-812 sub_6378A0），开启只增加服务端权威；默认关是因为颜色字的编号要先在真机确认，映射错了会导致连自己的箱子都捡不起来 |
 | `gameCharactersFile` | `config/game_characters.json` | 角色 / 频道 / 模式表 |
 | `gameRespawnFile` | `config/game_respawn.json` | 复活延迟表 |
 | `progressionFile` | `config/progression.json` | 等级、奖励、评级表 |

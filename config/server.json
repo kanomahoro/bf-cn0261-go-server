@@ -50,6 +50,7 @@
         "maxFiles": 3
     },
     "itemMode": {
-        "spawnFromMapReport": false
+        "spawnFromMapReport": false,
+        "enforceBoxColour": false
     }
 }

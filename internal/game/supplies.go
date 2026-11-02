@@ -281,13 +281,20 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 				found = true
 			} else if created, ok := state.clientBoxes[objectID]; ok && (created.kind == 0 || created.kind == kind) {
 				found = true
-				// The 2015 clients already refuse the other team's colour themselves
-				// (kr-812 sub_6378A0); a claim that gets past that is only noted, so a
-				// colour word this server reads differently cannot cost a real pickup.
+				// The colour is bound to the team and the clients refuse the other
+				// team's box themselves (kr-812 sub_6378A0). The server only makes it
+				// authoritative when itemMode.enforceBoxColour is on: until the colour
+				// word's numbering is confirmed on a real client, a wrong mapping would
+				// stop a player from taking their own boxes.
 				if created.team != 0 && created.team != uint32(team) {
-					s.log.Warn("item mode: pickup of the other team's colour",
-						"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
-						"seat_team", suppliesColorName(uint32(team)))
+					if s.cfg.ItemMode.EnforceBoxColour {
+						found = false
+						refusal = "a pickup of the other team's colour"
+					} else {
+						s.log.Warn("item mode: pickup of the other team's colour",
+							"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
+							"seat_team", suppliesColorName(uint32(team)))
+					}
 				}
 			}
 		}

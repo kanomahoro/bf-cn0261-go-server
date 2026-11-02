@@ -114,6 +114,13 @@ type ItemMode struct {
 	// reference server's own map-report handler never runs for these builds, so a
 	// server-side schedule would only duplicate what the clients already placed.
 	SpawnFromMapReport bool `json:"spawnFromMapReport"`
+	// EnforceBoxColour refuses a pickup whose box colour is the other team's. The
+	// colour is bound to the team (red/blue) and the clients refuse it themselves
+	// (kr-812 sub_6378A0), so this only adds server-side authority. It is off by
+	// default while the colour word's numbering is being confirmed on a real
+	// client: a wrong mapping would make a player unable to take their own boxes,
+	// which is worse than the client-only check the mode ships with.
+	EnforceBoxColour bool `json:"enforceBoxColour"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

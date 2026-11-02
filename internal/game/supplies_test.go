@@ -461,3 +461,31 @@ func TestPickupWithoutAnyStateIsGranted(t *testing.T) {
 		t.Fatalf("held = %+v, want kind 136", held)
 	}
 }
+
+// TestOtherColourPickupRefusedWhenEnforced covers itemMode.enforceBoxColour: the
+// colour is bound to the team, so with the option on the other team's box is
+// refused and stays on the map.
+func TestOtherColourPickupRefusedWhenEnforced(t *testing.T) {
+	server := newTestServer()
+	server.cfg.ItemMode.EnforceBoxColour = true
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, held: map[int]*heldItems{},
+		clientBoxes: map[uint32]clientBox{0x6161: {kind: 138, team: 2}}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x6161)
+	body.Unsigned(138)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if held := room.supplies.held[0]; held != nil && held.kinds[0] != 0 {
+		t.Fatalf("the other team's colour was granted: %+v", held)
+	}
+	if _, ok := room.supplies.clientBoxes[0x6161]; !ok {
+		t.Fatal("a refused box must stay on the map")
+	}
+}
