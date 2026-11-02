@@ -66,15 +66,30 @@ func TestNormalizeGameSettingStillRejectsOtherModes(t *testing.T) {
 	}
 }
 
-func TestItemModeKinds(t *testing.T) {
+func TestMapPointKinds(t *testing.T) {
 	for _, kind := range []uint32{0, 101, 102, 108, 109, 115, 120, 123, 127, 128, 130, 136, 137, 138, 139, 141} {
-		if !itemModeAccepts(kind) {
-			t.Fatalf("kind %d must be offered", kind)
+		if !mapPointKind(kind) {
+			t.Fatalf("kind %d must be a valid map point kind", kind)
 		}
 	}
-	for _, kind := range []uint32{103, 116, 133, 229, 1000} {
-		if itemModeAccepts(kind) {
+	for _, kind := range []uint32{103, 104, 116, 121, 133, 229, 1000} {
+		if mapPointKind(kind) {
 			t.Fatalf("kind %d is not in the cn-717 item sheet", kind)
+		}
+	}
+}
+
+// TestCarriedKinds covers what a random box may hold once opened: the sheet is
+// wider than the map points' kinds, which is why a picked box used to be refused.
+func TestCarriedKinds(t *testing.T) {
+	for _, kind := range []uint32{0, 101, 102, 104, 108, 112, 115, 120, 121, 129, 136, 141, 146, 201, 229} {
+		if !carriedKind(kind) {
+			t.Fatalf("kind %d must be a carried kind", kind)
+		}
+	}
+	for _, kind := range []uint32{103, 116, 133, 230, 1000} {
+		if carriedKind(kind) {
+			t.Fatalf("kind %d is not in the random box sheet", kind)
 		}
 	}
 }
@@ -345,10 +360,9 @@ func TestSupplyStateAdoptsTheStartingRound(t *testing.T) {
 	}
 }
 
-// TestUnknownBoxPickupIsGranted covers the 2015 flow: the clients create the map
-// boxes themselves, so a pickup of a box the server never saw announced is still
-// granted and told to every member.
-func TestUnknownBoxPickupIsGranted(t *testing.T) {
+// TestUnknownBoxPickupIsIgnored keeps a stale or duplicate pickup from leaving a
+// phantom item behind: a box the round never created is not granted.
+func TestUnknownBoxPickupIsIgnored(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -363,8 +377,8 @@ func TestUnknownBoxPickupIsGranted(t *testing.T) {
 	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
 		t.Fatalf("handleEatItem: %v", err)
 	}
-	if held := room.supplies.held[1]; held == nil || held.kinds[0] != 138 {
-		t.Fatalf("held = %+v, want kind 138 in slot 0", held)
+	if held := room.supplies.held[1]; held != nil && held.kinds[0] != 0 {
+		t.Fatalf("an unknown box must not be granted: %+v", held)
 	}
 }
 
@@ -425,10 +439,9 @@ func TestOtherColourPickupIsStillGranted(t *testing.T) {
 	}
 }
 
-// TestPickupWithoutAnyStateIsGranted covers a client-driven round that delivers a
-// pickup before the server has seen a box or a map report: the state is created
-// on demand and the pickup still reaches the other members.
-func TestPickupWithoutAnyStateIsGranted(t *testing.T) {
+// TestPickupCreatesTheStateOnDemand covers a round whose state does not exist yet:
+// it is created for the pickup, and a box nothing announced is still refused.
+func TestPickupCreatesTheStateOnDemand(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	session := &Session{slot: 3, room: room}
@@ -447,8 +460,8 @@ func TestPickupWithoutAnyStateIsGranted(t *testing.T) {
 	if room.supplies == nil {
 		t.Fatal("the pickup did not create the round's state")
 	}
-	if held := room.supplies.held[3]; held == nil || held.kinds[0] != 136 {
-		t.Fatalf("held = %+v, want kind 136", held)
+	if held := room.supplies.held[3]; held != nil && held.kinds[0] != 0 {
+		t.Fatalf("an unknown box must not be granted: %+v", held)
 	}
 }
 
@@ -588,5 +601,54 @@ func TestRespawnBoxIsAcceptedWithTeamColour(t *testing.T) {
 	room.mu.RUnlock()
 	if tracked != 1 {
 		t.Fatalf("the respawn box was not created, dropped=%d", tracked)
+	}
+}
+
+// TestCarriedKindOutsideTheMapSheetIsGranted covers a random box that opens into
+// an item the map points never name (kind 104 here): it must still be taken.
+func TestCarriedKindOutsideTheMapSheetIsGranted(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, held: map[int]*heldItems{},
+		clientBoxes: map[uint32]clientBox{0x3131: {kind: 104, team: 0}}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x3131)
+	body.Unsigned(104)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if held := room.supplies.held[0]; held == nil || held.kinds[0] != 104 {
+		t.Fatalf("kind 104 was not carried: %+v", held)
+	}
+}
+
+// TestImmediateItemTakesNoSlot covers the kinds that apply where they are picked
+// up: the box goes away, no slot is used.
+func TestImmediateItemTakesNoSlot(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, held: map[int]*heldItems{},
+		clientBoxes: map[uint32]clientBox{0x4141: {kind: 10, team: 0}}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x4141)
+	body.Unsigned(10)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if held := room.supplies.held[0]; held != nil && held.kinds[0] != 0 {
+		t.Fatalf("an immediate item took a slot: %+v", held)
+	}
+	if _, still := room.supplies.clientBoxes[0x4141]; still {
+		t.Fatal("the picked box must be removed")
 	}
 }

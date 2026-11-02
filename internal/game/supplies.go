@@ -58,11 +58,11 @@ const (
 	maxSupplyIntervalMs = 3600000
 )
 
-// itemModeKinds is the set of box kinds the cn-717 item sheet offers. Every
-// 2015 build loads ItemSpecItem for mode 3 (cn-717 sub_6920E0): booster,
-// shield, ghost, needle, freezeCannon, medipack, camouflage, polymorph, banana,
-// teamAngel, airBomb, turret, bazooka, machinegun and shieldField.
-var itemModeKinds = map[uint32]bool{
+// mapPointKinds is the set of kinds a map supply point may name. Every 2015 build
+// loads ItemSpecItem for mode 3 (cn-717 sub_6920E0): booster, shield, ghost,
+// needle, freezeCannon, medipack, camouflage, polymorph, banana, teamAngel,
+// airBomb, turret, bazooka, machinegun and shieldField.
+var mapPointKinds = map[uint32]bool{
 	101: true, // booster
 	102: true, // shield
 	108: true, // ghost
@@ -184,10 +184,37 @@ func seated(session *Session) bool {
 	return session.slot >= 0 && session.slot < maxRoomSlots
 }
 
-// itemModeAccepts reports whether the build's item mode offers a box kind. Kind
-// 0 is a random box and is always offered.
-func itemModeAccepts(kind uint32) bool {
-	return kind == 0 || itemModeKinds[kind]
+// carriedKinds is the set of kinds a box may hold once it is opened: the
+// ItemSpec rows the 2015 builds put in a random box (the reference's
+// random_supply_item_kinds). It is wider than mapPointKinds because a random box
+// resolves to something the map point itself never names - refusing those is what
+// made a picked box look like it could not be taken.
+var carriedKinds = map[uint32]bool{
+	101: true, 102: true, 104: true, 108: true, 109: true, 112: true, 115: true,
+	120: true, 121: true, 122: true, 123: true, 124: true, 125: true, 126: true,
+	127: true, 128: true, 129: true, 130: true, 131: true, 132: true, 134: true,
+	135: true, 136: true, 137: true, 138: true, 139: true, 141: true, 142: true,
+	143: true, 144: true, 145: true, 146: true, 147: true, 201: true, 203: true,
+	204: true, 207: true, 208: true, 209: true, 210: true, 211: true, 212: true,
+	213: true, 214: true, 215: true, 217: true, 218: true, 219: true, 220: true,
+	221: true, 222: true, 223: true, 224: true, 225: true, 226: true, 227: true,
+	228: true, 229: true,
+}
+
+// immediateKinds are the kinds that apply the moment they are picked up instead of
+// taking an item slot (the reference's immediate_supply_item_kinds).
+var immediateKinds = map[uint32]bool{10: true, 11: true, 15: true, 16: true}
+
+// mapPointKind reports whether a map point may name this kind. Kind 0 is a random
+// box and is always allowed.
+func mapPointKind(kind uint32) bool {
+	return kind == 0 || mapPointKinds[kind]
+}
+
+// carriedKind reports whether a box may hold this kind once opened. The immediate
+// kinds count too: they apply on pickup instead of taking a slot.
+func carriedKind(kind uint32) bool {
+	return kind == 0 || carriedKinds[kind] || immediateKinds[kind]
 }
 
 // handleMapReport accepts the host's map supply report (C702) and starts the box
@@ -216,7 +243,7 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	points := make([]*supplyPoint, 0, len(report.Points))
 	refused := 0
 	for _, entry := range report.Points {
-		if !itemModeAccepts(entry.Kind) {
+		if !mapPointKind(entry.Kind) {
 			refused++
 			continue
 		}
@@ -294,8 +321,8 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	team := room.slots[seat].team
 	refusal := ""
 	switch {
-	case !itemModeAccepts(kind):
-		refusal = "a pickup of an unoffered kind"
+	case !carriedKind(kind):
+		refusal = "a pickup of an unknown item kind"
 	default:
 		for _, point := range state.points {
 			if point.ActiveID == 0 || point.ActiveID != objectID {
@@ -345,14 +372,27 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	if !found {
-		// The 2015 clients create the map boxes themselves, so a box this server
-		// never saw announced is still a real one: accept the pickup and let every
-		// member remove it. The item sheet check above still applies, the two item
-		// slots bound how much a client can take and the refusal below needs a known
-		// team box, which only a reported map point can be.
-		s.log.Debug("item pickup of a box the round did not see created",
+		// A box this round never created or heard about. Granting it used to leave a
+		// phantom item behind on a duplicate or stale request: the seat then could
+		// not take anything else for the rest of the round.
+		room.mu.Unlock()
+		s.log.Info("item pickup of an unknown box ignored",
 			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
-		found = true
+		return nil
+	}
+	// An immediate item runs where it is picked up and never takes a slot.
+	if immediateKinds[kind] {
+		if target != nil {
+			target.ActiveID = 0
+		} else {
+			delete(state.dropped, objectID)
+			delete(state.clientBoxes, objectID)
+		}
+		room.mu.Unlock()
+		room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
+		s.log.Info("[Supplies] immediate item picked", "room", room.ID, "slot", seat,
+			"kind", kind, "object", objectID)
+		return nil
 	}
 	// The item goes into the first empty slot. A seat that already holds every
 	// slot cannot take the box, and the box stays where it is for somebody else.
@@ -470,12 +510,12 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		}
 		return nil
 	}
-	if !itemModeAccepts(request.Kind) {
+	if !carriedKind(request.Kind) {
 		log := markSupplyRefusal(state)
 		room.mu.Unlock()
 		if log {
 			s.log.Warn("item mode refused a box; further refusals this round are not logged",
-				"room", room.ID, "reason", "a thrown box of an unoffered kind")
+				"room", room.ID, "reason", "a thrown box of an unknown kind")
 		}
 		return nil
 	}
@@ -837,7 +877,7 @@ func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID 
 			"room", room.ID, "error", err)
 		return 0, clientBox{}, true
 	}
-	if !itemModeAccepts(point.Kind) {
+	if !mapPointKind(point.Kind) {
 		s.log.Debug("client box refused: kind not in the item sheet",
 			"room", room.ID, "kind", point.Kind)
 		return 0, clientBox{}, false
