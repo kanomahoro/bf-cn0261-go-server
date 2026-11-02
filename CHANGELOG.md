@@ -158,9 +158,9 @@ every one of them is now settled: point boxes are always spawned from the host's
 report, a client-made box with the other team's colour is logged and allowed, the
 server always grants the picked item, and only the respawn box is honoured. They are
 removed from `config/server.json` and from the `Config` type, and the behaviour is
-stated where it is used. An old file that still carries the block keeps loading - the
-`itemMode` key is accepted and ignored, so nobody has to edit their configuration to
-upgrade - but a `config/server.json` from this build no longer has it.
+stated where it is used. A configuration file from an older build has to lose the
+`itemMode` block: the loader refuses unknown keys, and the shipped
+`config/server.json` matches what this build expects.
 
 ### The item grant is sent once (2026-11-03)
 

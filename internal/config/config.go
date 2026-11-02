@@ -103,13 +103,6 @@ type Config struct {
 	Database           Database       `json:"database"`
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
-	// DeprecatedItemMode swallows the itemMode block that older configuration
-	// files carry. The four switches it held are gone: the behaviour they selected
-	// (server-spawned point boxes, a logged-only colour check on client-made boxes,
-	// a server-issued item grant, and a respawn-window-only random box) is now what
-	// the server always does. The field exists so an old file still loads, because
-	// the decoder refuses unknown keys.
-	DeprecatedItemMode json.RawMessage `json:"itemMode,omitempty"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.
