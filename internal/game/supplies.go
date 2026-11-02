@@ -643,35 +643,19 @@ func (s *Server) noteRespawn(room *Room, slot int) {
 	}
 	room.mu.Lock()
 	room.respawnAt[slot] = time.Now()
-	// The items a seat holds survive its death: that is how the 2015 game plays. The
-	// client, however, does not redraw them on respawn, so a seat would come back
-	// with a blank item bar while this round still holds both items - and the first
-	// use then spends the invisible old item. Replaying the grants makes the bar
-	// match again.
-	var replay []protocol.Packet
+	// The item bar starts empty after a respawn: the client shows nothing, so the
+	// round keeps nothing either. Replaying the old grants was tried and the client
+	// ignored them, which left the round holding items nobody could see and the
+	// first use spending an invisible one. Clearing here keeps both sides equal and
+	// lets the respawn box be taken straight away.
 	if state := room.supplies; state != nil && state.round == room.tracking {
-		if held := state.held[slot]; held != nil {
-			for index, kind := range held.kinds {
-				if kind != 0 {
-					replay = append(replay, protocol.CreateSupplyGranted(uint32(slot), kind, uint32(index)))
-				}
-			}
+		if held := state.held[slot]; held != nil && held.kinds != [nativeItemSlots]uint32{} {
+			s.log.Debug("item slots cleared on respawn", "room", room.ID, "slot", slot,
+				"held", held.kinds)
+			*held = heldItems{}
 		}
 	}
 	room.mu.Unlock()
-	if len(replay) == 0 {
-		return
-	}
-	for _, member := range room.View() {
-		if !member.Occupied || member.Slot != slot {
-			continue
-		}
-		for _, packet := range replay {
-			_ = member.Session.Send(packet)
-		}
-		break
-	}
-	s.log.Debug("item grants replayed on respawn", "room", room.ID, "slot", slot, "count", len(replay))
 }
 
 // supplyStateLocked returns the round's item-mode state, creating it when there
