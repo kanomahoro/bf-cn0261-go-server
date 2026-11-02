@@ -99,18 +99,7 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		// Item-mode traffic the clients report between themselves. The relay
 		// whitelist does not carry these ids, so they are forwarded here once the
 		// box envelope checks out and the round really runs the item battle.
-		if !s.itemMode(room) {
-			return nil
-		}
-		objectID, kind, allowed := s.itemRelayAllowed(room, packet)
-		if !allowed {
-			return nil
-		}
-		if packet.ID == 32832 {
-			s.noteClientBox(room, objectID, kind)
-		}
-		s.forwardItemPacket(room, session.slot, packet)
-		return nil
+		return s.handleItemPeerPacket(session, packet)
 	case packet.ID == 32877 || packet.ID == 32776 || packet.ID == 32777 || packet.ID == 32923:
 		// Explosion style packets are validated elsewhere and forwarded by the relay.
 		return nil

@@ -75,6 +75,26 @@ var itemModeKinds = map[uint32]bool{
 	141: true, // shieldField
 }
 
+// clientBox is one box a client created and announced.
+type clientBox struct {
+	kind uint32
+	// team is the colour word the creation envelope carried: 0 for any colour,
+	// 1 for red and 2 for blue (kr-812 sub_50C840 classifies the point names, and
+	// a box refuses a character of the other team in kr-812 sub_6378A0).
+	team uint32
+}
+
+// suppliesColorName renders a colour word for the log.
+func suppliesColorName(team uint32) string {
+	switch team {
+	case 1:
+		return "red"
+	case 2:
+		return "blue"
+	}
+	return "any"
+}
+
 // supplyPoint is one map supply point of the running round.
 type supplyPoint struct {
 	protocol.SupplyReportPoint
@@ -90,9 +110,10 @@ type supplyRound struct {
 	lastID  uint32
 	points  []*supplyPoint
 	dropped map[uint32]uint32
-	// clientBoxes holds the boxes the clients created over the relay, keyed by
-	// the id they chose, so a pickup of one still reaches every member.
-	clientBoxes map[uint32]uint32
+	// clientBoxes holds the boxes the clients created themselves, keyed by the id
+	// they chose, with the kind and the colour word (0 any, 1 red, 2 blue) the
+	// creation envelope stated.
+	clientBoxes map[uint32]clientBox
 	// held is the per-seat item slots; a seat holds at most nativeItemSlots.
 	held    map[int]*heldItems
 	running bool
@@ -259,8 +280,16 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 			// A thrown box or a box the clients created carries its own kind.
 			if thrown, ok := state.dropped[objectID]; ok && (thrown == 0 || thrown == kind) {
 				found = true
-			} else if created, ok := state.clientBoxes[objectID]; ok && (created == 0 || created == kind) {
+			} else if created, ok := state.clientBoxes[objectID]; ok && (created.kind == 0 || created.kind == kind) {
 				found = true
+				// The 2015 clients already refuse the other team's colour themselves
+				// (kr-812 sub_6378A0); a claim that gets past that is only noted, so a
+				// colour word this server reads differently cannot cost a real pickup.
+				if created.team != 0 && created.team != uint32(team) {
+					s.log.Warn("item mode: pickup of the other team's colour",
+						"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
+						"seat_team", suppliesColorName(uint32(team)))
+				}
 			}
 		}
 	}
@@ -444,7 +473,7 @@ func supplyStateLocked(room *Room) *supplyRound {
 		round:       room.tracking,
 		lastID:      supplyObjectIDBase,
 		dropped:     map[uint32]uint32{},
-		clientBoxes: map[uint32]uint32{},
+		clientBoxes: map[uint32]clientBox{},
 		held:        map[int]*heldItems{},
 	}
 	room.supplies = state
@@ -534,9 +563,11 @@ func (s *Server) startSupplies(room *Room, state *supplyRound) {
 	// Adopt the round token: a report that arrived during loading still belongs to
 	// the round that is starting now.
 	state.round = room.tracking
+	// The map points carry a box when the round starts and then refresh on their
+	// own interval, which is how the 2015 maps play.
 	now := time.Now()
 	for _, point := range state.points {
-		point.NextAt = now.Add(supplyInterval(point.SupplyReportPoint))
+		point.NextAt = now
 	}
 	room.mu.Unlock()
 	go s.runSupplies(room, state)
@@ -613,6 +644,25 @@ func (s *Server) runSupplies(room *Room, state *supplyRound) {
 	}
 }
 
+// handleItemPeerPacket takes one item packet a client reported, whichever
+// connection it arrived on: the creation envelope is checked, a box is
+// remembered by its own id and the packet is passed to the other members.
+func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet) error {
+	room := session.room
+	if room == nil || !seated(session) || !s.itemMode(room) {
+		return nil
+	}
+	objectID, box, allowed := s.itemRelayAllowed(room, packet)
+	if !allowed {
+		return nil
+	}
+	if packet.ID == 32832 {
+		s.noteClientBox(room, objectID, box)
+	}
+	s.forwardItemPacket(room, session.slot, packet)
+	return nil
+}
+
 // forwardItemPacket relays one client-reported item packet to the other members
 // over their relay connections when the round runs the item mode. The clients
 // own these events; the server only keeps them inside the match.
@@ -639,38 +689,38 @@ func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet)
 // and a body it cannot decode is still forwarded: a layout this server misreads
 // must not cost the mode its boxes, and the item battle is client-authoritative
 // either way.
-func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID, kind uint32, allowed bool) {
+func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID uint32, box clientBox, allowed bool) {
 	if packet.ID != 32832 { // gppCreateMapItem
-		return 0, 0, true
+		return 0, clientBox{}, true
 	}
 	objectID, _, point, err := protocol.ReadSupplyCreate(packet, 0)
 	if err != nil {
 		s.log.Warn("client box could not be decoded; forwarding it unread",
 			"room", room.ID, "error", err)
-		return 0, 0, true
+		return 0, clientBox{}, true
 	}
 	if !itemModeAccepts(point.Kind) {
 		s.log.Debug("client box refused: kind not in the item sheet",
 			"room", room.ID, "kind", point.Kind)
-		return 0, 0, false
+		return 0, clientBox{}, false
 	}
 	if point.Team > 2 {
 		s.log.Debug("client box refused: team outside 0..2", "room", room.ID, "team", point.Team)
-		return 0, 0, false
+		return 0, clientBox{}, false
 	}
-	return objectID, point.Kind, true
+	return objectID, clientBox{kind: point.Kind, team: point.Team}, true
 }
 
 // noteClientBox remembers a box a client announced over the relay, so a later
 // pickup of that id can still be granted and shown to the other members.
-func (s *Server) noteClientBox(room *Room, objectID, kind uint32) {
+func (s *Server) noteClientBox(room *Room, objectID uint32, box clientBox) {
 	if objectID == 0 {
 		return
 	}
 	room.mu.Lock()
 	state := supplyStateLocked(room)
 	if len(state.clientBoxes) < maxClientBoxes {
-		state.clientBoxes[objectID] = kind
+		state.clientBoxes[objectID] = box
 	}
 	room.mu.Unlock()
 }

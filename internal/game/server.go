@@ -413,6 +413,11 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	if packet.ID == 32773 {
 		return s.handlePeerNear(session, packet)
 	}
+	if isItemRelayPacket(packet.ID) {
+		// The item packets are marked "both" in the client's own opcode table, so
+		// they may arrive on the game connection instead of the relay.
+		return s.handleItemPeerPacket(session, packet)
+	}
 	if packet.ID == 32840 {
 		return s.handlePeerPing(session, packet)
 	}

@@ -158,14 +158,14 @@ func TestClientBoxPickupIsGranted(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 2, room: room}
 	room.slots[2].session = session
 	room.slots[2].team = 1
 
-	server.noteClientBox(room, 0x1234, 138)
-	if kind := room.supplies.clientBoxes[0x1234]; kind != 138 {
-		t.Fatalf("client box = %d, want 138", kind)
+	server.noteClientBox(room, 0x1234, clientBox{kind: 138, team: 1})
+	if box := room.supplies.clientBoxes[0x1234]; box.kind != 138 || box.team != 1 {
+		t.Fatalf("client box = %+v, want kind 138 team 1", box)
 	}
 
 	body := protocol.NewWriter()
@@ -190,7 +190,7 @@ func TestItemPickupRefusesOtherTeamBox(t *testing.T) {
 	point := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, Team: 2},
 		ActiveID: 0x0BAD}
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase, points: []*supplyPoint{point},
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 0, room: room}
 	room.slots[0].session = session
 	room.slots[0].team = 1
@@ -263,7 +263,7 @@ func TestPickupFillsBothSlotsThenRefuses(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	room.supplies = state
 	first := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 138}, ActiveID: 0x101}
 	second := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 120}, ActiveID: 0x102}
@@ -301,7 +301,7 @@ func TestUseAndSwitchAreRefusedOutsidePlay(t *testing.T) {
 	room := testItemRoom()
 	room.phase = phaseOpen
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 0, room: room}
 	room.slots[0].session = session
 	room.slots[0].team = 1
@@ -324,7 +324,7 @@ func TestUseAndSwitchAreRefusedOutsidePlay(t *testing.T) {
 func TestSupplyStateAdoptsTheStartingRound(t *testing.T) {
 	room := &Room{tracking: 5}
 	early := &supplyRound{round: 4, dropped: map[uint32]uint32{0x11: 138},
-		clientBoxes: map[uint32]uint32{0x12: 120}, held: map[int]*heldItems{}}
+		clientBoxes: map[uint32]clientBox{0x12: {kind: 120, team: 2}}, held: map[int]*heldItems{}}
 	room.supplies = early
 
 	state := supplyStateLocked(room)
@@ -352,7 +352,7 @@ func TestUnknownBoxPickupIsGranted(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	session := &Session{slot: 1, room: room}
 	room.slots[1].session = session
 	room.slots[1].team = 2
@@ -375,10 +375,62 @@ func TestNoServerBoxScheduleByDefault(t *testing.T) {
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
 		points:  []*supplyPoint{{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, MinMs: 1000, MaxMs: 2000}}},
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
 	room.supplies = state
 	server.startSupplies(room, state)
 	if state.running {
 		t.Fatal("the server must not schedule map boxes unless spawnFromMapReport is on")
+	}
+}
+
+// TestClientBoxOnTheGameConnection covers the "both" connection marking in the
+// client's own opcode table: a box creation that arrives on the game connection
+// is tracked just like one that arrives over the relay.
+func TestClientBoxOnTheGameConnection(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 2
+
+	// The clients announce a box with the same body the server's S711 carries, but
+	// under gppCreateMapItem (32832).
+	packet := protocol.CreateSupplyCreate(0x4242, 10000, protocol.SupplyReportPoint{
+		X: 1, Y: 2, Z: 3, Kind: 120, Team: 2,
+	})
+	packet.ID = 32832
+	if err := server.handleItemPeerPacket(session, packet); err != nil {
+		t.Fatalf("handleItemPeerPacket: %v", err)
+	}
+	box, ok := room.supplies.clientBoxes[0x4242]
+	if !ok {
+		t.Fatal("the box was not tracked")
+	}
+	if box.kind != 120 || box.team != 2 {
+		t.Fatalf("box = %+v, want kind 120 team 2", box)
+	}
+}
+
+// TestOtherColourPickupIsStillGranted keeps a colour word this server may read
+// differently from costing a real pickup: the client already refuses the other
+// team's box, so the server only notes it.
+func TestOtherColourPickupIsStillGranted(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, held: map[int]*heldItems{},
+		clientBoxes: map[uint32]clientBox{0x5151: {kind: 138, team: 2}}}
+	session := &Session{slot: 0, room: room}
+	room.slots[0].session = session
+	room.slots[0].team = 1
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x5151)
+	body.Unsigned(138)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if held := room.supplies.held[0]; held == nil || held.kinds[0] != 138 {
+		t.Fatalf("held = %+v, want kind 138", held)
 	}
 }
