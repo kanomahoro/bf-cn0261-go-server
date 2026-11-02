@@ -446,9 +446,17 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 func (s *Server) repeatGrant(room *Room, seat, slot int, kind uint32, grant protocol.Packet, after time.Duration) {
 	time.Sleep(after)
 	room.mu.RLock()
-	alive := grantStillHeldLocked(room, seat, slot, kind)
+	still := grantStillHeldLocked(room, seat, slot, kind)
+	life := room.life
 	room.mu.RUnlock()
-	if !alive {
+	if !still {
+		return
+	}
+	// A repeat must not reach a seat that is down or recovering: a grant delivered
+	// while the client is in its death or respawn flow is not something it expects.
+	if life != nil && !life.CanFire(uint8(seat)) {
+		s.log.Debug("item grant repeat skipped: the seat is not active",
+			"room", room.ID, "slot", seat, "kind", kind)
 		return
 	}
 	for _, member := range room.View() {
@@ -636,19 +644,8 @@ func (s *Server) noteRespawn(room *Room, slot int) {
 	}
 	room.mu.Lock()
 	room.respawnAt[slot] = time.Now()
-	// The client empties the item slots on death, so the round has to as well:
-	// keeping them would leave the two sides disagreeing about what the seat holds
-	// for the rest of the round. A round that starts fresh here also lets the
-	// respawn box be taken straight away.
-	if state := room.supplies; state != nil && state.round == room.tracking {
-		if held := state.held[slot]; held != nil {
-			if held.kinds != [nativeItemSlots]uint32{} {
-				s.log.Debug("item slots cleared on respawn", "room", room.ID, "slot", slot,
-					"held", held.kinds)
-			}
-			*held = heldItems{}
-		}
-	}
+	// The items a seat holds survive its death: that is how the 2015 game plays and
+	// how this round has always behaved. Only the respawn timestamp is recorded.
 	room.mu.Unlock()
 }
 

@@ -691,9 +691,9 @@ func TestRepeatGrantOnlyWhileHeld(t *testing.T) {
 	}
 }
 
-// TestRespawnClearsTheItemSlots covers what the client does on death: the slots
-// come back empty, so the round has to empty them too or the two sides disagree.
-func TestRespawnClearsTheItemSlots(t *testing.T) {
+// TestRespawnKeepsTheItemSlots pins the rule the original follows: a death does
+// not cost a seat the items it holds.
+func TestRespawnKeepsTheItemSlots(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	held := &heldItems{}
@@ -704,10 +704,7 @@ func TestRespawnClearsTheItemSlots(t *testing.T) {
 		held: map[int]*heldItems{0: held}}
 
 	server.noteRespawn(room, 0)
-	if held.kinds != [nativeItemSlots]uint32{} {
-		t.Fatalf("slots not cleared on respawn: %v", held.kinds)
-	}
-	if held.selected != 0 {
-		t.Fatalf("selection not reset: %d", held.selected)
+	if held.kinds != [nativeItemSlots]uint32{138, 141} {
+		t.Fatalf("a respawn must keep the items: %v", held.kinds)
 	}
 }
