@@ -245,11 +245,10 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	found := false
 	itemSlot := -1
 	room.mu.Lock()
-	state := room.supplies
-	if state == nil || state.round != room.tracking {
-		room.mu.Unlock()
-		return nil
-	}
+	// The round's state is created on demand: a client-driven round may deliver a
+	// pickup before this server has seen any box announcement or map report, and
+	// losing that pickup would leave the player unable to take anything all round.
+	state := supplyStateLocked(room)
 	// The slot may have been released by a concurrent leave; only the session that
 	// still owns it may pick a box.
 	if room.slots[seat].session != session {
@@ -319,9 +318,12 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		held = &heldItems{}
 	}
 	if itemSlot = held.firstEmpty(); itemSlot < 0 {
+		log := markSupplyRefusal(state)
 		room.mu.Unlock()
-		s.log.Debug("item pickup ignored: every item slot is taken",
-			"room", room.ID, "slot", seat, "object", objectID)
+		if log {
+			s.log.Info("item pickup ignored: every item slot is taken",
+				"room", room.ID, "slot", seat, "object", objectID)
+		}
 		return nil
 	}
 	// Commit: the box leaves the map and the item enters the slot.
@@ -350,6 +352,8 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	if len(packet.Payload) != 0 {
+		s.log.Debug("item use carries a body this server does not read",
+			"room", room.ID, "slot", session.slot, "bytes", len(packet.Payload))
 		return nil
 	}
 	seat := session.slot
@@ -431,6 +435,8 @@ func (s *Server) handleSwitchItemSlot(session *Session, packet protocol.Packet) 
 		return nil
 	}
 	if len(packet.Payload) != 0 {
+		s.log.Debug("item slot switch carries a body this server does not read",
+			"room", room.ID, "slot", session.slot, "bytes", len(packet.Payload))
 		return nil
 	}
 	seat := session.slot

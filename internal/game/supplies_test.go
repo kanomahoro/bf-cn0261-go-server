@@ -434,3 +434,30 @@ func TestOtherColourPickupIsStillGranted(t *testing.T) {
 		t.Fatalf("held = %+v, want kind 138", held)
 	}
 }
+
+// TestPickupWithoutAnyStateIsGranted covers a client-driven round that delivers a
+// pickup before the server has seen a box or a map report: the state is created
+// on demand and the pickup still reaches the other members.
+func TestPickupWithoutAnyStateIsGranted(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	session := &Session{slot: 3, room: room}
+	room.slots[3].session = session
+	room.slots[3].team = 1
+	if room.supplies != nil {
+		t.Fatal("the room should start with no item-mode state")
+	}
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x9999)
+	body.Unsigned(136)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if room.supplies == nil {
+		t.Fatal("the pickup did not create the round's state")
+	}
+	if held := room.supplies.held[3]; held == nil || held.kinds[0] != 136 {
+		t.Fatalf("held = %+v, want kind 136", held)
+	}
+}
