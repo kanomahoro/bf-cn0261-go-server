@@ -654,43 +654,6 @@ func TestImmediateItemTakesNoSlot(t *testing.T) {
 	}
 }
 
-// TestRepeatGrantOnlyWhileHeld covers the guarded repeat: it may only go out while
-// the slot still holds that kind, so an item the client already used is not put
-// back.
-func TestRepeatGrantOnlyWhileHeld(t *testing.T) {
-	room := testItemRoom()
-	held := &heldItems{}
-	held.add(0, 138)
-	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
-		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{},
-		held: map[int]*heldItems{0: held}}
-
-	room.mu.RLock()
-	before := grantStillHeldLocked(room, 0, 0, 138)
-	room.mu.RUnlock()
-	if !before {
-		t.Fatal("the grant must be repeatable while the item is held")
-	}
-
-	// Used: the slot is empty, so nothing is repeated.
-	held.use()
-	room.mu.RLock()
-	after := grantStillHeldLocked(room, 0, 0, 138)
-	room.mu.RUnlock()
-	if after {
-		t.Fatal("a used item must not be granted again")
-	}
-
-	// A different kind in the slot must not be overwritten by an old repeat.
-	held.add(0, 120)
-	room.mu.RLock()
-	other := grantStillHeldLocked(room, 0, 0, 138)
-	room.mu.RUnlock()
-	if other {
-		t.Fatal("a repeat for another kind must not go out")
-	}
-}
-
 // TestRespawnClearsTheItemSlots pins the chosen rule: the item bar starts empty
 // after a respawn, matching what the client shows.
 func TestRespawnClearsTheItemSlots(t *testing.T) {

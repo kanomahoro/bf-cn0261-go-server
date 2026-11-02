@@ -49,10 +49,6 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
-	// grantRepeatDelay and grantRepeatDelay2 are how long the server waits before
-	// repeating an item grant.
-	grantRepeatDelay  = 350 * time.Millisecond
-	grantRepeatDelay2 = 1200 * time.Millisecond
 	// respawnBoxWindow is how long after a seat comes back its client's random-box
 	// request counts as the respawn box. The 2015 client asks for it about five
 	// seconds after the revive.
@@ -422,63 +418,22 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	// a second grant would leave a phantom item that blocks the slot and cannot be
 	// used. itemMode.serverGrantsItem decides who owns the slot.
 	if s.cfg.ItemMode.ServerGrantsItem {
-		grant := protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot))
-		room.Broadcast(grant)
-		// A grant that lands while the client is still showing the previous pickup is
-		// sometimes dropped: the item then exists here and nowhere else, which used to
-		// block the seat for the rest of the round. One delayed repeat is harmless - it
-		// only runs while the slot still holds this kind - and gives the client a
-		// second chance to take it.
-		// Two repeats, both guarded the same way: the client occasionally drops the
-		// first grant, and a single repeat was not always enough.
-		go s.repeatGrant(room, seat, itemSlot, kind, grant, grantRepeatDelay)
-		go s.repeatGrant(room, seat, itemSlot, kind, grant, grantRepeatDelay2)
+		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
+		// One grant, no repeats.
+		//
+		// The client occasionally ignores a grant - the logs show it happening to the
+		// second slot while the round's table already holds that item, with no death
+		// and no use in between. Repeating the grant was tried and did not help: it
+		// was sent again at 350ms and at 1.2s, both times guarded to the same slot and
+		// kind, and the client still arrived at the next box believing the slot was
+		// free. So the cause is a client-side acceptance condition, not a lost packet,
+		// and sending more copies only risks a phantom item. If this is ever chased
+		// further, look for the client state in which it accepts an S713 for slot 1
+		// instead of repeating the packet.
 	}
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
 	return nil
-}
-
-// repeatGrant sends the same item grant once more a moment later, but only while
-// the slot still holds that kind: a repeat for an item the client already used
-// would put it back.
-func (s *Server) repeatGrant(room *Room, seat, slot int, kind uint32, grant protocol.Packet, after time.Duration) {
-	time.Sleep(after)
-	room.mu.RLock()
-	still := grantStillHeldLocked(room, seat, slot, kind)
-	life := room.life
-	room.mu.RUnlock()
-	if !still {
-		return
-	}
-	// A repeat must not reach a seat that is down or recovering: a grant delivered
-	// while the client is in its death or respawn flow is not something it expects.
-	if life != nil && !life.CanFire(uint8(seat)) {
-		s.log.Debug("item grant repeat skipped: the seat is not active",
-			"room", room.ID, "slot", seat, "kind", kind)
-		return
-	}
-	for _, member := range room.View() {
-		if member.Occupied && member.Slot == seat {
-			_ = member.Session.Send(grant)
-			break
-		}
-	}
-}
-
-// grantStillHeldLocked reports whether the round is still running and the slot
-// still holds this kind, which is what makes repeating a grant safe. The caller
-// holds the room mutex.
-func grantStillHeldLocked(room *Room, seat, slot int, kind uint32) bool {
-	state := room.supplies
-	if state == nil || state.round != room.tracking || !room.Started {
-		return false
-	}
-	held := state.held[seat]
-	if held == nil || slot < 0 || slot >= len(held.kinds) {
-		return false
-	}
-	return held.kinds[slot] == kind
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every

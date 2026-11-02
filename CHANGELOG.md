@@ -152,6 +152,15 @@ no damage. The log shows the client sends no area-effect packet for it (only the
 direct-use packet and the object deletions), which this server forwards verbatim,
 so the damage path is inside the client; nothing on the server side is missing.
 
+### The item grant is sent once (2026-11-03)
+
+A grant used to be repeated at 350ms and 1.2s in case the client dropped it. The
+logs show that the client sometimes ignores the grant of the second slot even
+though both copies were delivered, so the repeats were removed: the cause is a
+client-side acceptance condition, not a lost packet, and extra copies only risk a
+phantom item in a slot the client never filled. `supplies.go` documents what to
+look for if this is ever chased.
+
 ### Known limits
 
 - 这一版的道具战**尚未在真机上验收**。包布局取自 2015 客户端的读取函数
