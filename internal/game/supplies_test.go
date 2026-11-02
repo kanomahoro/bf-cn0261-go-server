@@ -272,9 +272,10 @@ func TestHeldItemsTwoSlots(t *testing.T) {
 	}
 }
 
-// TestPickupFillsBothSlotsThenRefuses checks the pickup path: two boxes fill the
-// two slots, the third leaves the box on the map.
-func TestPickupFillsBothSlotsThenRefuses(t *testing.T) {
+// TestPickupReplacesTheOldestSlotWhenTheStateDisagrees covers a seat whose two
+// slots this round already believes are full: the client asked for a third box, so
+// it must be taken rather than refused, and the served slot is replaced.
+func TestPickupReplacesTheOldestSlotWhenTheStateDisagrees(t *testing.T) {
 	server := newTestServer()
 	room := testItemRoom()
 	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
@@ -301,11 +302,11 @@ func TestPickupFillsBothSlotsThenRefuses(t *testing.T) {
 		t.Fatalf("held = %+v", held)
 	}
 	pick(0x103, 101)
-	if third.ActiveID == 0 {
-		t.Fatal("a pickup with every slot taken must leave the box on the map")
+	if third.ActiveID != 0 {
+		t.Fatal("the third box must be taken, not left on the map")
 	}
-	if held := state.held[0]; held.kinds[0] != 138 || held.kinds[1] != 120 {
-		t.Fatalf("the refused pickup changed the slots: %v", held.kinds)
+	if held := state.held[0]; held.kinds[0] != 101 {
+		t.Fatalf("slot 0 was not replaced: %v", held.kinds)
 	}
 }
 

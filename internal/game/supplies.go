@@ -394,20 +394,22 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 			"kind", kind, "object", objectID)
 		return nil
 	}
-	// The item goes into the first empty slot. A seat that already holds every
-	// slot cannot take the box, and the box stays where it is for somebody else.
+	// The item goes into the first empty slot. The client only asks for a box it
+	// believes it can take, so a pickup is never refused here: refusing one left the
+	// seat unable to take anything else for the rest of the round whenever the two
+	// sides disagreed about what was held. When this server thinks every slot is
+	// taken, the oldest one is replaced and the desync is logged instead.
 	held := state.held[seat]
 	if held == nil {
 		held = &heldItems{}
 	}
-	if itemSlot = held.firstEmpty(); itemSlot < 0 {
-		log := markSupplyRefusal(state)
-		room.mu.Unlock()
-		if log {
-			s.log.Info("item pickup ignored: every item slot is taken",
-				"room", room.ID, "slot", seat, "object", objectID)
+	itemSlot = held.firstEmpty()
+	if itemSlot < 0 {
+		itemSlot = 0
+		if log := markSupplyRefusal(state); log {
+			s.log.Warn("item slot state disagreed with the client; slot 0 replaced",
+				"room", room.ID, "slot", seat, "held", held.kinds)
 		}
-		return nil
 	}
 	// Commit: the box leaves the map and the item enters the slot.
 	if target != nil {
