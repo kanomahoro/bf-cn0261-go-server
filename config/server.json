@@ -51,6 +51,7 @@
     },
     "itemMode": {
         "spawnFromMapReport": false,
-        "enforceBoxColour": false
+        "enforceBoxColour": false,
+        "serverGrantsItem": true
     }
 }

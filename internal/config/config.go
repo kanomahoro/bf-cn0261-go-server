@@ -126,6 +126,12 @@ type ItemMode struct {
 	// client: a wrong mapping would make a player unable to take their own boxes,
 	// which is worse than the client-only check the mode ships with.
 	EnforceBoxColour bool `json:"enforceBoxColour"`
+	// ServerGrantsItem makes the server tell a picker which item it now holds
+	// (S2C gspAddItemToSlot). It is on by default because that is what the
+	// reference does, but the 2015 client may grant the item itself as well: two
+	// grants leave a phantom item that occupies a slot, cannot be used and stops
+	// further pickups. Turn this off to let the client own the slot.
+	ServerGrantsItem bool `json:"serverGrantsItem"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

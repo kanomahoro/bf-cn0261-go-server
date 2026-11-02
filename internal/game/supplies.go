@@ -345,7 +345,12 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	room.mu.Unlock()
 
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
+	// The client that picked the box may already have put the item in its own slot;
+	// a second grant would leave a phantom item that blocks the slot and cannot be
+	// used. itemMode.serverGrantsItem decides who owns the slot.
+	if s.cfg.ItemMode.ServerGrantsItem {
+		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), kind, uint32(itemSlot)))
+	}
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "tracked", target != nil)
 	return nil
@@ -376,7 +381,11 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 	}
 	room.mu.Unlock()
 	if !found {
-		s.log.Debug("item use ignored: no held item in the selected slot", "room", room.ID, "slot", seat)
+		// The client asked to spend an item the round does not have for it. Either
+		// the client owns the slot itself (see itemMode.serverGrantsItem) or the two
+		// sides disagree about what that seat holds.
+		s.log.Info("item use without a held item; nothing broadcast",
+			"room", room.ID, "slot", seat, "grants_item", s.cfg.ItemMode.ServerGrantsItem)
 		return nil
 	}
 	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
@@ -743,13 +752,31 @@ func (s *Server) noteClientBox(room *Room, objectID uint32, box clientBox) {
 // only place where they may reach another client.
 func isItemRelayPacket(id uint16) bool {
 	switch id {
-	case 32832, // gppCreateMapItem: the host scheduled a box
-		32824, // gppItemUseResult: a seat used an item
-		32829, // gppHitByItem: an item hit a character
+	// Boxes.
+	case 32832: // gppCreateMapItem: a client placed a box
+		return true
+	// Item use and its direct effects.
+	case 32824, // gppItemUseResult: a seat used an item
 		32888, // gppSyncUseItemSimply
 		32894, // gppUseItemDirect
-		32909, // gppStormDamagerItemId: an item's area effect
 		32929: // gppUseItemDirectAtPos
+		return true
+	// Item hits and the status an item puts on a character. Each of these carries
+	// the other side of an effect: without them the victim never learns it was
+	// frozen, slid on a banana, was magnetised or turned invisible, and an effect
+	// that starts can never end.
+	case 32829, // gppHitByItem
+		32830, // gppEndMagnet
+		32831, // gppEndFreezeCannon
+		32833, // gppStepOnBanana
+		32882, // gppGhost (invisibility)
+		32818: // gppStickGrenadeTo
+		return true
+	// Area effects (air strike and its cleanup).
+	case 32899, // gppStormDamager
+		32909, // gppStormDamagerItemId
+		32914, // gppEndDarkCircle
+		32915: // gppDeleteStormDamagerAOE
 		return true
 	}
 	return false
