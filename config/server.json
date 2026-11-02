@@ -52,6 +52,7 @@
     "itemMode": {
         "disableMapReportSpawns": false,
         "enforceBoxColour": false,
-        "serverGrantsItem": true
+        "serverGrantsItem": true,
+        "acceptClientBoxDrops": true
     }
 }

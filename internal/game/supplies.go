@@ -417,6 +417,11 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		s.log.Warn("dropped item rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
+	if !s.cfg.ItemMode.AcceptClientBoxDrops {
+		s.log.Debug("client box request ignored: acceptClientBoxDrops is off",
+			"room", room.ID, "slot", session.slot, "kind", request.Kind)
+		return nil
+	}
 	room.mu.Lock()
 	state := supplyStateLocked(room)
 	if len(state.dropped) >= maxDroppedSupplies {
