@@ -690,3 +690,24 @@ func TestRepeatGrantOnlyWhileHeld(t *testing.T) {
 		t.Fatal("a repeat for another kind must not go out")
 	}
 }
+
+// TestRespawnClearsTheItemSlots covers what the client does on death: the slots
+// come back empty, so the round has to empty them too or the two sides disagree.
+func TestRespawnClearsTheItemSlots(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	held := &heldItems{}
+	held.add(0, 138)
+	held.add(1, 141)
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{},
+		held: map[int]*heldItems{0: held}}
+
+	server.noteRespawn(room, 0)
+	if held.kinds != [nativeItemSlots]uint32{} {
+		t.Fatalf("slots not cleared on respawn: %v", held.kinds)
+	}
+	if held.selected != 0 {
+		t.Fatalf("selection not reset: %d", held.selected)
+	}
+}

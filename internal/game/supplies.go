@@ -636,6 +636,19 @@ func (s *Server) noteRespawn(room *Room, slot int) {
 	}
 	room.mu.Lock()
 	room.respawnAt[slot] = time.Now()
+	// The client empties the item slots on death, so the round has to as well:
+	// keeping them would leave the two sides disagreeing about what the seat holds
+	// for the rest of the round. A round that starts fresh here also lets the
+	// respawn box be taken straight away.
+	if state := room.supplies; state != nil && state.round == room.tracking {
+		if held := state.held[slot]; held != nil {
+			if held.kinds != [nativeItemSlots]uint32{} {
+				s.log.Debug("item slots cleared on respawn", "room", room.ID, "slot", slot,
+					"held", held.kinds)
+			}
+			*held = heldItems{}
+		}
+	}
 	room.mu.Unlock()
 }
 
