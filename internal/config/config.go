@@ -103,6 +103,17 @@ type Config struct {
 	Database           Database       `json:"database"`
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
+	ItemMode           ItemMode       `json:"itemMode"`
+}
+
+// ItemMode holds the item battle (client mode 3) options.
+type ItemMode struct {
+	// SpawnFromMapReport makes the server create the map boxes itself, on a timer
+	// derived from the host's C702 supply report. It is off by default: the 2015
+	// clients create their own boxes and report them over the relay, and the
+	// reference server's own map-report handler never runs for these builds, so a
+	// server-side schedule would only duplicate what the clients already placed.
+	SpawnFromMapReport bool `json:"spawnFromMapReport"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

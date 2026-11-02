@@ -344,3 +344,41 @@ func TestSupplyStateAdoptsTheStartingRound(t *testing.T) {
 		t.Fatalf("a state ahead of the room must be replaced, got round %d", state.round)
 	}
 }
+
+// TestUnknownBoxPickupIsGranted covers the 2015 flow: the clients create the map
+// boxes themselves, so a pickup of a box the server never saw announced is still
+// granted and told to every member.
+func TestUnknownBoxPickupIsGranted(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	room.supplies = &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+	session := &Session{slot: 1, room: room}
+	room.slots[1].session = session
+	room.slots[1].team = 2
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x7777)
+	body.Unsigned(138)
+	if err := server.handleEatItem(session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("handleEatItem: %v", err)
+	}
+	if held := room.supplies.held[1]; held == nil || held.kinds[0] != 138 {
+		t.Fatalf("held = %+v, want kind 138 in slot 0", held)
+	}
+}
+
+// TestNoServerBoxScheduleByDefault keeps the server from duplicating the boxes the
+// clients place: the scheduler only runs when itemMode.spawnFromMapReport is on.
+func TestNoServerBoxScheduleByDefault(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	state := &supplyRound{round: 7, lastID: supplyObjectIDBase,
+		points:  []*supplyPoint{{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, MinMs: 1000, MaxMs: 2000}}},
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]uint32{}, held: map[int]*heldItems{}}
+	room.supplies = state
+	server.startSupplies(room, state)
+	if state.running {
+		t.Fatal("the server must not schedule map boxes unless spawnFromMapReport is on")
+	}
+}

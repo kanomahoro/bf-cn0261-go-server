@@ -197,7 +197,8 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	room.mu.Unlock()
 
 	s.log.Info("[Supplies] map report", "room", room.ID, "points", len(points),
-		"refused", refused, "intervals", report.IntervalsStated)
+		"refused", refused, "intervals", report.IntervalsStated,
+		"server_spawn", s.cfg.ItemMode.SpawnFromMapReport)
 	if playing {
 		s.startSupplies(room, state)
 	}
@@ -273,11 +274,14 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	if !found {
-		room.mu.Unlock()
-		// Not a box this server tracks: the clients own it and report the pickup
-		// between themselves.
-		s.log.Debug("item pickup ignored: unknown box", "room", room.ID, "slot", seat, "object", objectID)
-		return nil
+		// The 2015 clients create the map boxes themselves, so a box this server
+		// never saw announced is still a real one: accept the pickup and let every
+		// member remove it. The item sheet check above still applies, the two item
+		// slots bound how much a client can take and the refusal below needs a known
+		// team box, which only a reported map point can be.
+		s.log.Debug("item pickup of a box the round did not see created",
+			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
+		found = true
 	}
 	// The item goes into the first empty slot. A seat that already holds every
 	// slot cannot take the box, and the box stays where it is for somebody else.
@@ -513,6 +517,9 @@ func markSupplyRefusal(state *supplyRound) bool {
 
 // startSupplies begins the box refresh loop once play starts.
 func (s *Server) startSupplies(room *Room, state *supplyRound) {
+	if !s.cfg.ItemMode.SpawnFromMapReport {
+		return
+	}
 	room.mu.Lock()
 	if !supplyStartsLocked(room, state) {
 		room.mu.Unlock()
