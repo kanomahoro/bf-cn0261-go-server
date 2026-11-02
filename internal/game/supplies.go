@@ -49,8 +49,10 @@ const (
 	defaultSupplyMaxMs = 30000
 	// ordinaryCreationClass is the word an ordinary map box carries.
 	ordinaryCreationClass = 10000
-	// grantRepeatDelay is how long the server waits before repeating an item grant.
-	grantRepeatDelay = 350 * time.Millisecond
+	// grantRepeatDelay and grantRepeatDelay2 are how long the server waits before
+	// repeating an item grant.
+	grantRepeatDelay  = 350 * time.Millisecond
+	grantRepeatDelay2 = 1200 * time.Millisecond
 	// respawnBoxWindow is how long after a seat comes back its client's random-box
 	// request counts as the respawn box. The 2015 client asks for it about five
 	// seconds after the revive.
@@ -428,7 +430,10 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		// block the seat for the rest of the round. One delayed repeat is harmless - it
 		// only runs while the slot still holds this kind - and gives the client a
 		// second chance to take it.
-		go s.repeatGrant(room, seat, itemSlot, kind, grant)
+		// Two repeats, both guarded the same way: the client occasionally drops the
+		// first grant, and a single repeat was not always enough.
+		go s.repeatGrant(room, seat, itemSlot, kind, grant, grantRepeatDelay)
+		go s.repeatGrant(room, seat, itemSlot, kind, grant, grantRepeatDelay2)
 	}
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
@@ -438,8 +443,8 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 // repeatGrant sends the same item grant once more a moment later, but only while
 // the slot still holds that kind: a repeat for an item the client already used
 // would put it back.
-func (s *Server) repeatGrant(room *Room, seat, slot int, kind uint32, grant protocol.Packet) {
-	time.Sleep(grantRepeatDelay)
+func (s *Server) repeatGrant(room *Room, seat, slot int, kind uint32, grant protocol.Packet, after time.Duration) {
+	time.Sleep(after)
 	room.mu.RLock()
 	alive := grantStillHeldLocked(room, seat, slot, kind)
 	room.mu.RUnlock()
