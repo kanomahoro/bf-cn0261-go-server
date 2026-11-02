@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 
@@ -73,6 +74,25 @@ var itemModeKinds = map[uint32]bool{
 	138: true, // bazooka
 	139: true, // machinegun
 	141: true, // shieldField
+}
+
+// relayAlreadyForwards reports whether the relay itself already passes this id to
+// the peers. It mirrors internal/net.reportForwardable's list; the game package
+// cannot import the net package (the relay imports the game server), so an id
+// added there has to be added here too.
+func relayAlreadyForwards(id uint16) bool {
+	if protocol.IsPeerAction(id) || protocol.IsPeerLife(id) ||
+		protocol.IsPeerKick(id) || protocol.IsPeerExplosion(id) {
+		return true
+	}
+	switch id {
+	case 32898, 32901, 32924, // peer fire
+		32773, 32777, 32900, 32906, 32920, // attacks, life points
+		32884, 32885, 32922, // movement and watch target
+		32925: // respawn complete
+		return true
+	}
+	return false
 }
 
 // supplyCreateBodyBytes is the size of the ten-word box creation envelope.
@@ -572,10 +592,17 @@ func (h *heldItems) selectedKind() uint32 {
 	return noItemKind
 }
 
-// use spends the selected item and keeps the selection.
+// use spends the selected item and keeps the selection. When the selected slot is
+// empty the other one is taken: the client keeps its own selection, and after a
+// use it may ask for the item that is still in the other slot (that request used
+// to be dropped, which looked like an item that could not be used).
 func (h *heldItems) use() (kind uint32, slot int, ok bool) {
 	if h.kinds[h.selected] == 0 {
-		return 0, h.selected, false
+		other := 1 - h.selected
+		if h.kinds[other] == 0 {
+			return 0, h.selected, false
+		}
+		h.selected = other
 	}
 	kind, slot = h.kinds[h.selected], h.selected
 	h.kinds[h.selected] = 0
@@ -770,8 +797,12 @@ func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID 
 		// The same opcode also carries the client's smaller map objects: a thrown
 		// banana arrives as three words (object, kind, owner) and is nobody's box
 		// envelope. Forward it untouched and do not track it as a box.
+		preview := packet.Payload
+		if len(preview) > 32 {
+			preview = preview[:32]
+		}
 		s.log.Debug("client map object is not a box envelope; forwarding it unread",
-			"room", room.ID, "bytes", len(packet.Payload))
+			"room", room.ID, "bytes", len(packet.Payload), "hex", fmt.Sprintf("%x", preview))
 		return 0, clientBox{}, true
 	}
 	objectID, _, point, err := protocol.ReadSupplyCreate(packet, 0)
@@ -829,7 +860,10 @@ func isItemRelayPacket(id uint16) bool {
 		32831, // gppEndFreezeCannon
 		32833, // gppStepOnBanana
 		32882, // gppGhost (invisibility)
-		32818: // gppStickGrenadeTo
+		32818, // gppStickGrenadeTo
+		32889, // gppCharactersPlayData (an item that changes a character's look)
+		32812, // gppResetChrAttr (the reset that ends such a change)
+		32895: // gppChangeTurretState (a placed turret's state)
 		return true
 	// Area effects (air strike and its cleanup).
 	case 32899, // gppStormDamager

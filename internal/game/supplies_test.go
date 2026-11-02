@@ -541,3 +541,30 @@ func TestThrownItemLeavesTheSlot(t *testing.T) {
 		t.Fatalf("the thrown box was not tracked: %v", room.supplies.dropped)
 	}
 }
+
+// TestUseFallsBackToTheOtherSlot covers the request that used to be dropped: the
+// client keeps its own selection, so after spending the item in one slot it may
+// ask to use the item still held in the other one.
+func TestUseFallsBackToTheOtherSlot(t *testing.T) {
+	var held heldItems
+	held.add(0, 138)
+	held.add(1, 115)
+	if held.selected != 0 {
+		t.Fatalf("selection = %d, want 0", held.selected)
+	}
+	kind, slot, ok := held.use()
+	if !ok || kind != 138 || slot != 0 {
+		t.Fatalf("first use = (%d,%d,%v)", kind, slot, ok)
+	}
+	// The selected slot is empty now; the client asks again for the other item.
+	if held.selectedKind() != noItemKind {
+		t.Fatalf("selected kind = %#x, want the empty word", held.selectedKind())
+	}
+	kind, slot, ok = held.use()
+	if !ok || kind != 115 || slot != 1 {
+		t.Fatalf("fallback use = (%d,%d,%v), want (115,1,true)", kind, slot, ok)
+	}
+	if _, _, ok := held.use(); ok {
+		t.Fatal("an empty seat must not produce a use")
+	}
+}

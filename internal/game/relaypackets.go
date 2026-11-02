@@ -104,6 +104,14 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		// Explosion style packets are validated elsewhere and forwarded by the relay.
 		return nil
 	}
+	// An item-mode round lets the clients own the rules, including the packets the
+	// server does not model: a turret's state, a character whose look an item
+	// changed, whatever else the client puts on this connection. Dropping them is
+	// what made those effects visible only to the player who caused them. Packets
+	// the relay itself forwards are skipped so nothing reaches a peer twice.
+	if packet.ID >= 32768 && s.itemMode(room) && !relayAlreadyForwards(packet.ID) {
+		s.forwardItemPacket(room, session.slot, packet, true)
+	}
 	return nil
 }
 
