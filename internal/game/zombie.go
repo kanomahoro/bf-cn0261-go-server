@@ -206,7 +206,9 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 		room.mu.Unlock()
 		return
 	}
-	if finish == 0 && room.zombieKingSlot >= 0 {
+	// The king's branch returned above, so only a conversion reaches this: the last
+	// human turning hands the round to the zombies.
+	if room.zombieKingSlot >= 0 {
 		humans := 0
 		for index := range room.slots {
 			if room.slots[index].session != nil && room.slots[index].team == zombieHumanTeam {

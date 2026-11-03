@@ -379,3 +379,25 @@ func respawnPayload(objectID uint32) []byte {
 	writer.Unsigned(0)
 	return writer.Payload()
 }
+
+// The death report's body is not read: a build may send the seat and team words
+// on the same request, and only the sender's own seat may turn.
+func TestZombieDeathReportIgnoresTheBody(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+
+	writer := protocol.NewWriter()
+	writer.Unsigned(uint32(0)) // the seat word a build may fill in
+	writer.Unsigned(uint32(2)) // a team word naming the other seat
+	packet := protocol.Packet{ID: 515, Payload: writer.Payload()}
+	if err := server.handleChangeTeam(room.slots[1].session, packet); err != nil {
+		t.Fatalf("death report refused: %v", err)
+	}
+	if team := room.Team(1); team != zombieTeam {
+		t.Fatalf("the reporting seat's team = %d, want the zombie team", team)
+	}
+	if team := room.Team(0); team != zombieHumanTeam {
+		t.Fatalf("the seat named in the body turned instead: team = %d", team)
+	}
+}

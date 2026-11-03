@@ -874,20 +874,24 @@ func (s *Server) handleKick(session *Session, packet protocol.Packet) error {
 }
 
 func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) error {
-	if packet.ID != 515 || len(packet.Payload) != 0 {
-		return fmt.Errorf("%w: expected empty RoomChangeTeam", protocol.ErrInvalidPacket)
+	if packet.ID != 515 {
+		return fmt.Errorf("%w: expected RoomChangeTeam", protocol.ErrInvalidPacket)
 	}
 	room := session.room
 	if room == nil {
 		return nil
 	}
-	// In the zombie battle the same empty request is the client's death report
+	// In the zombie battle the same request is the client's death report
 	// (kr-812 sub_76C090 sends gcpRoomChangeTeam on every death of the local
 	// player), so a running round handles it instead of the waiting room's team
-	// switch.
+	// switch. Its body is not read: a build may send the seat and team words
+	// there, and the sender's own seat is the only one that may turn.
 	if room.StartedReport() && room.ZombieRound() {
 		s.zombieDeathReport(session)
 		return nil
+	}
+	if len(packet.Payload) != 0 {
+		return fmt.Errorf("%w: expected empty RoomChangeTeam", protocol.ErrInvalidPacket)
 	}
 	if room.SettingCopy().State != 2 {
 		return nil
