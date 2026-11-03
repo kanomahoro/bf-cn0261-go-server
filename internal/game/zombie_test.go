@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
 )
 
 // zombieTestRoom builds a room whose setting names the zombie mode, with the
@@ -100,6 +101,40 @@ func TestZombieOpeningTurnsOneRandomHuman(t *testing.T) {
 	if zombies != 1 {
 		t.Fatalf("zombies = %d, want exactly the king", zombies)
 	}
+	// Every client must be told, and the notice must really carry team 14. The
+	// broadcast follows the pick, so it is waited for rather than assumed.
+	seen := func() int {
+		seen := 0
+		for slot := 0; slot < 3; slot++ {
+			for _, team := range teamsOf(room.slots[slot].session.send.(*recorder), 504) {
+				if team == uint32(zombieTeam) {
+					seen++
+				}
+			}
+		}
+		return seen
+	}
+	for seen() < 3 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := seen(); got != 3 {
+		t.Fatalf("team-14 notices = %d, want one per member", got)
+	}
+}
+
+// teamsOf lists the team word of every packet with the given id the recorder saw.
+func teamsOf(rec *recorder, id uint16) []uint32 {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	var out []uint32
+	for _, packet := range rec.packets {
+		if packet.ID != id || len(packet.Payload) < 8 {
+			continue
+		}
+		out = append(out, uint32(packet.Payload[4])|uint32(packet.Payload[5])<<8|
+			uint32(packet.Payload[6])<<16|uint32(packet.Payload[7])<<24)
+	}
+	return out
 }
 
 // A dead human turns, a dead zombini comes back, and neither ends the round.
@@ -223,5 +258,63 @@ func TestZombieConversionBypassesTheTwoTeamBind(t *testing.T) {
 	}
 	if team := life.Team(0); team != zombieTeam {
 		t.Fatalf("team = %d, want %d", team, zombieTeam)
+	}
+}
+
+// A converted seat is alive again: its next death report is accepted, which is
+// what the fallback path (a death in the combat stream) needs.
+func TestZombieConvertedSeatCanDieAgain(t *testing.T) {
+	life := NewBattleLife(nil)
+	if err := life.Bind(0, objectFor(0), zombieHumanTeam); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	dead := protocol.PeerLifeEvent{Kind: protocol.LifeDead, VictimObject: objectFor(0), ActorObject: protocol.Unset}
+	if accepted, err := life.Apply(0, dead, false); err != nil || !accepted {
+		t.Fatalf("first death: accepted=%v err=%v", accepted, err)
+	}
+	if !life.ConvertTeam(0, zombieTeam) {
+		t.Fatal("conversion refused")
+	}
+	if accepted, err := life.Apply(0, dead, false); err != nil || !accepted {
+		t.Fatalf("second death after conversion: accepted=%v err=%v", accepted, err)
+	}
+	if team := life.Team(0); team != zombieTeam {
+		t.Fatalf("team = %d, want %d", team, zombieTeam)
+	}
+}
+
+// The settlement's wire rows keep the zombie team while the stored rows use the
+// schema's two teams.
+func TestZombieResultTeamIsMappedOnlyForStorage(t *testing.T) {
+	if got := store.StoredTeam(zombieTeam); got != 2 {
+		t.Fatalf("stored team = %d, want 2", got)
+	}
+	if got := store.StoredTeam(zombieHumanTeam); got != 1 {
+		t.Fatalf("stored team = %d, want 1", got)
+	}
+	if got := store.StoredWinner(zombieTeam); got != 2 {
+		t.Fatalf("stored winner = %d, want 2", got)
+	}
+	if got := store.StoredWinner(zombieHumanTeam); got != 1 {
+		t.Fatalf("stored winner = %d, want 1", got)
+	}
+}
+
+// A death reported in the combat stream names the victim, which need not be the
+// reporter: the seat that died turns, the killer does not.
+func TestZombieCombatDeathTurnsTheVictimNotTheReporter(t *testing.T) {
+	room := zombieTestRoom(3)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+
+	server.zombieDeathOfObject(room, objectFor(2))
+	if team := room.Team(2); team != zombieTeam {
+		t.Fatalf("victim team = %d, want the zombie team", team)
+	}
+	if team := room.Team(0); team != zombieHumanTeam {
+		t.Fatalf("reporter team = %d, want it to stay human", team)
+	}
+	if king := room.ZombieKingSlot(); king != 2 {
+		t.Fatalf("king slot = %d, want the first dead seat, 2", king)
 	}
 }

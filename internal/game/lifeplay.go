@@ -140,7 +140,9 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 		// client that reports the death in the combat stream instead turns here: the
 		// conversion is idempotent, so a second report decides nothing new.
 		if event.Kind == protocol.LifeDead && room.ZombieRound() {
-			s.zombieDeathReport(session)
+			// The event names the victim, which need not be the reporter: the
+			// killer's client reports the death it caused.
+			s.zombieDeathOfObject(room, event.VictimObject)
 		}
 		if s.broadcastScores(room) {
 			s.finishRound(room, false)

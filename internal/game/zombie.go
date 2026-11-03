@@ -1,7 +1,6 @@
 package game
 
 import (
-	"fmt"
 	"math/rand/v2"
 	"time"
 
@@ -121,21 +120,51 @@ func (s *Server) pickZombieKing(room *Room, generation int) {
 	king = humans[rand.IntN(len(humans))]
 	room.slots[king].team = zombieTeam
 	room.zombieKingSlot = king
-	notice, _ = protocol.CreateRoomTeamReply(uint32(king), zombieTeam)
+	built, err := protocol.CreateRoomTeamReply(uint32(king), zombieTeam)
 	room.mu.Unlock()
-
+	if err != nil {
+		// Without the notice no client shows the king; the round would run on with
+		// a zombie nobody can see.
+		s.log.Error("[Zombie] the king's notice could not be encoded", "room", room.ID, "slot", king, "error", err)
+		return
+	}
+	notice = built
 	s.log.Info("[Zombie] the king turned", "room", room.ID, "slot", king)
 	room.Broadcast(notice)
 }
 
 // zombieDeathReport answers the client's native team-change request during a
 // zombie round. kr-812 sub_76C090 sends it on every death of the local player, so
-// it carries no killer: a human who falls to the map turns as well.
+// it carries no killer: a human who falls to the map turns as well. The request
+// names no seat, so only the sender's own seat may turn.
 func (s *Server) zombieDeathReport(session *Session) {
 	room := session.room
 	if room == nil {
 		return
 	}
+	room.mu.RLock()
+	owner := session.slot >= 0 && session.slot < maxRoomSlots && room.slots[session.slot].session == session
+	slot := session.slot
+	room.mu.RUnlock()
+	if !owner {
+		return
+	}
+	s.zombieDeathSlot(room, slot)
+}
+
+// zombieDeathOfObject is the death the combat stream reports instead of the team
+// notice: the event names the victim's object, so that seat turns (not the
+// reporter's).
+func (s *Server) zombieDeathOfObject(room *Room, victimObject uint32) {
+	if protocol.ValidateObject(victimObject) != nil {
+		return
+	}
+	s.zombieDeathSlot(room, int((victimObject-1000000)/100000))
+}
+
+// zombieDeathSlot turns the seat that died into a zombie (or decides the round
+// when the king died).
+func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	var (
 		finish   uint8
 		notice   *protocol.Packet
@@ -143,12 +172,8 @@ func (s *Server) zombieDeathReport(session *Session) {
 		kingSlot int
 	)
 	room.mu.Lock()
-	if !room.Started || room.phase != phasePlaying || room.Setting.Game.Mode != zombieModeID {
-		room.mu.Unlock()
-		return
-	}
-	slot := session.slot
-	if slot < 0 || slot >= maxRoomSlots || room.slots[slot].session != session {
+	if !room.Started || room.phase != phasePlaying || room.Setting.Game.Mode != zombieModeID ||
+		slot < 0 || slot >= maxRoomSlots || room.slots[slot].session == nil {
 		room.mu.Unlock()
 		return
 	}
@@ -308,24 +333,4 @@ func (s *Server) zombieLeave(room *Room, slot int) (handled bool) {
 	s.log.Info("[Zombie] the last human left", "room", room.ID)
 	s.finishRound(room, false)
 	return true
-}
-
-// finishZombie decodes the round's decided winner for the settlement, reporting
-// 0 when the round is not a zombie round or is still undecided.
-func (r *Room) zombieDecidedWinner() uint8 {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	if r.Setting.Game.Mode != zombieModeID {
-		return 0
-	}
-	return r.zombieWinner
-}
-
-// randomIndex is gone: the picker uses math/rand/v2 directly.
-
-// String describes the round's zombie state for diagnostics.
-func (r *Room) zombieState() string {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return fmt.Sprintf("king=%d winner=%d", r.zombieKingSlot, r.zombieWinner)
 }

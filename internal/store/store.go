@@ -1362,7 +1362,7 @@ func (db *DB) SaveResult(result Result, levels LevelFn, maxExperience uint32) er
 		    end_reason, first_team_score, second_team_score, winner, policy_version, completed_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(6))`,
 		resultID, result.RoomID, result.TrackingID, result.Mode, result.SubMode, result.MapName,
-		result.EndReason, result.FirstScore, result.SecondScore, result.Winner,
+		result.EndReason, result.FirstScore, result.SecondScore, StoredWinner(result.Winner),
 		result.PolicyVersion); err != nil {
 		return mapError(err)
 	}
@@ -1414,7 +1414,7 @@ func (db *DB) SaveResult(result Result, levels LevelFn, maxExperience uint32) er
 			   next_level, level_before)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)`,
 			resultID, player.Slot, player.CharacterID, player.AccountID, player.Nickname,
-			player.Team, player.Bubbles, player.Pangs, player.Rescues, experienceBefore,
+			StoredTeam(player.Team), player.Bubbles, player.Pangs, player.Rescues, experienceBefore,
 			experienceAfter, lucciBefore, lucciAfter, appliedGain, appliedLucci,
 			levelAfter, levelStart, nextLevel, levelBefore)
 		if err != nil {
@@ -1525,4 +1525,26 @@ func (db *DB) AccountNames() ([]string, error) {
 		names = append(names, name)
 	}
 	return names, rows.Err()
+}
+
+// StoredTeam maps a round team onto the two teams the settlement tables accept.
+// The zombie battle (14) and the cooperative zombie raid (15) reach the result
+// rows as their own team ids; the CHECK constraints only know the two battle
+// teams, so a converted seat is stored on the second one. The wire's result
+// screen keeps the real team, which is why this mapping lives here and not in
+// the caller.
+func StoredTeam(team uint8) uint8 {
+	if team <= 2 {
+		return team
+	}
+	return 2
+}
+
+// StoredWinner maps the winning team id the same way (1 stays the first team,
+// anything else is the second).
+func StoredWinner(winner uint8) uint8 {
+	if winner <= 1 {
+		return winner
+	}
+	return 2
 }

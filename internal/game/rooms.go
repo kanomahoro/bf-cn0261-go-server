@@ -1470,28 +1470,6 @@ func (s *Server) cancelRound(room *Room) {
 	}
 }
 
-// persistedTeam maps a round team onto the two teams the result tables record.
-// The zombie battle and the cooperative zombie raid use their own team ids (14
-// and 15) on the wire; the settlement schema only knows the two battle teams, so
-// a converted seat is stored on the second one.
-func persistedTeam(team uint8) uint8 {
-	if team == 1 || team == 2 {
-		return team
-	}
-	if team == 0 {
-		return 0
-	}
-	return 2
-}
-
-// persistedWinner does the same for the winning team id the result row carries.
-func persistedWinner(winner uint8) uint8 {
-	if winner == 0 || winner == 1 {
-		return winner
-	}
-	return 2
-}
-
 func (s *Server) finishRound(room *Room, timeExpired bool) {
 	room.mu.Lock()
 	if !room.Started {
@@ -1530,6 +1508,15 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			Character: entry.character, Items: entry.items,
 		})
 	}
+	// The round's teams go back to the human team for the records that follow the
+	// settlement: a waiting-room seat record only carries the two battle teams.
+	if setting.Game.Mode == zombieModeID {
+		for slot := range room.slots {
+			if room.slots[slot].team == zombieTeam {
+				room.slots[slot].team = zombieHumanTeam
+			}
+		}
+	}
 	room.mu.Unlock()
 
 	// Ask every member for its damage trace before settling. Diagnostics only:
@@ -1556,6 +1543,8 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	s.log.Info("[Round] ended", "room", room.ID, "winner", winner,
 		"first", teamScores[0], "second", teamScores[1], "reason", reason)
 
+	// The wire's result rows keep the teams the round used (the zombie battle's
+	// 14 included); the store maps them onto its two-team schema when it writes.
 	players := make([]store.ResultPlayer, 0, maxRoomSlots)
 	for _, member := range members {
 		if !member.Occupied {
@@ -1580,7 +1569,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			CharacterID:    member.Character.ID,
 			AccountID:      session.Account.ID,
 			Nickname:       member.Character.Nickname,
-			Team:           persistedTeam(member.Team),
+			Team:           member.Team,
 			Bubbles:        score.BubbleCount,
 			Pangs:          score.PangCount,
 			Rescues:        score.RescueCount,
@@ -1601,7 +1590,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		EndReason:     1,
 		FirstScore:    teamScores[0],
 		SecondScore:   teamScores[1],
-		Winner:        persistedWinner(winner),
+		Winner:        winner,
 		PolicyVersion: s.prog.Version,
 		Players:       players,
 	}
@@ -1690,7 +1679,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		// not disappear into the debug stream.
 		s.log.Warn("game result packet rejected", "room", room.ID, "error", err)
 	}
-	if decided != 0 {
+	if setting.Game.Mode == zombieModeID {
 		// The zombie battle decides one winner for every seat, which the team
 		// totals cannot express: every member gets its own outcome word (3 win,
 		// 2 loss) instead of the round-end notice.

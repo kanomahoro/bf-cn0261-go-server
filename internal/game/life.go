@@ -216,7 +216,15 @@ func (l *BattleLife) ConvertTeam(slot uint8, team uint8) bool {
 	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return false
 	}
-	l.players[slot].team = team
+	player := &l.players[slot]
+	player.team = team
+	// The client revives the seat itself, so the tracker is told the same: a seat
+	// left in the dead state would have its shots refused and its next death
+	// report dropped.
+	player.state = stateActive
+	player.deadReported = false
+	player.respawnAsked = nil
+	l.clearTransient(player)
 	return true
 }
 

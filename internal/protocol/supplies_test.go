@@ -139,3 +139,24 @@ func TestSupplySlotChangedBody(t *testing.T) {
 		t.Fatalf("payload = % x, want % x", got, want)
 	}
 }
+
+// The zombie battle's team-change notice uses S504 with team 14; the encoder must
+// not treat that as a room-team error.
+func TestRoomTeamReplyCarriesTheZombieTeam(t *testing.T) {
+	packet, err := CreateRoomTeamReply(3, 14)
+	if err != nil {
+		t.Fatalf("team 14 refused: %v", err)
+	}
+	if packet.ID != 504 || len(packet.Payload) != 8 {
+		t.Fatalf("id = %d, payload = %d bytes", packet.ID, len(packet.Payload))
+	}
+	reader := NewReader(packet.Payload)
+	slot, _ := reader.Unsigned()
+	team, _ := reader.Unsigned()
+	if slot != 3 || team != 14 {
+		t.Fatalf("seat = %d team = %d, want 3 and 14", slot, team)
+	}
+	if _, err := CreateRoomTeamReply(0, 3); err == nil {
+		t.Fatal("team 3 is not a team the client knows")
+	}
+}

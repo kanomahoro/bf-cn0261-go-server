@@ -145,9 +145,11 @@ func CreateRoomDepartureReply(slot uint32) (Packet, error) {
 	return Packet{ID: 511, Payload: w.Payload()}, nil
 }
 
-// CreateRoomTeamReply builds S504.
+// CreateRoomTeamReply builds S504 (gspRoomChangeTeam): the seat and its team,
+// two words. The round's own team-change notice uses the same packet, so the
+// zombie battle's team (14) and the cooperative zombies' (15) are written too.
 func CreateRoomTeamReply(slot uint32, team uint8) (Packet, error) {
-	if slot >= 32 || (team != 1 && team != 2) {
+	if slot >= 32 || (team != 1 && team != 2 && team != 14 && team != 15) {
 		return Packet{}, fmt.Errorf("%w: room team", ErrInvalidPacket)
 	}
 	w := NewWriter()
