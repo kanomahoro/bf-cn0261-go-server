@@ -401,3 +401,63 @@ func TestZombieDeathReportIgnoresTheBody(t *testing.T) {
 		t.Fatalf("the seat named in the body turned instead: team = %d", team)
 	}
 }
+
+// The zombie battle's ammo box: either side may take one, the box leaves the map
+// for every member, and nothing is granted (the ammo lives in the client).
+func TestZombieAmmoBoxIsConsumedByEitherSide(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	room.mu.Lock()
+	room.slots[0].team = zombieTeam
+	room.zombieKingSlot = 0
+	room.mu.Unlock()
+
+	point := &supplyPoint{SupplyReportPoint: protocol.SupplyReportPoint{Kind: 0, MinMs: 15000, MaxMs: 20000}}
+	point.ActiveID = 0x3001
+	state := &supplyRound{round: room.tracking, lastID: 0x3001,
+		points:  []*supplyPoint{point},
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
+	room.supplies = state
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x3001)
+	body.Unsigned(0)
+	request := protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}
+
+	// The zombie takes the box: the box is consumed and every member is told.
+	if err := server.handleEatItem(room.slots[0].session, request); err != nil {
+		t.Fatalf("zombie pickup: %v", err)
+	}
+	if point.ActiveID != 0 {
+		t.Fatalf("the box is still on the map: %d", point.ActiveID)
+	}
+	for slot := 0; slot < 2; slot++ {
+		if ids := room.slots[slot].session.send.(*recorder).ids(); len(ids) == 0 || ids[len(ids)-1] != 712 {
+			t.Fatalf("slot %d saw %v, want the box-removal broadcast 712", slot, ids)
+		}
+	}
+	if held := state.held[0]; held != nil {
+		t.Fatalf("the zombie battle must not grant a slotted item: %+v", held)
+	}
+}
+
+// A pickup of a box the round never placed is ignored, as in the item battle.
+func TestZombieUnknownBoxIsIgnored(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	room.supplies = &supplyRound{round: room.tracking, lastID: 0x3001,
+		points:  []*supplyPoint{},
+		dropped: map[uint32]uint32{}, clientBoxes: map[uint32]clientBox{}, held: map[int]*heldItems{}}
+
+	body := protocol.NewWriter()
+	body.Unsigned(0x9999)
+	body.Unsigned(0)
+	if err := server.handleEatItem(room.slots[1].session, protocol.Packet{ID: protocol.CEatItem, Payload: body.Payload()}); err != nil {
+		t.Fatalf("pickup: %v", err)
+	}
+	if ids := room.slots[1].session.send.(*recorder).ids(); len(ids) != 0 {
+		t.Fatalf("an unknown box must send nothing, saw %v", ids)
+	}
+}

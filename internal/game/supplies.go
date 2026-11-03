@@ -154,6 +154,14 @@ func (s *Server) itemMode(room *Room) bool {
 	return room.SettingCopy().Game.Mode == itemModeID
 }
 
+// supplyMode reports whether the round places map supply boxes. The item battle
+// keeps their kinds in its two item slots; the zombie battle only hands out ammo
+// to the humans, and either side may take a box (a zombie that takes one denies
+// it to the humans, which is part of the mode).
+func (s *Server) supplyMode(room *Room) bool {
+	return s.itemMode(room) || room.ZombieRound()
+}
+
 // suppliesPlaying reports whether the room is in play, which is when the item
 // battle accepts pickups, uses, slot switches and thrown boxes. The map report is
 // the only one accepted earlier, because the host sends it while the map loads.
@@ -208,7 +216,7 @@ func mapPointKind(kind uint32) bool {
 // dropped instead of failing the connection.
 func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.supplyMode(room) {
 		return nil
 	}
 	if !suppliesReportable(room) {
@@ -227,8 +235,12 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	}
 	points := make([]*supplyPoint, 0, len(report.Points))
 	refused := 0
+	// The item sheet decides which kinds the item battle offers. The zombie
+	// battle's ammo points are not in that sheet, so its points are kept as
+	// reported and only logged.
+	kindsAreItemSheet := s.itemMode(room)
 	for _, entry := range report.Points {
-		if !mapPointKind(entry.Kind) {
+		if kindsAreItemSheet && !mapPointKind(entry.Kind) {
 			refused++
 			continue
 		}
@@ -278,7 +290,7 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 // only be eaten by that team.
 func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
+	if room == nil || !seated(session) || !s.supplyMode(room) || !suppliesPlaying(room) {
 		return nil
 	}
 	objectID, kind, err := protocol.ReadSupplyPickup(packet)
@@ -287,6 +299,10 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	seat := session.slot
+	if room.ZombieRound() {
+		s.takeZombieBox(room, session, objectID, kind)
+		return nil
+	}
 
 	var target *supplyPoint
 	found := false
@@ -433,6 +449,51 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
 	return nil
+}
+
+// takeZombieBox consumes one map box in the zombie battle. The box leaves the
+// map for every member and nothing is granted: the round's ammo lives in the
+// client, so a human's pickup only has to be shown to the others. A zombie may
+// take a box too, which is how the mode lets the zombies deny ammo to the humans.
+func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint32) {
+	seat := session.slot
+	room.mu.Lock()
+	state := supplyStateLocked(room)
+	if room.slots[seat].session != session {
+		room.mu.Unlock()
+		return
+	}
+	found := false
+	for _, point := range state.points {
+		if point.ActiveID == 0 || point.ActiveID != objectID {
+			continue
+		}
+		if point.Kind != 0 && point.Kind != kind {
+			continue
+		}
+		point.ActiveID = 0
+		found = true
+		break
+	}
+	if !found {
+		// A box a client created itself is consumed the same way.
+		if _, ok := state.dropped[objectID]; ok {
+			delete(state.dropped, objectID)
+			found = true
+		} else if _, ok := state.clientBoxes[objectID]; ok {
+			delete(state.clientBoxes, objectID)
+			found = true
+		}
+	}
+	room.mu.Unlock()
+	if !found {
+		s.log.Debug("zombie box pickup of an unknown box ignored",
+			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
+		return
+	}
+	// Every client removes the box; the ammo itself never leaves the client.
+	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
+	s.log.Info("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", kind, "object", objectID)
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every
@@ -820,7 +881,7 @@ func (s *Server) runSupplies(room *Room, state *supplyRound) {
 // remembered by its own id and the packet is passed to the other members.
 func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, viaRelay bool) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) {
+	if room == nil || !seated(session) || !s.supplyMode(room) {
 		return nil
 	}
 	objectID, box, allowed := s.itemRelayAllowed(room, packet)
@@ -838,7 +899,7 @@ func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, 
 // over their relay connections when the round runs the item mode. The clients
 // own these events; the server only keeps them inside the match.
 func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet, viaRelay bool) {
-	if !s.itemMode(room) {
+	if !s.supplyMode(room) {
 		return
 	}
 	sent := 0
@@ -891,7 +952,9 @@ func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID 
 			"room", room.ID, "error", err)
 		return 0, clientBox{}, true
 	}
-	if !mapPointKind(point.Kind) {
+	// The item sheet only binds the item battle; the zombie battle's ammo boxes
+	// carry kinds that sheet does not list, so they are forwarded unread.
+	if s.itemMode(room) && !mapPointKind(point.Kind) {
 		s.log.Debug("client box refused: kind not in the item sheet",
 			"room", room.ID, "kind", point.Kind)
 		return 0, clientBox{}, false

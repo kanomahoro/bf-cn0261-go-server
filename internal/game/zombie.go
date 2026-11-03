@@ -275,6 +275,9 @@ func (s *Server) handleZombieItemRequest(session *Session, packet protocol.Packe
 		return
 	}
 	if objectID != zombieNoObject || kind != zombieUltraItemKind {
+		// Not the ultra: the mode's ammo boxes use the same request, so the box
+		// pickup path answers it.
+		_ = s.handleEatItem(session, packet)
 		return
 	}
 	room.mu.RLock()
