@@ -104,12 +104,16 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		// Explosion style packets are validated elsewhere and forwarded by the relay.
 		return nil
 	}
-	// An item-mode round lets the clients own the rules, including the packets the
-	// server does not model: a turret's state, a character whose look an item
-	// changed, whatever else the client puts on this connection. Dropping them is
-	// what made those effects visible only to the player who caused them. Packets
-	// the relay itself forwards are skipped so nothing reaches a peer twice.
-	if packet.ID >= 32768 && s.itemMode(room) && !relayAlreadyForwards(packet.ID) {
+	// A round that runs the item battle or the zombie battle lets the clients own
+	// the rules, including the packets the server does not model: a turret's state,
+	// a character whose look an item changed, the zombie king's rage effect,
+	// whatever else the client puts on this connection. Dropping them is what made
+	// those effects visible only to the player who caused them: the zombie log
+	// showed the king's ultra broadcasting 32772/32783/32828/32812 that never
+	// reached the humans. Packets the relay itself forwards are skipped so nothing
+	// reaches a peer twice, and the seat's own respawn request stays server-side.
+	if packet.ID >= 32768 && s.supplyMode(room) && packet.ID != 32904 &&
+		!relayAlreadyForwards(packet.ID) {
 		s.forwardItemPacket(room, session.slot, packet, true)
 	}
 	return nil
