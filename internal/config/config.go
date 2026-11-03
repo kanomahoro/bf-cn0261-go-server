@@ -28,6 +28,16 @@ type Relay struct {
 	IdleTimeoutSeconds int    `json:"idleTimeoutSeconds"`
 }
 
+// Zombie holds the zombie battle's options. The round's rules themselves are
+// fixed (5 s opening, 180 s length, kind 104 ultra); the only choice a build may
+// need is whether the server offers the respawn the client waits for.
+type Zombie struct {
+	// ServerRespawn sends the ordinary respawn offer to a converted seat on the
+	// zombie team's markers. The 2015 client revives itself on the repeated team
+	// notice, so this stays off unless a build proves otherwise.
+	ServerRespawn bool `json:"serverRespawn"`
+}
+
 // Database holds the MariaDB connection settings.
 type Database struct {
 	Host                  string `json:"host"`
@@ -103,6 +113,7 @@ type Config struct {
 	Database           Database       `json:"database"`
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
+	Zombie             Zombie         `json:"zombie"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.

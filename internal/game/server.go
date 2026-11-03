@@ -370,7 +370,11 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return nil
 	case 702: // ReqReportMapData superseded by the item mode's supply report
 		return s.handleMapReport(session, packet)
-	case 707: // EatItem: pick up a map box
+	case 707: // EatItem: pick up a map box, or the zombie king's ultra request
+		if room := session.room; room != nil && room.ZombieRound() {
+			s.handleZombieItemRequest(session, packet)
+			return nil
+		}
 		return s.handleEatItem(session, packet)
 	case 708: // UseItem: spend the held item
 		return s.handleUseItem(session, packet)

@@ -3,6 +3,7 @@ package game
 import (
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -131,12 +132,76 @@ func TestZombieDeathReportConvertsAndRevives(t *testing.T) {
 }
 
 // zombieTestServer builds the smallest server the round logic needs: the room
-// registry and a logger, with every broadcast going nowhere.
+// registry and a logger, with every broadcast going into the recorded packets.
 func zombieTestServer(room *Room) *Server {
-	return &Server{
+	server := &Server{
 		log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 		rooms: map[uint16]*Room{room.ID: room},
 	}
+	for slot := range room.slots {
+		if room.slots[slot].session != nil {
+			room.slots[slot].session.send = &recorder{}
+		}
+	}
+	return server
+}
+
+// recorder collects every packet a session sends.
+type recorder struct {
+	packets []protocol.Packet
+	mu      sync.Mutex
+}
+
+// Send appends one packet.
+func (r *recorder) Send(packet protocol.Packet) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.packets = append(r.packets, packet)
+	return nil
+}
+
+// ids lists the packet ids the recorder saw.
+func (r *recorder) ids() []uint16 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]uint16, 0, len(r.packets))
+	for _, packet := range r.packets {
+		out = append(out, packet.ID)
+	}
+	return out
+}
+
+// The king's ultra request is confirmed to the king alone with gspPveItemUsed;
+// the same request from a human gets nothing.
+func TestZombieKingUltraIsConfirmedToTheKingAlone(t *testing.T) {
+	room := zombieTestRoom(3)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	room.mu.Lock()
+	room.slots[1].team = zombieTeam
+	room.zombieKingSlot = 1
+	room.mu.Unlock()
+
+	request := protocol.Packet{ID: 707, Payload: ultraRequestPayload()}
+	server.handleZombieItemRequest(room.slots[0].session, request)
+	server.handleZombieItemRequest(room.slots[2].session, request)
+	if ids := room.slots[0].session.send.(*recorder).ids(); len(ids) != 0 {
+		t.Fatalf("a human got %v, want nothing", ids)
+	}
+
+	server.handleZombieItemRequest(room.slots[1].session, request)
+	ids := room.slots[1].session.send.(*recorder).ids()
+	if len(ids) != 1 || ids[0] != 715 {
+		t.Fatalf("the king got %v, want one gspPveItemUsed", ids)
+	}
+}
+
+// ultraRequestPayload is C707 with the no-object word and the ultra's item kind.
+func ultraRequestPayload() []byte {
+	writer := protocol.NewWriter()
+	writer.Unsigned(zombieNoObject)
+	writer.Unsigned(zombieUltraItemKind)
+	return writer.Payload()
 }
 
 // A seat bound after the round started can join the zombie team: the life

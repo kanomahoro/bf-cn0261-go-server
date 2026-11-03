@@ -206,14 +206,60 @@ func (s *Server) zombieDeathReport(session *Session) {
 		return
 	}
 	if respawn {
-		// The client reports the death as a team notice, so the combat stream never
-		// saw it: the life tracker is told here, then the ordinary respawn offer
-		// follows on the seat's new team markers.
+		// The client reports the death as a team notice and its own zombie path
+		// revives it on the repeated notice, so the round only has to move the
+		// seat's team in the life tracker (that decides who may damage whom).
+		// The reference implementation sends no respawn offer at all; a build
+		// that waits for one can set the flag and get the ordinary offer on the
+		// zombie team's markers.
 		if life := room.Life(); life != nil {
-			life.MarkDownAndConvert(uint8(slot), zombieTeam)
+			if s.cfg.Zombie.ServerRespawn {
+				life.MarkDownAndConvert(uint8(slot), zombieTeam)
+			} else {
+				life.ConvertTeam(uint8(slot), zombieTeam)
+			}
 		}
-		s.tryRespawn(room, slot)
+		if s.cfg.Zombie.ServerRespawn {
+			s.tryRespawn(room, slot)
+		}
 	}
+}
+
+// zombieUltraItemKind is the item kind the king's ultra request carries:
+// feverDrink 104, sent with no scene object (cn-324 sub_508FC0 -> event 55 ->
+// cn-324 sub_667CC0 -> sub_4672B0(0x68, -1)).
+const zombieUltraItemKind = 104
+
+// zombieNoObject is the object word the ultra request carries: the client passes
+// -1 because the effect belongs to no scene object.
+const zombieNoObject = 0xFFFFFFFF
+
+// handleZombieItemRequest answers the king's ultra: the client checks its own
+// gauge before it sends the request, so the round only checks that the sender is
+// this round's king and confirms the effect to that player alone
+// (gspPveItemUsed, cn-717 sub_7F4370 reads seat, kind, unused word).
+func (s *Server) handleZombieItemRequest(session *Session, packet protocol.Packet) {
+	room := session.room
+	if room == nil {
+		return
+	}
+	objectID, kind, err := protocol.ReadSupplyPickup(packet)
+	if err != nil {
+		return
+	}
+	if objectID != zombieNoObject || kind != zombieUltraItemKind {
+		return
+	}
+	room.mu.RLock()
+	playing := room.Started && room.phase == phasePlaying && room.Setting.Game.Mode == zombieModeID
+	king := room.zombieKingSlot
+	room.mu.RUnlock()
+	if !playing || king != session.slot {
+		s.log.Info("[Zombie] ultra request outside the king's round ignored", "room", room.ID, "slot", session.slot)
+		return
+	}
+	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(session.slot), zombieUltraItemKind))
+	s.log.Info("[Zombie] the king used its ultra", "room", room.ID, "slot", session.slot)
 }
 
 // zombieNotice builds the team-change notice for one seat, or nil when the

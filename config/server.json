@@ -48,5 +48,8 @@
         "directory": "Logs",
         "maxFileSizeBytes": 5242880,
         "maxFiles": 3
+    },
+    "zombie": {
+        "serverRespawn": false
     }
 }

@@ -234,7 +234,20 @@ func ReadSupplyReport(packet Packet, maxPoints int) (SupplyReport, error) {
 	return report, nil
 }
 
+// CreatePveItemUsedReply builds S715 gspPveItemUsed: three words (seat, item
+// kind, an unused one). cn-717 sub_7F4370, kr-812 sub_9D95D0 and cn-706
+// sub_7A23F0 read the same three words; the zombie king's ultra is confirmed
+// with kind 104 and no object.
+func CreatePveItemUsedReply(seat, kind uint32) Packet {
+	w := NewWriter()
+	w.Unsigned(seat)
+	w.Unsigned(kind)
+	w.Unsigned(0)
+	return Packet{ID: 715, Payload: w.Payload()}
+}
+
 // ReadSupplyPickup decodes C707: the box object id and the item kind.
+// The zombie king's ultra request carries the -1 object word (no scene object).
 func ReadSupplyPickup(packet Packet) (objectID, kind uint32, err error) {
 	if packet.ID != CEatItem {
 		return 0, 0, fmt.Errorf("%w: not an item pickup", ErrInvalidPacket)

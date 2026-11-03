@@ -207,6 +207,19 @@ func (l *BattleLife) clearTransient(player *lifePlayer) {
 	player.completedRescuer = nil
 }
 
+// ConvertTeam moves one seat to another team without touching its life state.
+// The zombie battle needs it: a converted seat keeps taking part immediately,
+// because its own client revives it on the repeated team notice.
+func (l *BattleLife) ConvertTeam(slot uint8, team uint8) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if slot >= 8 || l.players[slot].objectID == 0 {
+		return false
+	}
+	l.players[slot].team = team
+	return true
+}
+
 // MarkDownAndConvert records a death the zombie battle's client reports as a team
 // notice instead of a combat event: the seat turns to the given team and enters
 // the ordinary respawn wait, so the same respawn offer follows as in every other
