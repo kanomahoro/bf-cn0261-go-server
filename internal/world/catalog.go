@@ -152,6 +152,20 @@ type Respawn struct {
 }
 
 // Delay returns the respawn wait for a character with the given equipped items.
+// BaseDelay is Delay without the equipment reductions: the wait the client's own
+// respawn bar is drawn for. The zombie battle uses it, because its bar does not
+// follow the reduced wait the other modes use.
+func (r Respawn) BaseDelay(characterType uint32) time.Duration {
+	base := uint32(7000)
+	for _, entry := range r.Characters {
+		if entry.ID == characterType && entry.DurationMilliseconds > 0 {
+			base = entry.DurationMilliseconds
+			break
+		}
+	}
+	return time.Duration(base) * time.Millisecond
+}
+
 func (r Respawn) Delay(characterType uint32, itemIDs []uint32) time.Duration {
 	base := uint32(7000)
 	for _, entry := range r.Characters {

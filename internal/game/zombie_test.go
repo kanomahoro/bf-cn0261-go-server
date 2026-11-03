@@ -695,3 +695,25 @@ func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
 	}
 	t.Fatal("the conversion was never announced after the respawn wait")
 }
+
+// The turn that ends the round must be announced with the round end: otherwise no
+// client ever learns the last human became a zombie, and the result screen counts a
+// survivor. Settlement needs a database, so the call is cut off at its panic.
+func TestZombieLastHumanTurnIsAnnouncedBeforeTheResult(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	room.mu.Lock()
+	room.slots[0].team = zombieTeam
+	room.zombieKingSlot = 0
+	room.mu.Unlock()
+
+	func() {
+		defer func() { _ = recover() }() // finishRound needs the settlement service
+		server.zombieDeathReport(room.slots[1].session)
+	}()
+
+	if !teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
+		t.Fatal("the last human's conversion was not announced")
+	}
+}

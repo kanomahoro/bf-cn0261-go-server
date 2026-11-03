@@ -226,6 +226,15 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 
 	s.log.Info("[Zombie] seat turned", "room", room.ID, "slot", slot, "king", kingSlot)
 	if finish != 0 {
+		// The last human's turn *is* the round's end, so its notice has to go out
+		// here: announced later it would never arrive, and every client would still
+		// count a human and show the human-survived banner.
+		if announce {
+			if notice := zombieNotice(slot); notice != nil {
+				s.log.Info("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
+				room.Broadcast(*notice)
+			}
+		}
 		s.finishRound(room, false)
 		return
 	}
@@ -264,6 +273,9 @@ func (s *Server) scheduleZombieNotice(room *Room, slot int) {
 	// The fallback waits a little longer than the catalog: the completion report is
 	// the normal trigger, this only covers a client that never sends it.
 	delay := s.respawnDelay(character, items) + zombieNoticeGrace
+	if room.ZombieRound() {
+		delay = s.zombieRespawnDelay(character, items) + zombieNoticeGrace
+	}
 	time.AfterFunc(delay, func() {
 		room.mu.RLock()
 		stale := !room.Started || room.generation != generation ||

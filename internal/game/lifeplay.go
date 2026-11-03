@@ -265,6 +265,14 @@ func (s *Server) respawnDelay(character store.Character, items []store.Item) tim
 	return s.respawn.Delay(equipped, itemIDs)
 }
 
+// zombieRespawnDelay is the wait a zombie round uses: the client draws its bar for
+// the base wait, so the offer must not come earlier on an equipment reduction (the
+// bar would still be running when the seat is told to come back).
+func (s *Server) zombieRespawnDelay(character store.Character, items []store.Item) time.Duration {
+	equipped := protocol.ResolveEquippedCharacter(character.CharacterType, s.svc.WireItems(items))
+	return s.respawn.BaseDelay(equipped)
+}
+
 func (s *Server) tryRespawn(room *Room, slot int) {
 	life := room.Life()
 	if life == nil || slot < 0 || slot >= maxRoomSlots {
@@ -290,6 +298,9 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 	generation := room.generation
 	room.mu.RUnlock()
 	delay := s.respawnDelay(character, items)
+	if room.ZombieRound() {
+		delay = s.zombieRespawnDelay(character, items)
+	}
 	// The map catalog owns the number of markers per team; cycling stays inside
 	// what the map actually defines.
 	teamSpawnCount := uint32(4)
