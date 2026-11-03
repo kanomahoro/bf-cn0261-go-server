@@ -24,9 +24,16 @@ type GameResultPlayer struct {
 }
 
 // CreateGameResultReply builds S729 (ScoreData team table plus per-slot rows).
-func CreateGameResultReply(teamScores [2]uint16, players []GameResultPlayer) (Packet, error) {
+//
+// winner names the winning team the header carries: 0 asks it to be derived from
+// the two team totals, and any other value is written as given. The zombie battle
+// (team 14) and the cooperative families need that.
+func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameResultPlayer) (Packet, error) {
 	if teamScores[0] > 200 || teamScores[1] > 200 || len(players) == 0 || len(players) > 8 {
 		return Packet{}, fmt.Errorf("%w: game result capacity", ErrInvalidPacket)
+	}
+	if winner > 17 {
+		return Packet{}, fmt.Errorf("%w: game result winner", ErrInvalidPacket)
 	}
 	// The client's ScoreData record has sixteen slots; only eight can be
 	// occupied, the rest must still be written as empty rows or the client reads
@@ -35,7 +42,7 @@ func CreateGameResultReply(teamScores [2]uint16, players []GameResultPlayer) (Pa
 	for index := range players {
 		player := &players[index]
 		if player.Slot >= 8 || slots[player.Slot] != nil || player.AccountID == 0 ||
-			(player.Team != 1 && player.Team != 2) ||
+			!validResultTeam(player.Team) ||
 			CheckNickname(player.Nickname) != NicknameOK ||
 			player.Level < 1 || player.Level > 200 ||
 			player.LevelStart > player.Experience ||
@@ -50,15 +57,14 @@ func CreateGameResultReply(teamScores [2]uint16, players []GameResultPlayer) (Pa
 
 	w := NewWriter()
 	w.Unsigned(17) // team table capacity
-	winner := uint32(0)
-	if teamScores[0] != teamScores[1] {
+	if winner == 0 && teamScores[0] != teamScores[1] {
 		if teamScores[0] > teamScores[1] {
 			winner = 1
 		} else {
 			winner = 2
 		}
 	}
-	w.Unsigned(winner)
+	w.Unsigned(uint32(winner))
 	w.Unsigned(0)
 	for team := 1; team <= 17; team++ {
 		w.Unsigned(0)
@@ -162,6 +168,17 @@ func writeResultPlayer(w *Writer, player *GameResultPlayer) {
 	}
 	w.Short(0)
 	w.Unsigned(0)
+}
+
+// validResultTeam reports whether a result row may carry this team id: the two
+// battle teams, the zombie battle's team (14) and the cooperative zombies' (15).
+func validResultTeam(team uint8) bool {
+	switch team {
+	case 1, 2, 14, 15:
+		return true
+	default:
+		return false
+	}
 }
 
 func teamOf(player *GameResultPlayer) uint8 {

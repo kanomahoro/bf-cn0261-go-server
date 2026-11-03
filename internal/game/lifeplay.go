@@ -58,11 +58,17 @@ func (s *Server) broadcastScores(room *Room) bool {
 		if err != nil {
 			continue
 		}
-		teamIndex := 0
-		if entry.team == 2 {
+		teamIndex := -1
+		if entry.team == 1 {
+			teamIndex = 0
+		} else if entry.team == 2 {
 			teamIndex = 1
 		}
-		teamScores[teamIndex] += uint32(score.PangCount)
+		// A team outside the two battle teams (the zombie battle's team 14) keeps
+		// its personal score but adds nothing to a team total.
+		if teamIndex >= 0 {
+			teamScores[teamIndex] += uint32(score.PangCount)
+		}
 		if score != room.published[slot] {
 			personal := uint32(score.BubbleCount)*s.prog.ResultAwards.ScoreWeights.Bubble +
 				uint32(score.PangCount)*s.prog.ResultAwards.ScoreWeights.Pang +
@@ -130,6 +136,12 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 		_ = session.Send(protocol.CreateHealthTraceRequest())
 	}
 	if accepted {
+		// The zombie battle's primary death report is the team-change request, but a
+		// client that reports the death in the combat stream instead turns here: the
+		// conversion is idempotent, so a second report decides nothing new.
+		if event.Kind == protocol.LifeDead && room.ZombieRound() {
+			s.zombieDeathReport(session)
+		}
 		if s.broadcastScores(room) {
 			s.finishRound(room, false)
 			return nil

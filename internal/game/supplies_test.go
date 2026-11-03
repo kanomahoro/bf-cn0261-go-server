@@ -58,11 +58,49 @@ func TestNormalizeGameSettingRejectsItemModeWithoutItemMap(t *testing.T) {
 
 func TestNormalizeGameSettingStillRejectsOtherModes(t *testing.T) {
 	request := itemRequest("rel_Test_Item")
-	for _, mode := range []uint32{8, 13, 16, 101} {
+	for _, mode := range []uint32{13, 16, 101} {
 		request.Mode = mode
 		if _, err := normalizeGameSetting(request, testMaps()); err == nil {
 			t.Fatalf("mode %d must stay refused until its round is ported", mode)
 		}
+	}
+}
+
+func TestNormalizeGameSettingAcceptsZombieModeOnNormalMaps(t *testing.T) {
+	request := itemRequest("rel_Test_Normal")
+	request.Mode = zombieModeID
+	// The client forces 180 s into the rule record; the server writes its own
+	// fixed length whatever the request says.
+	request.Values128[2] = 300000
+	setting, err := normalizeGameSetting(request, testMaps())
+	if err != nil {
+		t.Fatalf("zombie mode rejected: %v", err)
+	}
+	if setting.Mode != zombieModeID {
+		t.Fatalf("mode = %d, want %d", setting.Mode, zombieModeID)
+	}
+	if setting.Values128[2] != zombieRoundLimitMs {
+		t.Fatalf("time limit = %d, want %d", setting.Values128[2], zombieRoundLimitMs)
+	}
+}
+
+func TestZombieModeRandomDrawUsesTheCompetitivePool(t *testing.T) {
+	request := itemRequest("Random")
+	request.Mode = zombieModeID
+	setting, err := normalizeGameSetting(request, testMaps())
+	if err != nil {
+		t.Fatalf("zombie random room rejected: %v", err)
+	}
+	// A random room keeps its markers and the draw happens at every start.
+	if got := protocol.FromU16(setting.Strings16[0]); got != "Random" {
+		t.Fatalf("label = %q, want the Random marker", got)
+	}
+	candidates := testMaps().Candidates(zombieModeID, "Village")
+	if len(candidates) != 2 {
+		t.Fatalf("zombie pool = %d maps, want both competitive maps", len(candidates))
+	}
+	if items := testMaps().Candidates(itemModeID, "Village"); len(items) != 1 {
+		t.Fatalf("item pool = %d maps, want only the item-flagged map", len(items))
 	}
 }
 

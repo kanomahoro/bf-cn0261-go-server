@@ -386,6 +386,20 @@ func CreateGameEndReply(timeExpired bool) Packet {
 	return Packet{ID: 705, Payload: w.Payload()}
 }
 
+// CreateGameOutcomeReply builds S705 for one recipient's decided outcome: the
+// handler sub_803DF0 treats 3 as the win flag and 1 or 2 as not won, so a round
+// whose winner the team totals cannot express (the zombie battle) writes 3 or 2.
+func CreateGameOutcomeReply(won bool) Packet {
+	w := NewWriter()
+	w.Unsigned(0)
+	if won {
+		w.Unsigned(3)
+	} else {
+		w.Unsigned(2)
+	}
+	return Packet{ID: 705, Payload: w.Payload()}
+}
+
 // CreateGameWinnerReply builds S732.
 func CreateGameWinnerReply(firstTeam, secondTeam uint16) (Packet, error) {
 	if firstTeam > 200 || secondTeam > 200 {

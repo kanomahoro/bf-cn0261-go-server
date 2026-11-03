@@ -81,6 +81,13 @@ type Room struct {
 	seedFallback *time.Timer
 	startAt      time.Time
 	endTimer     *time.Timer
+
+	// The zombie battle's round state; every field is inert outside mode 8.
+	// zombieKingSlot is -1 until a seat turns, zombieWinner is 0 while the round
+	// is undecided and otherwise holds the winning team id (1 humans, 14 zombies).
+	zombieKingSlot  int
+	zombieKingTimer *time.Timer
+	zombieWinner    uint8
 }
 
 // View returns an immutable snapshot of the roster.
@@ -624,11 +631,12 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
 	room := &Room{
-		ID:           s.nextRoom,
-		Setting:      setting,
-		Master:       0,
-		ChannelType:  session.channelType,
-		ChannelIndex: session.channelIndex,
+		ID:             s.nextRoom,
+		Setting:        setting,
+		Master:         0,
+		ChannelType:    session.channelType,
+		ChannelIndex:   session.channelIndex,
+		zombieKingSlot: -1,
 	}
 	s.nextRoom++
 	if s.nextRoom == 0 {
@@ -757,8 +765,10 @@ func (s *Server) leaveRoom(session *Session) error {
 		s.relay.RevokeSlot(room.ID, uint8(slot))
 	}
 	// A member vanishing mid-match aborts the round for everyone else, exactly
-	// like GameRoundCoordinator::CancelForSession (S736 + open state).
-	if started {
+	// like GameRoundCoordinator::CancelForSession (S736 + open state). The zombie
+	// battle instead lets the departure decide its round when it can: the king's
+	// exit wins for the humans and the last human's leaves it to the zombies.
+	if started && !s.zombieLeave(room, slot) {
 		s.cancelRound(room)
 	}
 	room.mu.RLock()
@@ -867,7 +877,18 @@ func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) erro
 		return fmt.Errorf("%w: expected empty RoomChangeTeam", protocol.ErrInvalidPacket)
 	}
 	room := session.room
-	if room == nil || room.SettingCopy().State != 2 {
+	if room == nil {
+		return nil
+	}
+	// In the zombie battle the same empty request is the client's death report
+	// (kr-812 sub_76C090 sends gcpRoomChangeTeam on every death of the local
+	// player), so a running round handles it instead of the waiting room's team
+	// switch.
+	if room.StartedReport() && room.ZombieRound() {
+		s.zombieDeathReport(session)
+		return nil
+	}
+	if room.SettingCopy().State != 2 {
 		return nil
 	}
 	current := room.Team(session.slot)
@@ -1084,7 +1105,11 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		return session.Send(protocol.CreateGameEntryReply(protocol.StartNotReady, nil, 2))
 	}
 	if teams[0] != teams[1] || teams[0]+teams[1] != occupied {
-		return session.Send(protocol.CreateGameEntryReply(protocol.StartUnequal, nil, 2))
+		// The zombie battle starts every seat on the human team, so its teams are
+		// never balanced before play.
+		if settingNow.Game.Mode != zombieModeID {
+			return session.Send(protocol.CreateGameEntryReply(protocol.StartUnequal, nil, 2))
+		}
 	}
 
 	mapName := s.maps.DefaultRulesMap
@@ -1109,6 +1134,10 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	if err := room.BeginStart(); err != nil {
 		return session.Send(protocol.CreateGameEntryReply(protocol.StartUnavailable, nil, 2))
 	}
+	// The zombie battle puts every seat on the human team before the life tracker
+	// binds its teams and before the start's seat records are built, so both carry
+	// team 1; the notices themselves go out with the start.
+	zombieNotices := room.beginZombieRound()
 	// Without a bound life tracker every peer life/kick event would be dropped
 	// and no score would ever be published.
 	if err := s.bindLife(room); err != nil {
@@ -1138,6 +1167,9 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	// S510 with state 3, then the peer/relay handoff.
 	if setting, err := protocol.CreateRoomSettingReply(room.SettingCopy()); err == nil {
 		room.Broadcast(setting)
+	}
+	for _, notice := range zombieNotices {
+		room.Broadcast(notice)
 	}
 	members := s.members(room)
 	for _, member := range room.View() {
@@ -1334,6 +1366,12 @@ func (s *Server) startRound(room *Room, tracking int) {
 		"durationMs", duration)
 
 	room.Broadcast(protocol.CreateGameStartReply(duration, uint32(tracking)))
+	// The zombie battle's king is picked once the opening passed; the round's
+	// generation makes a pick from an earlier round impossible.
+	room.mu.RLock()
+	generation := room.generation
+	room.mu.RUnlock()
+	s.scheduleZombieOpening(room, generation)
 
 	// The item mode's box refresh starts with play and stops with the round.
 	room.mu.Lock()
@@ -1376,6 +1414,12 @@ func (s *Server) cancelRound(room *Room) {
 		room.seedFallback.Stop()
 		room.seedFallback = nil
 	}
+	if room.zombieKingTimer != nil {
+		room.zombieKingTimer.Stop()
+		room.zombieKingTimer = nil
+	}
+	room.zombieKingSlot = -1
+	room.zombieWinner = 0
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen
@@ -1390,6 +1434,11 @@ func (s *Server) cancelRound(room *Room) {
 	for slot := range room.slots {
 		room.slots[slot].ready = false
 		room.slots[slot].loaded = false
+		// The zombie battle's seats go back to the human team: the waiting room's
+		// seat record only carries the two battle teams.
+		if room.slots[slot].team == zombieTeam {
+			room.slots[slot].team = zombieHumanTeam
+		}
 	}
 	members := make([]memberView, 0, 8)
 	for slot := range room.slots {
@@ -1420,6 +1469,28 @@ func (s *Server) cancelRound(room *Room) {
 	}
 }
 
+// persistedTeam maps a round team onto the two teams the result tables record.
+// The zombie battle and the cooperative zombie raid use their own team ids (14
+// and 15) on the wire; the settlement schema only knows the two battle teams, so
+// a converted seat is stored on the second one.
+func persistedTeam(team uint8) uint8 {
+	if team == 1 || team == 2 {
+		return team
+	}
+	if team == 0 {
+		return 0
+	}
+	return 2
+}
+
+// persistedWinner does the same for the winning team id the result row carries.
+func persistedWinner(winner uint8) uint8 {
+	if winner == 0 || winner == 1 {
+		return winner
+	}
+	return 2
+}
+
 func (s *Server) finishRound(room *Room, timeExpired bool) {
 	room.mu.Lock()
 	if !room.Started {
@@ -1436,7 +1507,12 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		room.endTimer.Stop()
 		room.endTimer = nil
 	}
+	if room.zombieKingTimer != nil {
+		room.zombieKingTimer.Stop()
+		room.zombieKingTimer = nil
+	}
 	teamScores := room.teamScores
+	decided := room.zombieWinner
 	life := room.life
 	room.life = nil
 	room.supplies = nil
@@ -1463,7 +1539,11 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		}
 	}
 	winner := uint8(0)
-	if teamScores[0] > teamScores[1] {
+	if decided != 0 {
+		// The zombie battle is decided by its own rule, not by the team totals:
+		// the winner is the human team (1) or the zombie team (14).
+		winner = decided
+	} else if teamScores[0] > teamScores[1] {
 		winner = 1
 	} else if teamScores[1] > teamScores[0] {
 		winner = 2
@@ -1499,7 +1579,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			CharacterID:    member.Character.ID,
 			AccountID:      session.Account.ID,
 			Nickname:       member.Character.Nickname,
-			Team:           member.Team,
+			Team:           persistedTeam(member.Team),
 			Bubbles:        score.BubbleCount,
 			Pangs:          score.PangCount,
 			Rescues:        score.RescueCount,
@@ -1520,7 +1600,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		EndReason:     1,
 		FirstScore:    teamScores[0],
 		SecondScore:   teamScores[1],
-		Winner:        winner,
+		Winner:        persistedWinner(winner),
 		PolicyVersion: s.prog.Version,
 		Players:       players,
 	}
@@ -1602,14 +1682,26 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	// S729 must reach every client before S705: the S705 handler reads the
 	// frozen ScoreData snapshot.
-	if resultReply, err := protocol.CreateGameResultReply(teamScores, rows); err == nil {
+	if resultReply, err := protocol.CreateGameResultReply(teamScores, winner, rows); err == nil {
 		room.Broadcast(resultReply)
 	} else {
 		// Without this packet the client has no result screen at all, so it must
 		// not disappear into the debug stream.
 		s.log.Warn("game result packet rejected", "room", room.ID, "error", err)
 	}
-	room.Broadcast(protocol.CreateGameEndReply(timeExpired))
+	if decided != 0 {
+		// The zombie battle decides one winner for every seat, which the team
+		// totals cannot express: every member gets its own outcome word (3 win,
+		// 2 loss) instead of the round-end notice.
+		for _, member := range members {
+			if !member.Occupied || member.Session == nil {
+				continue
+			}
+			_ = member.Session.Send(protocol.CreateGameOutcomeReply(member.Team == decided))
+		}
+	} else {
+		room.Broadcast(protocol.CreateGameEndReply(timeExpired))
+	}
 
 	// Staged end: winner (S732) -> result screen (S733) -> back to the waiting
 	// room (S736), mirroring GameRoundCoordinator::AdvanceEndStage. Every stage

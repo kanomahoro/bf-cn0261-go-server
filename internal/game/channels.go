@@ -130,14 +130,16 @@ func (d *ChannelDirectory) Cancel(sessionID uint64, accountID uint32) {
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
 //
-// The normal mode (1) and the item battle (3) are accepted. The 2015 client owns
-// the item mode's rules; the server owns the box kinds the build offers, the box
-// ownership it reports and the refresh of the host's map points (see
-// internal/game/supplies.go). world.Maps.Candidates already filters maps by
-// their itemMode flag.
+// The normal mode (1), the item battle (3) and the zombie battle (8) are
+// accepted. The 2015 client owns the item mode's rules; the server owns the box
+// kinds the build offers, the box ownership it reports and the refresh of the
+// host's map points (see internal/game/supplies.go). The zombie battle keeps no
+// rules in the client at all: the server picks the king, converts the dead and
+// decides the round (see internal/game/zombie.go). world.Maps.Candidates
+// already filters maps by their itemMode/normalMode flags.
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
-	if request.Mode != 1 && request.Mode != itemModeID {
+	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != zombieModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {
@@ -201,6 +203,11 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	score := request.Values128[0]
 	if score == 0 {
 		score = chosen.ScoreLimit
+	}
+	// The zombie battle always runs the mode's own length: the client forces 180 s
+	// into the rule record at create time and keeps no rule of its own.
+	if request.Mode == zombieModeID {
+		limit = zombieRoundLimitMs
 	}
 	if limit < 60000 || limit > 1800000 || limit%1000 != 0 || score > 200 {
 		return setting, fmt.Errorf("room rules are outside the supported range")

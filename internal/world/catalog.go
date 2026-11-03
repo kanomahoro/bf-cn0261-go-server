@@ -46,7 +46,12 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 			continue
 		case mode == 3 && !entry.ItemMode:
 			continue
-		case mode != 1 && mode != 3:
+		// The zombie battle (mode 8) plays the ordinary competitive maps: the
+		// retail game offered it on every no-item map, and the client's own
+		// MapMeta flag for the mode is set on them.
+		case mode == 8 && !entry.NormalMode:
+			continue
+		case mode != 1 && mode != 3 && mode != 8:
 			continue
 		}
 		if theme != "" && theme != "All" && theme != entry.Theme {

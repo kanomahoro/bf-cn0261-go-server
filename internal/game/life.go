@@ -207,6 +207,26 @@ func (l *BattleLife) clearTransient(player *lifePlayer) {
 	player.completedRescuer = nil
 }
 
+// MarkDownAndConvert records a death the zombie battle's client reports as a team
+// notice instead of a combat event: the seat turns to the given team and enters
+// the ordinary respawn wait, so the same respawn offer follows as in every other
+// mode. It refuses a slot that never bound its character.
+func (l *BattleLife) MarkDownAndConvert(slot uint8, team uint8) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if slot >= 8 || l.players[slot].objectID == 0 {
+		return false
+	}
+	player := &l.players[slot]
+	now := l.now()
+	player.team = team
+	player.state = stateDead
+	player.deadReported = true
+	player.respawnAsked = &now
+	l.clearTransient(player)
+	return true
+}
+
 // Apply processes one life event reported by sourceSlot.
 func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allowSelfDamage bool) (bool, error) {
 	l.mu.Lock()
