@@ -51,7 +51,7 @@
     },
     "zombie": {
         "serverRespawn": true,
-        "humanReviveExtraMs": 1800,
-        "zombiniReviveExtraMs": 7000
+        "humanReviveExtraMs": 2800,
+        "zombiniReviveExtraMs": 8000
     }
 }
