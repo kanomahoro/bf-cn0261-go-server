@@ -461,3 +461,86 @@ func TestZombieUnknownBoxIsIgnored(t *testing.T) {
 		t.Fatalf("an unknown box must send nothing, saw %v", ids)
 	}
 }
+
+// zombieReportBody builds the host's C702 body (one word and fifteen counted
+// vectors, the shape kr-812 sub_5312F0 reads) with the given points.
+func zombieReportBody(points []protocol.SupplyReportPoint) []byte {
+	w := protocol.NewWriter()
+	w.Unsigned(0)
+	w.Unsigned(0)
+	w.Unsigned(uint32(len(points)))
+	for _, point := range points {
+		w.Float(point.X)
+		w.Float(point.Y)
+		w.Float(point.Z)
+	}
+	w.Unsigned(uint32(len(points)))
+	for _, point := range points {
+		w.Unsigned(point.Kind)
+	}
+	w.Unsigned(uint32(len(points)))
+	for _, point := range points {
+		w.Unsigned(point.Team)
+	}
+	for _, pick := range []func(protocol.SupplyReportPoint) uint32{
+		func(p protocol.SupplyReportPoint) uint32 { return p.MaxMs },
+		func(p protocol.SupplyReportPoint) uint32 { return p.MinMs },
+	} {
+		w.Unsigned(uint32(len(points)))
+		for _, point := range points {
+			w.Unsigned(pick(point))
+		}
+	}
+	for i := 0; i < 9; i++ {
+		w.Unsigned(0)
+	}
+	w.Unsigned(1)
+	w.String(protocol.U16String("supply_point"))
+	return w.Payload()
+}
+
+// The zombie battle accepts the host's map supply report and keeps its points,
+// including the ammo kind the item sheet does not list.
+func TestZombieMapReportInstallsAmmoPoints(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	room.mu.Lock()
+	room.phase = phasePlaying
+	room.mu.Unlock()
+	server := zombieTestServer(room)
+	server.maps = testMaps()
+
+	// The fixture's slot 0 is the master.
+	points := []protocol.SupplyReportPoint{
+		{X: 1, Y: 2, Z: 3, Kind: 0, MinMs: 15000, MaxMs: 30000},
+		{X: 4, Y: 5, Z: 6, Kind: 777, MinMs: 20000, MaxMs: 20000},
+	}
+	packet := protocol.Packet{ID: protocol.CGameReportMapData, Payload: zombieReportBody(points)}
+	if err := server.handleMapReport(room.slots[0].session, packet); err != nil {
+		t.Fatalf("map report: %v", err)
+	}
+	state := room.supplies
+	if state == nil || len(state.points) != 2 {
+		t.Fatalf("points = %v, want the two reported points", state)
+	}
+	if state.points[1].Kind != 777 {
+		t.Fatalf("an ammo kind outside the item sheet was dropped: %+v", state.points[1])
+	}
+}
+
+// Supplies stay off outside the item battle and the zombie battle.
+func TestSupplyModeCoversOnlyItemAndZombie(t *testing.T) {
+	server := newTestServer()
+	room := testItemRoom()
+	if !server.supplyMode(room) {
+		t.Fatal("the item battle must run supplies")
+	}
+	room.Setting.Game.Mode = zombieModeID
+	if !server.supplyMode(room) {
+		t.Fatal("the zombie battle must run supplies")
+	}
+	room.Setting.Game.Mode = 1
+	if server.supplyMode(room) {
+		t.Fatal("the ordinary battle must not run supplies")
+	}
+}
