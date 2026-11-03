@@ -89,6 +89,9 @@ type Room struct {
 	zombieKingSlot  int
 	zombieKingTimer *time.Timer
 	zombieWinner    uint8
+	// zombiePendingNotice marks the seats whose conversion has not been announced
+	// yet: the notice waits for their respawn completion.
+	zombiePendingNotice [maxRoomSlots]bool
 }
 
 // View returns an immutable snapshot of the roster.
@@ -1147,6 +1150,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.characterReported = [maxRoomSlots]bool{}
 	room.seedsSent = false
 	room.respawnCount = [maxRoomSlots]uint32{}
+	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	// A fresh round starts with no item-mode state; the host reports its map
 	// points after the map loads.
 	room.supplies = nil
@@ -1414,6 +1418,7 @@ func (s *Server) cancelRound(room *Room) {
 	}
 	room.zombieKingSlot = -1
 	room.zombieWinner = 0
+	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen
@@ -1536,6 +1541,24 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	reason := "score"
 	if timeExpired {
 		reason = "time"
+	}
+	if setting.Game.Mode == zombieModeID {
+		// The mode's result banner is chosen by the client, so the round records what
+		// it decided and how the seats stood when it decided it.
+		humans, zombies := 0, 0
+		for _, member := range members {
+			if !member.Occupied {
+				continue
+			}
+			if member.Team == zombieTeam {
+				zombies++
+			} else {
+				humans++
+			}
+		}
+		s.log.Info("[Zombie] result decided", "room", room.ID, "winner", winner,
+			"decided", decided, "time_expired", timeExpired, "humans", humans, "zombies", zombies,
+			"pending_notice", room.zombiePendingNotice)
 	}
 	s.log.Info("[Round] ended", "room", room.ID, "winner", winner,
 		"first", teamScores[0], "second", teamScores[1], "reason", reason)

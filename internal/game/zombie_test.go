@@ -372,6 +372,76 @@ func TestZombieRespawnRequestIsAnsweredOnTeamFourteen(t *testing.T) {
 	t.Fatalf("no respawn offer was sent")
 }
 
+// The conversion is announced when the client reports its respawn complete, not on
+// a timer: that is the moment its bar has finished.
+func TestZombieConversionAnnouncedOnRespawnComplete(t *testing.T) {
+	// Three seats: the king, the seat that dies and one human that keeps the round
+	// from ending on the conversion.
+	room := zombieTestRoom(3)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
+		{ID: 0, DurationMilliseconds: 1}, {ID: 1, DurationMilliseconds: 1},
+		{ID: 2, DurationMilliseconds: 1}, {ID: 3, DurationMilliseconds: 1},
+	}}
+	grace := zombieNoticeGrace
+	zombieNoticeGrace = 30 * time.Second // the fallback must not be what fires
+	defer func() { zombieNoticeGrace = grace }()
+	life := NewBattleLife(nil)
+	for slot := 0; slot < 3; slot++ {
+		if err := life.Bind(uint8(slot), objectFor(slot), zombieHumanTeam); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	room.life = life
+	room.mu.Lock()
+	room.slots[0].team = zombieTeam
+	room.zombieKingSlot = 0
+	room.mu.Unlock()
+
+	server.zombieDeathReport(room.slots[1].session)
+	if teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
+		t.Fatal("the notice went out before the respawn completed")
+	}
+
+	// The client asks to respawn, the server offers a marker, the client confirms.
+	ask := protocol.Packet{ID: 713, Payload: respawnPayload(objectFor(1))}
+	if err := server.handleRespawn(room.slots[1].session, ask); err != nil {
+		t.Fatalf("respawn request: %v", err)
+	}
+	var marker uint32
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && marker == 0 {
+		rec := room.slots[1].session.send.(*recorder)
+		rec.mu.Lock()
+		packets := append([]protocol.Packet(nil), rec.packets...)
+		rec.mu.Unlock()
+		for _, packet := range packets {
+			if packet.ID == 708 && len(packet.Payload) >= 8 {
+				marker = uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
+					uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
+			}
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if marker == 0 {
+		t.Fatal("no respawn offer")
+	}
+	confirm := protocol.Packet{ID: 704, Payload: append(respawnPayload(objectFor(1)), 0)}
+	confirm.Payload = respawnPayload(objectFor(1))
+	builder := protocol.NewWriter()
+	builder.Unsigned(objectFor(1))
+	builder.Unsigned(marker)
+	builder.Boolean(true)
+	confirm = protocol.Packet{ID: 704, Payload: builder.Payload()}
+	if err := server.handleRespawn(room.slots[1].session, confirm); err != nil {
+		t.Fatalf("respawn confirm: %v", err)
+	}
+	if !teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
+		t.Fatal("the conversion was not announced on the completion")
+	}
+}
+
 // respawnPayload is the C713 body: the player object and the client's marker.
 func respawnPayload(objectID uint32) []byte {
 	writer := protocol.NewWriter()
@@ -594,9 +664,12 @@ func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
 	room.beginZombieRound()
 	server := zombieTestServer(room)
 	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
-		{ID: 0, DurationMilliseconds: 400}, {ID: 1, DurationMilliseconds: 400},
-		{ID: 2, DurationMilliseconds: 400}, {ID: 3, DurationMilliseconds: 400},
+		{ID: 0, DurationMilliseconds: 100}, {ID: 1, DurationMilliseconds: 100},
+		{ID: 2, DurationMilliseconds: 100}, {ID: 3, DurationMilliseconds: 100},
 	}}
+	grace := zombieNoticeGrace
+	zombieNoticeGrace = 100 * time.Millisecond
+	defer func() { zombieNoticeGrace = grace }()
 	life := NewBattleLife(nil)
 	for slot := 0; slot < 2; slot++ {
 		if err := life.Bind(uint8(slot), objectFor(slot), zombieHumanTeam); err != nil {

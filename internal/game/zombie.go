@@ -37,6 +37,11 @@ const (
 // a variable so unit tests can shorten it.
 var zombieOpening = 5 * time.Second
 
+// zombieNoticeGrace is how long past the catalog's respawn wait the fallback
+// notice waits for a client that never reports its respawn completion. It is a
+// variable so unit tests can shorten it.
+var zombieNoticeGrace = 2 * time.Second
+
 // ZombieRound reports whether the room plays the zombie battle.
 func (r *Room) ZombieRound() bool {
 	r.mu.RLock()
@@ -62,6 +67,7 @@ func (r *Room) beginZombieRound() []protocol.Packet {
 	}
 	r.zombieKingSlot = -1
 	r.zombieWinner = 0
+	r.zombiePendingNotice = [maxRoomSlots]bool{}
 	if r.zombieKingTimer != nil {
 		r.zombieKingTimer.Stop()
 		r.zombieKingTimer = nil
@@ -243,18 +249,21 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	s.scheduleZombieNotice(room, slot)
 }
 
-// scheduleZombieNotice tells every client that one seat is on the zombie team once
-// the respawn wait the catalog states has passed. Announcing on the death report
-// itself made the client revive at once: the repeated team notice is what its own
-// zombie path reads as "come back", so it has to arrive when the bar has finished.
+// scheduleZombieNotice arms a seat's conversion notice. The notice is what the
+// client's own zombie path reads as "come back", so it must not arrive before the
+// bar finished: it goes out when the client completes its respawn, and this timer
+// is the fallback for a client that never reports the completion.
 func (s *Server) scheduleZombieNotice(room *Room, slot int) {
-	room.mu.RLock()
+	room.mu.Lock()
+	if slot >= 0 && slot < maxRoomSlots {
+		room.zombiePendingNotice[slot] = true
+	}
 	character, items := room.slots[slot].character, room.slots[slot].items
 	generation := room.generation
-	room.mu.RUnlock()
-	// A zero wait (an item that removes the delay) announces at once, which is the
-	// same moment the client's own revive happens.
-	delay := s.respawnDelay(character, items)
+	room.mu.Unlock()
+	// The fallback waits a little longer than the catalog: the completion report is
+	// the normal trigger, this only covers a client that never sends it.
+	delay := s.respawnDelay(character, items) + zombieNoticeGrace
 	time.AfterFunc(delay, func() {
 		room.mu.RLock()
 		stale := !room.Started || room.generation != generation ||
@@ -263,14 +272,28 @@ func (s *Server) scheduleZombieNotice(room *Room, slot int) {
 		if stale {
 			return
 		}
-		notice := zombieNotice(slot)
-		if notice == nil {
-			s.log.Error("[Zombie] the conversion notice could not be encoded", "room", room.ID, "slot", slot)
-			return
-		}
-		s.log.Info("[Zombie] conversion announced", "room", room.ID, "slot", slot)
-		room.Broadcast(*notice)
+		s.announceZombieConversion(room, slot)
 	})
+}
+
+// announceZombieConversion tells every client that one seat is on the zombie team,
+// once. The respawn completion and the fallback timer both land here.
+func (s *Server) announceZombieConversion(room *Room, slot int) {
+	room.mu.Lock()
+	if !room.Started || room.Setting.Game.Mode != zombieModeID ||
+		slot < 0 || slot >= maxRoomSlots || !room.zombiePendingNotice[slot] {
+		room.mu.Unlock()
+		return
+	}
+	room.zombiePendingNotice[slot] = false
+	room.mu.Unlock()
+	notice := zombieNotice(slot)
+	if notice == nil {
+		s.log.Error("[Zombie] the conversion notice could not be encoded", "room", room.ID, "slot", slot)
+		return
+	}
+	s.log.Info("[Zombie] conversion announced", "room", room.ID, "slot", slot)
+	room.Broadcast(*notice)
 }
 
 // zombieUltraItemKind is the item kind the king's ultra request carries:

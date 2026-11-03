@@ -290,6 +290,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		}
 		if completed {
 			s.noteRespawn(room, session.slot)
+			s.announceZombieConversion(room, session.slot)
 		}
 		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 32925,
@@ -313,6 +314,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		}
 		if completed {
 			s.noteRespawn(room, session.slot)
+			s.announceZombieConversion(room, session.slot)
 		}
 		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 704,
