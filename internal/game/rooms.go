@@ -608,17 +608,9 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	}
 	game, err := normalizeGameSetting(request.Setting.Game, s.maps)
 	if err != nil {
-		// The mode word is logged even for a rejected request: the client's create-room
-		// list offers modes this server does not run yet, and the only way to learn the
-		// id each entry sends is to read it here.
-		s.log.Info("room creation rejected", "error", err,
-			"requested_mode", request.Setting.Game.Mode,
-			"requested_sub_mode", request.Setting.Game.SubMode,
-			"requested_map", protocol.FromU16(request.Setting.Game.Strings16[1]),
-			"requested_third", protocol.FromU16(request.Setting.Game.Strings16[3]))
+		s.log.Debug("room creation rejected", "error", err)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
-	s.log.Info("room created", "mode", game.Mode, "sub_mode", game.SubMode)
 
 	setting := request.Setting
 	setting.State = 2
@@ -976,9 +968,6 @@ func (s *Server) handleGameSetting(session *Session, packet protocol.Packet) err
 	}
 	normalized, err := normalizeGameSetting(setting, s.maps)
 	if err != nil {
-		s.log.Info("room setting change rejected", "error", err,
-			"requested_mode", setting.Mode, "requested_sub_mode", setting.SubMode,
-			"requested_map", protocol.FromU16(setting.Strings16[1]))
 		return nil
 	}
 	current := room.SettingCopy()
