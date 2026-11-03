@@ -254,6 +254,13 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	if request.ObjectID != objectID {
 		return fmt.Errorf("%w: respawn object mismatch", protocol.ErrInvalidPacket)
 	}
+	// A zombie round logs its respawn traffic at info level: whether the client
+	// asks for its respawn (and so shows the bar the mode has) is exactly what the
+	// round's default cannot tell from a silent client.
+	if room.ZombieRound() {
+		s.log.Info("[Zombie] respawn request", "room", room.ID, "slot", session.slot,
+			"id", packet.ID, "value", request.Value, "team", room.Team(session.slot))
+	}
 	switch packet.ID {
 	case 713, 32904:
 		// A zombie-round seat that asks for its respawn is answered on the zombie

@@ -129,7 +129,7 @@ func (s *Server) pickZombieKing(room *Room, generation int) {
 		return
 	}
 	notice = built
-	s.log.Info("[Zombie] the king turned", "room", room.ID, "slot", king)
+	s.log.Info("[Zombie] the king turned", "room", room.ID, "slot", king, "candidates", humans)
 	room.Broadcast(notice)
 }
 

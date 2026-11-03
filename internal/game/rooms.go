@@ -1524,6 +1524,10 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		// The zombie battle is decided by its own rule, not by the team totals:
 		// the winner is the human team (1) or the zombie team (14).
 		winner = decided
+	} else if setting.Game.Mode == zombieModeID && timeExpired {
+		// A zombie round that runs its 180 s out goes to the humans; the round has
+		// no team totals to compare.
+		winner = zombieHumanTeam
 	} else if teamScores[0] > teamScores[1] {
 		winner = 1
 	} else if teamScores[1] > teamScores[0] {

@@ -433,12 +433,35 @@ func TestZombieAmmoBoxIsConsumedByEitherSide(t *testing.T) {
 		t.Fatalf("the box is still on the map: %d", point.ActiveID)
 	}
 	for slot := 0; slot < 2; slot++ {
-		if ids := room.slots[slot].session.send.(*recorder).ids(); len(ids) == 0 || ids[len(ids)-1] != 712 {
-			t.Fatalf("slot %d saw %v, want the box-removal broadcast 712", slot, ids)
+		seen := false
+		for _, id := range room.slots[slot].session.send.(*recorder).ids() {
+			if id == 712 {
+				seen = true
+			}
+		}
+		if !seen {
+			t.Fatalf("slot %d saw %v, want the box-removal broadcast 712", slot,
+				room.slots[slot].session.send.(*recorder).ids())
 		}
 	}
 	if held := state.held[0]; held != nil {
 		t.Fatalf("the zombie battle must not grant a slotted item: %+v", held)
+	}
+	// The picking client needs the box's kind confirmed to apply its own effect.
+	found715 := false
+	for _, packet := range room.slots[0].session.send.(*recorder).packets {
+		if packet.ID != 715 || len(packet.Payload) < 8 {
+			continue
+		}
+		kind := uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
+			uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
+		if kind != 0 {
+			t.Fatalf("confirmed kind = %d, want the box's kind 0", kind)
+		}
+		found715 = true
+	}
+	if !found715 {
+		t.Fatal("the picking seat was not told the box's kind")
 	}
 }
 

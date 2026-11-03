@@ -464,6 +464,7 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 		return
 	}
 	found := false
+	boxKind := kind
 	for _, point := range state.points {
 		if point.ActiveID == 0 || point.ActiveID != objectID {
 			continue
@@ -472,6 +473,9 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 			continue
 		}
 		point.ActiveID = 0
+		if point.Kind != 0 {
+			boxKind = point.Kind
+		}
 		found = true
 		break
 	}
@@ -491,9 +495,13 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
 		return
 	}
-	// Every client removes the box; the ammo itself never leaves the client.
+	// Every client removes the box. The picking client applies the box's own
+	// effect only when it is told the kind (the reference implementation sends the
+	// direct item effect for the immediate kinds, which is what these ammo boxes
+	// are), so that confirmation goes to that seat alone.
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	s.log.Info("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", kind, "object", objectID)
+	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
+	s.log.Info("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every
@@ -919,6 +927,14 @@ func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet,
 		if member.Session.Send(packet) == nil {
 			sent++
 		}
+	}
+	// A zombie round logs this at info level: its effects (the king's ultra, an
+	// ammo box) are the client's own broadcasts, so seeing whether a packet ever
+	// arrived is how a missing effect is told from a dropped one.
+	if room.ZombieRound() {
+		s.log.Info("[Zombie] item packet forwarded", "room", room.ID, "id", packet.ID,
+			"bytes", len(packet.Payload), "from", from, "to", sent, "relay", viaRelay)
+		return
 	}
 	s.log.Debug("[Supplies] item packet forwarded", "room", room.ID, "id", packet.ID,
 		"bytes", len(packet.Payload), "from", from, "to", sent, "relay", viaRelay)
