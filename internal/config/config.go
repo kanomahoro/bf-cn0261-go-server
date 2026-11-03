@@ -36,6 +36,13 @@ type Zombie struct {
 	// zombie team's markers. The 2015 client revives itself on the repeated team
 	// notice, so this stays off unless a build proves otherwise.
 	ServerRespawn bool `json:"serverRespawn"`
+	// HumanReviveExtraMs and ZombiniReviveExtraMs are added to the catalog's
+	// respawn wait before the offer and the conversion notice go out. The client
+	// draws its bar after the death animation, so the catalog wait alone reaches it
+	// before the bar finished; the measured round put the human turn at 80 % of its
+	// bar and a zombini's at 50 %, so the two are tuned separately.
+	HumanReviveExtraMs   int `json:"humanReviveExtraMs"`
+	ZombiniReviveExtraMs int `json:"zombiniReviveExtraMs"`
 }
 
 // Database holds the MariaDB connection settings.

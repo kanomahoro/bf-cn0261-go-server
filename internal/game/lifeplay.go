@@ -300,6 +300,10 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 	delay := s.respawnDelay(character, items)
 	if room.ZombieRound() {
 		delay = s.zombieRespawnDelay(character, items)
+		room.mu.RLock()
+		extra := room.zombieReviveExtra[slot]
+		room.mu.RUnlock()
+		delay += extra
 	}
 	// The map catalog owns the number of markers per team; cycling stays inside
 	// what the map actually defines.

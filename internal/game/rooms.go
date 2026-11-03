@@ -92,6 +92,9 @@ type Room struct {
 	// zombiePendingNotice marks the seats whose conversion has not been announced
 	// yet: the notice waits for their respawn completion.
 	zombiePendingNotice [maxRoomSlots]bool
+	// zombieReviveExtra is the wait added to the catalog's respawn delay for the
+	// seat's next offer, so the client's bar finishes first.
+	zombieReviveExtra [maxRoomSlots]time.Duration
 }
 
 // View returns an immutable snapshot of the roster.
@@ -1151,6 +1154,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.seedsSent = false
 	room.respawnCount = [maxRoomSlots]uint32{}
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
+	room.zombieReviveExtra = [maxRoomSlots]time.Duration{}
 	// A fresh round starts with no item-mode state; the host reports its map
 	// points after the map loads.
 	room.supplies = nil
@@ -1419,6 +1423,7 @@ func (s *Server) cancelRound(room *Room) {
 	room.zombieKingSlot = -1
 	room.zombieWinner = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
+	room.zombieReviveExtra = [maxRoomSlots]time.Duration{}
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen

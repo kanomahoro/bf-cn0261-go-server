@@ -37,6 +37,9 @@ const (
 // a variable so unit tests can shorten it.
 var zombieOpening = 5 * time.Second
 
+// maxZombieReviveExtraMs bounds the configured extra wait.
+const maxZombieReviveExtraMs = 30000
+
 // zombieNoticeGrace is how long past the catalog's respawn wait the fallback
 // notice waits for a client that never reports its respawn completion. It is a
 // variable so unit tests can shorten it.
@@ -68,6 +71,7 @@ func (r *Room) beginZombieRound() []protocol.Packet {
 	r.zombieKingSlot = -1
 	r.zombieWinner = 0
 	r.zombiePendingNotice = [maxRoomSlots]bool{}
+	r.zombieReviveExtra = [maxRoomSlots]time.Duration{}
 	if r.zombieKingTimer != nil {
 		r.zombieKingTimer.Stop()
 		r.zombieKingTimer = nil
@@ -174,6 +178,7 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	var (
 		finish   uint8
 		announce bool
+		zombini  bool
 		kingSlot int
 	)
 	room.mu.Lock()
@@ -202,6 +207,7 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	case team == zombieTeam:
 		// A zombini comes back without limit; its notice follows the respawn wait.
 		announce = true
+		zombini = true
 	default:
 		room.mu.Unlock()
 		return
@@ -241,6 +247,24 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	if !announce {
 		return
 	}
+	// The extra wait is chosen by what the seat was: a converted human plays the
+	// human bar, a zombini the zombie one, and the measured round put them at 80 %
+	// and 50 % of their bars with the catalog wait alone.
+	room.mu.Lock()
+	if slot >= 0 && slot < maxRoomSlots {
+		extra := s.cfg.Zombie.HumanReviveExtraMs
+		if zombini {
+			extra = s.cfg.Zombie.ZombiniReviveExtraMs
+		}
+		if extra < 0 {
+			extra = 0
+		}
+		if extra > maxZombieReviveExtraMs {
+			extra = maxZombieReviveExtraMs
+		}
+		room.zombieReviveExtra[slot] = time.Duration(extra) * time.Millisecond
+	}
+	room.mu.Unlock()
 	// The round's own state changes now: hostility and the win conditions must see
 	// the seat on the zombie team. The clients are told after the respawn wait, so a
 	// converted seat plays its bar and comes back as a zombie instead of turning on
@@ -274,7 +298,10 @@ func (s *Server) scheduleZombieNotice(room *Room, slot int) {
 	// the normal trigger, this only covers a client that never sends it.
 	delay := s.respawnDelay(character, items) + zombieNoticeGrace
 	if room.ZombieRound() {
-		delay = s.zombieRespawnDelay(character, items) + zombieNoticeGrace
+		room.mu.RLock()
+		extra := room.zombieReviveExtra[slot]
+		room.mu.RUnlock()
+		delay = s.zombieRespawnDelay(character, items) + extra + zombieNoticeGrace
 	}
 	time.AfterFunc(delay, func() {
 		room.mu.RLock()
