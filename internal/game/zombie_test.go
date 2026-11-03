@@ -567,3 +567,58 @@ func TestSupplyModeCoversOnlyItemAndZombie(t *testing.T) {
 		t.Fatal("the ordinary battle must not run supplies")
 	}
 }
+
+// teamChangeSeen reports whether the recorder holds an S504 naming the seat and team.
+func teamChangeSeen(rec *recorder, slot int, team uint8) bool {
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	for _, packet := range rec.packets {
+		if packet.ID != 504 || len(packet.Payload) < 8 {
+			continue
+		}
+		word := func(offset int) uint32 {
+			return uint32(packet.Payload[offset]) | uint32(packet.Payload[offset+1])<<8 |
+				uint32(packet.Payload[offset+2])<<16 | uint32(packet.Payload[offset+3])<<24
+		}
+		if int(word(0)) == slot && uint8(word(4)) == team {
+			return true
+		}
+	}
+	return false
+}
+
+// The conversion notice waits for the respawn bar: announcing on the death report
+// itself made the client revive on the spot.
+func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
+		{ID: 0, DurationMilliseconds: 400}, {ID: 1, DurationMilliseconds: 400},
+		{ID: 2, DurationMilliseconds: 400}, {ID: 3, DurationMilliseconds: 400},
+	}}
+	life := NewBattleLife(nil)
+	for slot := 0; slot < 2; slot++ {
+		if err := life.Bind(uint8(slot), objectFor(slot), zombieHumanTeam); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	room.life = life
+
+	server.zombieDeathReport(room.slots[1].session)
+	if team := room.Team(1); team != zombieTeam {
+		t.Fatalf("the round's own state must turn at once, team = %d", team)
+	}
+	if teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
+		t.Fatal("the notice was broadcast before the respawn wait passed")
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatal("the conversion was never announced after the respawn wait")
+}

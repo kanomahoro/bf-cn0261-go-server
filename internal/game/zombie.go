@@ -167,8 +167,7 @@ func (s *Server) zombieDeathOfObject(room *Room, victimObject uint32) {
 func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	var (
 		finish   uint8
-		notice   *protocol.Packet
-		respawn  bool
+		announce bool
 		kingSlot int
 	)
 	room.mu.Lock()
@@ -193,15 +192,10 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 			room.zombieKingSlot = slot
 		}
 		room.slots[slot].team = zombieTeam
-		if notice = zombieNotice(slot); notice != nil {
-			respawn = true
-		}
+		announce = true
 	case team == zombieTeam:
-		// A zombini's death comes back at once: the repeated notice is what the
-		// client reads as its revive.
-		if notice = zombieNotice(slot); notice != nil {
-			respawn = true
-		}
+		// A zombini comes back without limit; its notice follows the respawn wait.
+		announce = true
 	default:
 		room.mu.Unlock()
 		return
@@ -225,31 +219,58 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	room.mu.Unlock()
 
 	s.log.Info("[Zombie] seat turned", "room", room.ID, "slot", slot, "king", kingSlot)
-	if notice != nil {
-		room.Broadcast(*notice)
-	}
 	if finish != 0 {
 		s.finishRound(room, false)
 		return
 	}
-	if respawn {
-		// The client reports the death as a team notice and its own zombie path
-		// revives it on the repeated notice, so the round only has to move the
-		// seat's team in the life tracker (that decides who may damage whom).
-		// The reference implementation sends no respawn offer at all; a build
-		// that waits for one can set the flag and get the ordinary offer on the
-		// zombie team's markers.
-		if life := room.Life(); life != nil {
-			if s.cfg.Zombie.ServerRespawn {
-				life.MarkDownAndConvert(uint8(slot), zombieTeam)
-			} else {
-				life.ConvertTeam(uint8(slot), zombieTeam)
-			}
-		}
+	if !announce {
+		return
+	}
+	// The round's own state changes now: hostility and the win conditions must see
+	// the seat on the zombie team. The clients are told after the respawn wait, so a
+	// converted seat plays its bar and comes back as a zombie instead of turning on
+	// the spot.
+	if life := room.Life(); life != nil {
 		if s.cfg.Zombie.ServerRespawn {
-			s.tryRespawn(room, slot)
+			life.MarkDownAndConvert(uint8(slot), zombieTeam)
+		} else {
+			life.ConvertTeam(uint8(slot), zombieTeam)
 		}
 	}
+	if s.cfg.Zombie.ServerRespawn {
+		s.tryRespawn(room, slot)
+	}
+	s.scheduleZombieNotice(room, slot)
+}
+
+// scheduleZombieNotice tells every client that one seat is on the zombie team once
+// the respawn wait the catalog states has passed. Announcing on the death report
+// itself made the client revive at once: the repeated team notice is what its own
+// zombie path reads as "come back", so it has to arrive when the bar has finished.
+func (s *Server) scheduleZombieNotice(room *Room, slot int) {
+	room.mu.RLock()
+	character, items := room.slots[slot].character, room.slots[slot].items
+	generation := room.generation
+	room.mu.RUnlock()
+	// A zero wait (an item that removes the delay) announces at once, which is the
+	// same moment the client's own revive happens.
+	delay := s.respawnDelay(character, items)
+	time.AfterFunc(delay, func() {
+		room.mu.RLock()
+		stale := !room.Started || room.generation != generation ||
+			room.Setting.Game.Mode != zombieModeID
+		room.mu.RUnlock()
+		if stale {
+			return
+		}
+		notice := zombieNotice(slot)
+		if notice == nil {
+			s.log.Error("[Zombie] the conversion notice could not be encoded", "room", room.ID, "slot", slot)
+			return
+		}
+		s.log.Info("[Zombie] conversion announced", "room", room.ID, "slot", slot)
+		room.Broadcast(*notice)
+	})
 }
 
 // zombieUltraItemKind is the item kind the king's ultra request carries:
