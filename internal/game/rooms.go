@@ -1508,14 +1508,29 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	// The round's teams go back to the human team for the records that follow the
 	// settlement: a waiting-room seat record only carries the two battle teams.
+	// A conversion whose notice is still waiting for its respawn bar is announced
+	// now: the client picks the mode's result banner from the seat teams it knows,
+	// and a seat that already turned on the server would otherwise still look like a
+	// surviving human.
+	var flush []int
 	if setting.Game.Mode == zombieModeID {
 		for slot := range room.slots {
+			if room.zombiePendingNotice[slot] {
+				room.zombiePendingNotice[slot] = false
+				flush = append(flush, slot)
+			}
 			if room.slots[slot].team == zombieTeam {
 				room.slots[slot].team = zombieHumanTeam
 			}
 		}
 	}
 	room.mu.Unlock()
+	for _, slot := range flush {
+		if notice := zombieNotice(slot); notice != nil {
+			s.log.Info("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
+			room.Broadcast(*notice)
+		}
+	}
 
 	// Ask every member for its damage trace before settling. Diagnostics only:
 	// the original never blocks settlement on the answer.
