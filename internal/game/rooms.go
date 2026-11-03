@@ -40,8 +40,9 @@ type memberView struct {
 
 // Room is one session (room) with up to eight slots. Every mutable field is
 // guarded by mu; network writes always happen outside the lock on a snapshot.
-// maxRoomSlots is the fixed roster size of a Bubble Fighter room.
-const maxRoomSlots = 8
+// maxRoomSlots is the fixed roster size of a Bubble Fighter room: one player per
+// object partition, so it is the protocol's own slot count.
+const maxRoomSlots = protocol.PlayerSlots
 
 type Room struct {
 	mu sync.RWMutex
@@ -62,15 +63,15 @@ type Room struct {
 
 	phase             int
 	loadingTimer      *time.Timer
-	defenseConfirmed  [8]bool
-	cancelConfirmed   [8]bool
-	characterReported [8]bool
+	defenseConfirmed  [maxRoomSlots]bool
+	cancelConfirmed   [maxRoomSlots]bool
+	characterReported [maxRoomSlots]bool
 	seedsSent         bool
-	published         [8]protocol.BattleScore
+	published         [maxRoomSlots]protocol.BattleScore
 	teamScores        [2]uint16
 	// respawnCount rotates the team spawn markers the way the reference does.
 	// It is reset at round start.
-	respawnCount [8]uint32
+	respawnCount [maxRoomSlots]uint32
 	// respawnAt records when each seat last came back, so the box the client
 	// places a few seconds after a respawn can be told from a knock-down box.
 	respawnAt [maxRoomSlots]time.Time
@@ -94,7 +95,7 @@ type Room struct {
 func (r *Room) View() []memberView {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	out := make([]memberView, 0, 8)
+	out := make([]memberView, 0, maxRoomSlots)
 	for slot := range r.slots {
 		entry := r.slots[slot]
 		out = append(out, memberView{
@@ -342,7 +343,7 @@ func (r *Room) Broadcast(p protocol.Packet) {
 func (r *Room) pingMembers() []uint64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	members := make([]uint64, 8)
+	members := make([]uint64, maxRoomSlots)
 	for slot, entry := range r.slots {
 		if entry.session != nil {
 			members[slot] = entry.session.ID
@@ -490,13 +491,13 @@ func (r *Room) refreshSetting() {
 	defer r.mu.Unlock()
 	r.Setting.MemberCount = uint16(r.occupiedLocked())
 	if r.Setting.Capacity == 0 {
-		r.Setting.Capacity = 8
+		r.Setting.Capacity = uint16(maxRoomSlots)
 	}
 }
 
 // Members builds the wire roster from a snapshot.
 func (s *Server) members(room *Room) []protocol.SessionMember {
-	members := make([]protocol.SessionMember, 8)
+	members := make([]protocol.SessionMember, maxRoomSlots)
 	for _, member := range room.View() {
 		if !member.Occupied {
 			continue
@@ -623,7 +624,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	setting.State = 2
 	setting.Kind = 2
 	setting.Game = game
-	setting.Capacity = 8
+	setting.Capacity = uint16(maxRoomSlots)
 
 	s.mu.Lock()
 	if len(s.rooms) >= 1024 {
@@ -696,8 +697,8 @@ func (s *Server) handleJoinRoom(session *Session, packet protocol.Packet) error 
 		return session.Send(protocol.CreateRoomResult(false, 4))
 	}
 	capacity := int(setting.Capacity)
-	if capacity <= 0 || capacity > 8 {
-		capacity = 8
+	if capacity <= 0 || capacity > maxRoomSlots {
+		capacity = maxRoomSlots
 	}
 	slot, _, err := room.ReserveSlot(session, capacity)
 	if err != nil {
@@ -902,8 +903,8 @@ func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) erro
 			count++
 		}
 	}
-	// A team holds at most half of the eight slots.
-	if count >= 4 {
+	// A team holds at most half of the room.
+	if count >= maxRoomSlots/2 {
 		return nil
 	}
 	room.SetTeam(session.slot, target)
@@ -1148,11 +1149,11 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.generation++
 	room.phase = phaseLoading
 	room.Setting.State = phaseLoading
-	room.defenseConfirmed = [8]bool{}
-	room.cancelConfirmed = [8]bool{}
-	room.characterReported = [8]bool{}
+	room.defenseConfirmed = [maxRoomSlots]bool{}
+	room.cancelConfirmed = [maxRoomSlots]bool{}
+	room.characterReported = [maxRoomSlots]bool{}
 	room.seedsSent = false
-	room.respawnCount = [8]uint32{}
+	room.respawnCount = [maxRoomSlots]uint32{}
 	// A fresh round starts with no item-mode state; the host reports its map
 	// points after the map loads.
 	room.supplies = nil
@@ -1427,9 +1428,9 @@ func (s *Server) cancelRound(room *Room) {
 	room.pings = nil
 	room.supplies = nil
 	room.defenseSeeds = map[int]defenseSeeds{}
-	room.defenseConfirmed = [8]bool{}
-	room.cancelConfirmed = [8]bool{}
-	room.characterReported = [8]bool{}
+	room.defenseConfirmed = [maxRoomSlots]bool{}
+	room.cancelConfirmed = [maxRoomSlots]bool{}
+	room.characterReported = [maxRoomSlots]bool{}
 	room.seedsSent = false
 	for slot := range room.slots {
 		room.slots[slot].ready = false
@@ -1440,7 +1441,7 @@ func (s *Server) cancelRound(room *Room) {
 			room.slots[slot].team = zombieHumanTeam
 		}
 	}
-	members := make([]memberView, 0, 8)
+	members := make([]memberView, 0, maxRoomSlots)
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		members = append(members, memberView{
@@ -1516,10 +1517,10 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	life := room.life
 	room.life = nil
 	room.supplies = nil
-	room.published = [8]protocol.BattleScore{}
+	room.published = [maxRoomSlots]protocol.BattleScore{}
 	room.teamScores = [2]uint16{}
 	setting := room.Setting
-	members := make([]memberView, 0, 8)
+	members := make([]memberView, 0, maxRoomSlots)
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		members = append(members, memberView{
@@ -1555,7 +1556,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	s.log.Info("[Round] ended", "room", room.ID, "winner", winner,
 		"first", teamScores[0], "second", teamScores[1], "reason", reason)
 
-	players := make([]store.ResultPlayer, 0, 8)
+	players := make([]store.ResultPlayer, 0, maxRoomSlots)
 	for _, member := range members {
 		if !member.Occupied {
 			continue

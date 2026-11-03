@@ -549,9 +549,9 @@ func (r *Relay) leave(client *relayConn) {
 }
 
 // relayRoomCapacity is the number of relay connections one room can hold: one
-// per slot, eight slots. forwardTargets keeps its scratch list on the stack up
-// to that size so relaying a packet costs no allocation.
-const relayRoomCapacity = 8
+// per player slot. forwardTargets keeps its scratch list on the stack up to that
+// size so relaying a packet costs no allocation.
+const relayRoomCapacity = protocol.PlayerSlots
 
 // forwardTargetsLocked copies the room's connections except the sender into dst
 // and reports how many were written. The caller holds r.mu. Rooms larger than the

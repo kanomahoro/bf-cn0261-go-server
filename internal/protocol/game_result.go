@@ -29,7 +29,7 @@ type GameResultPlayer struct {
 // the two team totals, and any other value is written as given. The zombie battle
 // (team 14) and the cooperative families need that.
 func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameResultPlayer) (Packet, error) {
-	if teamScores[0] > 200 || teamScores[1] > 200 || len(players) == 0 || len(players) > 8 {
+	if teamScores[0] > 200 || teamScores[1] > 200 || len(players) == 0 || len(players) > PlayerSlots {
 		return Packet{}, fmt.Errorf("%w: game result capacity", ErrInvalidPacket)
 	}
 	if winner > 17 {
@@ -41,7 +41,7 @@ func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameRes
 	slots := make([]*GameResultPlayer, 16)
 	for index := range players {
 		player := &players[index]
-		if player.Slot >= 8 || slots[player.Slot] != nil || player.AccountID == 0 ||
+		if player.Slot >= PlayerSlots || slots[player.Slot] != nil || player.AccountID == 0 ||
 			!validResultTeam(player.Team) ||
 			CheckNickname(player.Nickname) != NicknameOK ||
 			player.Level < 1 || player.Level > 200 ||

@@ -85,8 +85,13 @@ type PeerLifePoint struct {
 }
 
 // ValidateObject checks the per-slot object partition.
+// PlayerSlots is the number of player partitions a round carries: slot n owns
+// the object range 1000000 + n*100000, so every slot-derived id (player object,
+// relay slot, result row) is bounded by it. A room holds one player per slot.
+const PlayerSlots = 8
+
 func ValidateObject(object uint32) error {
-	if object < 1000000 || (object-1000000)/100000 >= 8 {
+	if object < 1000000 || (object-1000000)/100000 >= PlayerSlots {
 		return fmt.Errorf("%w: object outside the player partitions", ErrInvalidPacket)
 	}
 	return nil

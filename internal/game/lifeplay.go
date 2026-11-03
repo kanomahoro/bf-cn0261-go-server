@@ -23,7 +23,7 @@ func (s *Server) bindLife(room *Room) error {
 		}
 	}
 	room.life = life
-	room.published = [8]protocol.BattleScore{}
+	room.published = [maxRoomSlots]protocol.BattleScore{}
 	room.teamScores = [2]uint16{}
 	return nil
 }
@@ -265,7 +265,7 @@ func (s *Server) respawnDelay(character store.Character, items []store.Item) tim
 
 func (s *Server) tryRespawn(room *Room, slot int) {
 	life := room.Life()
-	if life == nil || slot < 0 || slot >= 8 {
+	if life == nil || slot < 0 || slot >= maxRoomSlots {
 		return
 	}
 	var target *Session

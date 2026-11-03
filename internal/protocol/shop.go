@@ -231,7 +231,7 @@ func IsPeerAction(id uint16) bool {
 
 // ValidPeerObject checks the slot partition encoded in an object id.
 func ValidPeerObject(objectID uint32, slot uint8) bool {
-	if slot >= 8 || objectID < 1000000 {
+	if slot >= PlayerSlots || objectID < 1000000 {
 		return false
 	}
 	return (objectID-1000000)/100000 == uint32(slot)

@@ -35,8 +35,8 @@ type lifePlayer struct {
 	bubbleSettled bool
 	knockTick     *uint32
 
-	rescueRequests [8]*time.Time
-	kickRequests   [8]*time.Time
+	rescueRequests [maxRoomSlots]*time.Time
+	kickRequests   [maxRoomSlots]*time.Time
 	kickTarget     *uint32
 	kickStyle      uint32
 	clearKick      bool
@@ -57,7 +57,7 @@ type BattleLife struct {
 	// mu guards every player field: life events arrive on the reporting
 	// player's goroutine while scores and respawns are read elsewhere.
 	mu      sync.RWMutex
-	players [8]lifePlayer
+	players [maxRoomSlots]lifePlayer
 	now     func() time.Time
 }
 
@@ -73,7 +73,7 @@ func NewBattleLife(now func() time.Time) *BattleLife {
 func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || objectID < 1000000 || (objectID-1000000)/100000 != uint32(slot) ||
+	if slot >= maxRoomSlots || objectID < 1000000 || (objectID-1000000)/100000 != uint32(slot) ||
 		team < 1 || team > 2 {
 		return fmt.Errorf("battle life requires a player object and frozen team")
 	}
@@ -91,7 +91,7 @@ func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return fmt.Errorf("spawn adoption requires an initialized player")
 	}
 	player := &l.players[slot]
@@ -106,7 +106,7 @@ func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
 func (l *BattleLife) SpawnIndex(slot uint8) uint32 {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 {
+	if slot >= maxRoomSlots {
 		return 0
 	}
 	return l.players[slot].spawnIndex
@@ -116,11 +116,11 @@ func (l *BattleLife) SpawnIndex(slot uint8) uint32 {
 func (l *BattleLife) Reset() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.players = [8]lifePlayer{}
+	l.players = [maxRoomSlots]lifePlayer{}
 }
 
 func (l *BattleLife) find(objectID uint32) (uint8, error) {
-	if objectID < 1000000 || (objectID-1000000)/100000 >= 8 {
+	if objectID < 1000000 || (objectID-1000000)/100000 >= maxRoomSlots {
 		return 0, fmt.Errorf("life event has an invalid player object")
 	}
 	slot := uint8((objectID - 1000000) / 100000)
@@ -134,7 +134,7 @@ func (l *BattleLife) find(objectID uint32) (uint8, error) {
 func (l *BattleLife) CanFire(slot uint8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return false
 	}
 	return l.players[slot].state == stateActive
@@ -144,7 +144,7 @@ func (l *BattleLife) CanFire(slot uint8) bool {
 func (l *BattleLife) ReturnToNormal(slot uint8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return false
 	}
 	if l.players[slot].state == stateStunRecovering {
@@ -157,7 +157,7 @@ func (l *BattleLife) ReturnToNormal(slot uint8) bool {
 func (l *BattleLife) AreOpponents(sourceSlot uint8, targetObject uint32) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if sourceSlot >= 8 || l.players[sourceSlot].objectID == 0 {
+	if sourceSlot >= maxRoomSlots || l.players[sourceSlot].objectID == 0 {
 		return false, fmt.Errorf("damage source requires an initialized member")
 	}
 	target, err := l.find(targetObject)
@@ -171,7 +171,7 @@ func (l *BattleLife) AreOpponents(sourceSlot uint8, targetObject uint32) (bool, 
 func (l *BattleLife) Score(slot uint8) (protocol.BattleScore, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return protocol.BattleScore{}, fmt.Errorf("player score requires an initialized member")
 	}
 	return l.players[slot].score, nil
@@ -201,8 +201,8 @@ func (l *BattleLife) validateReporter(slot uint8, objectID uint32) error {
 }
 
 func (l *BattleLife) clearTransient(player *lifePlayer) {
-	player.rescueRequests = [8]*time.Time{}
-	player.kickRequests = [8]*time.Time{}
+	player.rescueRequests = [maxRoomSlots]*time.Time{}
+	player.kickRequests = [maxRoomSlots]*time.Time{}
 	player.kickTarget = nil
 	player.completedRescuer = nil
 }
@@ -213,7 +213,7 @@ func (l *BattleLife) clearTransient(player *lifePlayer) {
 func (l *BattleLife) ConvertTeam(slot uint8, team uint8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return false
 	}
 	l.players[slot].team = team
@@ -227,7 +227,7 @@ func (l *BattleLife) ConvertTeam(slot uint8, team uint8) bool {
 func (l *BattleLife) MarkDownAndConvert(slot uint8, team uint8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].objectID == 0 {
+	if slot >= maxRoomSlots || l.players[slot].objectID == 0 {
 		return false
 	}
 	player := &l.players[slot]
@@ -525,8 +525,8 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 			return false, nil
 		}
 		victim.state = stateKicked
-		victim.kickRequests = [8]*time.Time{}
-		victim.rescueRequests = [8]*time.Time{}
+		victim.kickRequests = [maxRoomSlots]*time.Time{}
+		victim.rescueRequests = [maxRoomSlots]*time.Time{}
 		increment(&actor.score.PangCount)
 		return true, nil
 	default: // KickTry
@@ -562,7 +562,7 @@ func (l *BattleLife) RequestRespawn(slot uint8, objectID uint32) error {
 func (l *BattleLife) BeginRespawn(slot uint8) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 {
+	if slot >= maxRoomSlots {
 		return false
 	}
 	player := &l.players[slot]
@@ -578,7 +578,7 @@ func (l *BattleLife) BeginRespawn(slot uint8) bool {
 func (l *BattleLife) OfferRespawn(slot uint8, spawnIndex uint32) (uint32, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if slot >= 8 || l.players[slot].state != stateRespawnWaiting {
+	if slot >= maxRoomSlots || l.players[slot].state != stateRespawnWaiting {
 		return 0, fmt.Errorf("respawn offer requires a waiting player")
 	}
 	player := &l.players[slot]

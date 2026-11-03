@@ -326,7 +326,7 @@ func CreatePeerIdentityReply(peerID uint32) Packet {
 
 // CreatePeerTableReply builds S610.
 func CreatePeerTableReply(slot, peerID uint32) (Packet, error) {
-	if slot >= 8 || peerID == 0 || peerID == Unset {
+	if slot >= PlayerSlots || peerID == 0 || peerID == Unset {
 		return Packet{}, fmt.Errorf("%w: peer table identity", ErrInvalidPacket)
 	}
 	w := NewWriter()
@@ -341,7 +341,7 @@ func CreatePeerTableReply(slot, peerID uint32) (Packet, error) {
 
 // CreateMapLoadedReply builds S701.
 func CreateMapLoadedReply(slot uint32) (Packet, error) {
-	if slot >= 8 {
+	if slot >= PlayerSlots {
 		return Packet{}, fmt.Errorf("%w: map loading slot", ErrInvalidPacket)
 	}
 	w := NewWriter()
@@ -558,7 +558,7 @@ type BattleScore struct {
 
 // CreatePlayerScoreReply builds S986 for a player row.
 func CreatePlayerScoreReply(slot uint8, score BattleScore, personal uint32) (Packet, error) {
-	if slot >= 8 {
+	if slot >= PlayerSlots {
 		return Packet{}, fmt.Errorf("%w: score slot", ErrInvalidPacket)
 	}
 	if personal > 65535 {
