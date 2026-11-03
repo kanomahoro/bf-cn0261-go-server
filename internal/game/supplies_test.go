@@ -644,3 +644,20 @@ func TestRespawnClearsTheItemSlots(t *testing.T) {
 		t.Fatalf("the selection must reset: %d", held.selected)
 	}
 }
+
+// The zombie battle accepts any sub mode the client sends: the mode has no rules
+// on the client side, so a create must not fail on that word.
+func TestZombieModeAcceptsAnySubMode(t *testing.T) {
+	request := itemRequest("rel_Test_Normal")
+	request.Mode = zombieModeID
+	for _, sub := range []uint32{0, 1, 2, 3, 4, 7, 15} {
+		request.SubMode = sub
+		if _, err := normalizeGameSetting(request, testMaps()); err != nil {
+			t.Fatalf("sub mode %d refused: %v", sub, err)
+		}
+	}
+	request.SubMode = 16
+	if _, err := normalizeGameSetting(request, testMaps()); err == nil {
+		t.Fatal("a sub mode above the accepted range must stay refused")
+	}
+}

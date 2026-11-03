@@ -9,6 +9,7 @@ import (
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
 )
 
 // zombieTestRoom builds a room whose setting names the zombie mode, with the
@@ -317,4 +318,64 @@ func TestZombieCombatDeathTurnsTheVictimNotTheReporter(t *testing.T) {
 	if king := room.ZombieKingSlot(); king != 2 {
 		t.Fatalf("king slot = %d, want the first dead seat, 2", king)
 	}
+}
+
+// A zombie-round seat that asks to respawn is answered on the zombie team's
+// markers, so a client that waits for the server behaves like one that revives
+// itself.
+func TestZombieRespawnRequestIsAnsweredOnTeamFourteen(t *testing.T) {
+	room := zombieTestRoom(2)
+	room.beginZombieRound()
+	server := zombieTestServer(room)
+	// A one-millisecond wait keeps the offer from the round's own timer quick; the
+	// catalog is keyed by the resolved character type, so every id is covered.
+	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
+		{ID: 0, DurationMilliseconds: 1}, {ID: 1, DurationMilliseconds: 1},
+		{ID: 2, DurationMilliseconds: 1}, {ID: 3, DurationMilliseconds: 1},
+	}}
+	room.mu.Lock()
+	room.slots[0].team = zombieTeam
+	room.zombieKingSlot = 0
+	room.mu.Unlock()
+	life := NewBattleLife(nil)
+	if err := life.Bind(0, objectFor(0), zombieHumanTeam); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if err := life.Bind(1, objectFor(1), zombieHumanTeam); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	room.life = life
+
+	request := protocol.Packet{ID: 713, Payload: respawnPayload(objectFor(0))}
+	if err := server.handleRespawn(room.slots[0].session, request); err != nil {
+		t.Fatalf("respawn request: %v", err)
+	}
+	rec := room.slots[0].session.send.(*recorder)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		rec.mu.Lock()
+		packets := append([]protocol.Packet(nil), rec.packets...)
+		rec.mu.Unlock()
+		for _, packet := range packets {
+			if packet.ID != 708 || len(packet.Payload) < 8 {
+				continue
+			}
+			marker := uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
+				uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
+			if marker/10 != uint32(zombieTeam) {
+				t.Fatalf("respawn marker = %d, want a team-14 marker", marker)
+			}
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("no respawn offer was sent")
+}
+
+// respawnPayload is the C713 body: the player object and the client's marker.
+func respawnPayload(objectID uint32) []byte {
+	writer := protocol.NewWriter()
+	writer.Unsigned(objectID)
+	writer.Unsigned(0)
+	return writer.Payload()
 }

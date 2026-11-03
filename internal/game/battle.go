@@ -256,6 +256,15 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	}
 	switch packet.ID {
 	case 713, 32904:
+		// A zombie-round seat that asks for its respawn is answered on the zombie
+		// team's markers. The reference client revives itself and never asks; a
+		// client that waits for the server asks here, so both behave the same
+		// without a configuration switch.
+		if room.ZombieRound() && room.Team(session.slot) == zombieTeam {
+			life.MarkDownAndConvert(uint8(session.slot), zombieTeam)
+			s.tryRespawn(room, session.slot)
+			return nil
+		}
 		if err := life.RequestRespawn(uint8(session.slot), objectID); err != nil {
 			return err
 		}

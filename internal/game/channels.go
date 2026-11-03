@@ -145,7 +145,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	switch request.SubMode {
 	case 0, 1, 3, 4:
 	default:
-		return setting, fmt.Errorf("unsupported room sub mode")
+		// The zombie battle carries no rules in the client, so a sub mode it sends
+		// there cannot change the round; it is echoed back instead of costing the
+		// room its create. Any other mode keeps the audited values only.
+		if request.Mode != zombieModeID || request.SubMode > 15 {
+			return setting, fmt.Errorf("unsupported room sub mode")
+		}
 	}
 	if len(request.Strings16[0]) > protocol.SessionStringLimit {
 		return setting, fmt.Errorf("room title exceeds the supported length")
