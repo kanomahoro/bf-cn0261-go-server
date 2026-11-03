@@ -50,8 +50,7 @@
         "maxFiles": 3
     },
     "zombie": {
-        "serverRespawn": false,
-        "humanReviveExtraMs": 3000,
-        "zombiniReviveExtraMs": 9000
+        "humanTurnMs": 12000,
+        "zombiniTurnMs": 18000
     }
 }

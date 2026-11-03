@@ -9,7 +9,6 @@ import (
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
-	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
 )
 
 // zombieTestRoom builds a room whose setting names the zombie mode, with the
@@ -46,32 +45,6 @@ func TestZombieRoundStartsEverySeatHuman(t *testing.T) {
 	}
 	if king := room.ZombieKingSlot(); king != -1 {
 		t.Fatalf("king slot = %d, want none before the opening", king)
-	}
-}
-
-// The zombie team's respawn markers are the fifteenth group: the native spawn
-// offer validates the marker against the seat's team, so a converted seat must
-// respawn on team 14's markers.
-func TestZombieTeamRespawnsOnTeamFourteenMarkers(t *testing.T) {
-	room := zombieTestRoom(2)
-	life := NewBattleLife(func() time.Time { return time.Unix(0, 0) })
-	if err := life.Bind(0, objectFor(0), zombieHumanTeam); err != nil {
-		t.Fatalf("bind: %v", err)
-	}
-	room.life = life
-	room.slots[0].team = zombieTeam
-	if !life.MarkDownAndConvert(0, zombieTeam) {
-		t.Fatal("the converted seat must enter the respawn wait")
-	}
-	if !life.BeginRespawn(0) {
-		t.Fatal("a converted seat must be offerable")
-	}
-	index := room.NextSpawnIndex(0, 8)
-	if index != 141 {
-		t.Fatalf("spawn marker = %d, want the first team-14 marker 141", index)
-	}
-	if _, err := life.OfferRespawn(0, index); err != nil {
-		t.Fatalf("team-14 marker refused: %v", err)
 	}
 }
 
@@ -254,7 +227,7 @@ func TestZombieConversionBypassesTheTwoTeamBind(t *testing.T) {
 	if err := life.Bind(0, objectFor(0), zombieTeam); err == nil {
 		t.Fatal("bind must refuse a team change within the round")
 	}
-	if !life.MarkDownAndConvert(0, zombieTeam) {
+	if !life.ConvertTeam(0, zombieTeam) {
 		t.Fatal("conversion must be accepted")
 	}
 	if team := life.Team(0); team != zombieTeam {
@@ -317,128 +290,6 @@ func TestZombieCombatDeathTurnsTheVictimNotTheReporter(t *testing.T) {
 	}
 	if king := room.ZombieKingSlot(); king != 2 {
 		t.Fatalf("king slot = %d, want the first dead seat, 2", king)
-	}
-}
-
-// A zombie-round seat that asks to respawn is answered on the zombie team's
-// markers, so a client that waits for the server behaves like one that revives
-// itself.
-func TestZombieRespawnRequestIsAnsweredOnTeamFourteen(t *testing.T) {
-	room := zombieTestRoom(2)
-	room.beginZombieRound()
-	server := zombieTestServer(room)
-	// A one-millisecond wait keeps the offer from the round's own timer quick; the
-	// catalog is keyed by the resolved character type, so every id is covered.
-	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
-		{ID: 0, DurationMilliseconds: 1}, {ID: 1, DurationMilliseconds: 1},
-		{ID: 2, DurationMilliseconds: 1}, {ID: 3, DurationMilliseconds: 1},
-	}}
-	room.mu.Lock()
-	room.slots[0].team = zombieTeam
-	room.zombieKingSlot = 0
-	room.mu.Unlock()
-	life := NewBattleLife(nil)
-	if err := life.Bind(0, objectFor(0), zombieHumanTeam); err != nil {
-		t.Fatalf("bind: %v", err)
-	}
-	if err := life.Bind(1, objectFor(1), zombieHumanTeam); err != nil {
-		t.Fatalf("bind: %v", err)
-	}
-	room.life = life
-
-	request := protocol.Packet{ID: 713, Payload: respawnPayload(objectFor(0))}
-	if err := server.handleRespawn(room.slots[0].session, request); err != nil {
-		t.Fatalf("respawn request: %v", err)
-	}
-	rec := room.slots[0].session.send.(*recorder)
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		rec.mu.Lock()
-		packets := append([]protocol.Packet(nil), rec.packets...)
-		rec.mu.Unlock()
-		for _, packet := range packets {
-			if packet.ID != 708 || len(packet.Payload) < 8 {
-				continue
-			}
-			marker := uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
-				uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
-			if marker/10 != uint32(zombieTeam) {
-				t.Fatalf("respawn marker = %d, want a team-14 marker", marker)
-			}
-			return
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	t.Fatalf("no respawn offer was sent")
-}
-
-// The conversion is announced when the client reports its respawn complete, not on
-// a timer: that is the moment its bar has finished.
-func TestZombieConversionAnnouncedOnRespawnComplete(t *testing.T) {
-	// Three seats: the king, the seat that dies and one human that keeps the round
-	// from ending on the conversion.
-	room := zombieTestRoom(3)
-	room.beginZombieRound()
-	server := zombieTestServer(room)
-	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
-		{ID: 0, DurationMilliseconds: 1}, {ID: 1, DurationMilliseconds: 1},
-		{ID: 2, DurationMilliseconds: 1}, {ID: 3, DurationMilliseconds: 1},
-	}}
-	grace := zombieNoticeGrace
-	zombieNoticeGrace = 30 * time.Second // the fallback must not be what fires
-	defer func() { zombieNoticeGrace = grace }()
-	life := NewBattleLife(nil)
-	for slot := 0; slot < 3; slot++ {
-		if err := life.Bind(uint8(slot), objectFor(slot), zombieHumanTeam); err != nil {
-			t.Fatalf("bind %d: %v", slot, err)
-		}
-	}
-	room.life = life
-	room.mu.Lock()
-	room.slots[0].team = zombieTeam
-	room.zombieKingSlot = 0
-	room.mu.Unlock()
-
-	server.zombieDeathReport(room.slots[1].session)
-	if teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
-		t.Fatal("the notice went out before the respawn completed")
-	}
-
-	// The client asks to respawn, the server offers a marker, the client confirms.
-	ask := protocol.Packet{ID: 713, Payload: respawnPayload(objectFor(1))}
-	if err := server.handleRespawn(room.slots[1].session, ask); err != nil {
-		t.Fatalf("respawn request: %v", err)
-	}
-	var marker uint32
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && marker == 0 {
-		rec := room.slots[1].session.send.(*recorder)
-		rec.mu.Lock()
-		packets := append([]protocol.Packet(nil), rec.packets...)
-		rec.mu.Unlock()
-		for _, packet := range packets {
-			if packet.ID == 708 && len(packet.Payload) >= 8 {
-				marker = uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
-					uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
-			}
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	if marker == 0 {
-		t.Fatal("no respawn offer")
-	}
-	confirm := protocol.Packet{ID: 704, Payload: append(respawnPayload(objectFor(1)), 0)}
-	confirm.Payload = respawnPayload(objectFor(1))
-	builder := protocol.NewWriter()
-	builder.Unsigned(objectFor(1))
-	builder.Unsigned(marker)
-	builder.Boolean(true)
-	confirm = protocol.Packet{ID: 704, Payload: builder.Payload()}
-	if err := server.handleRespawn(room.slots[1].session, confirm); err != nil {
-		t.Fatalf("respawn confirm: %v", err)
-	}
-	if !teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
-		t.Fatal("the conversion was not announced on the completion")
 	}
 }
 
@@ -659,17 +510,15 @@ func teamChangeSeen(rec *recorder, slot int, team uint8) bool {
 
 // The conversion notice waits for the respawn bar: announcing on the death report
 // itself made the client revive on the spot.
-func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
+func TestZombieConversionNoticeWaitsForTheClientBar(t *testing.T) {
 	room := zombieTestRoom(2)
 	room.beginZombieRound()
 	server := zombieTestServer(room)
-	server.respawn = world.Respawn{Characters: []world.RespawnCharacter{
-		{ID: 0, DurationMilliseconds: 100}, {ID: 1, DurationMilliseconds: 100},
-		{ID: 2, DurationMilliseconds: 100}, {ID: 3, DurationMilliseconds: 100},
-	}}
-	grace := zombieNoticeGrace
-	zombieNoticeGrace = 100 * time.Millisecond
-	defer func() { zombieNoticeGrace = grace }()
+	if server.cfg.Zombie.HumanTurnMs != 0 {
+		t.Fatalf("the test server starts with no configured wait, got %d", server.cfg.Zombie.HumanTurnMs)
+	}
+	server.cfg.Zombie.HumanTurnMs = 150
+	server.cfg.Zombie.ZombiniTurnMs = 150
 	life := NewBattleLife(nil)
 	for slot := 0; slot < 2; slot++ {
 		if err := life.Bind(uint8(slot), objectFor(slot), zombieHumanTeam); err != nil {
@@ -683,7 +532,7 @@ func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
 		t.Fatalf("the round's own state must turn at once, team = %d", team)
 	}
 	if teamChangeSeen(room.slots[0].session.send.(*recorder), 1, zombieTeam) {
-		t.Fatal("the notice was broadcast before the respawn wait passed")
+		t.Fatal("the notice was broadcast before the configured wait passed")
 	}
 
 	deadline := time.Now().Add(3 * time.Second)
@@ -693,7 +542,7 @@ func TestZombieConversionNoticeWaitsForTheRespawn(t *testing.T) {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("the conversion was never announced after the respawn wait")
+	t.Fatal("the conversion was never announced after the configured wait")
 }
 
 // The turn that ends the round must be announced with the round end: otherwise no

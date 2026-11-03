@@ -28,21 +28,18 @@ type Relay struct {
 	IdleTimeoutSeconds int    `json:"idleTimeoutSeconds"`
 }
 
-// Zombie holds the zombie battle's options. The round's rules themselves are
-// fixed (5 s opening, 180 s length, kind 104 ultra); the only choice a build may
-// need is whether the server offers the respawn the client waits for.
+// Zombie holds the zombie battle's revive timing. The mode's rules are fixed
+// (5 s opening, 180 s length, kind 104 ultra) and the respawn is the client's own:
+// the server sends no respawn offer at all, it only announces the turn once the
+// client's bar has had its time.
 type Zombie struct {
-	// ServerRespawn sends the ordinary respawn offer to a converted seat on the
-	// zombie team's markers. The 2015 client revives itself on the repeated team
-	// notice, so this stays off unless a build proves otherwise.
-	ServerRespawn bool `json:"serverRespawn"`
-	// HumanReviveExtraMs and ZombiniReviveExtraMs are added to the catalog's
-	// respawn wait before the offer and the conversion notice go out. The client
-	// draws its bar after the death animation, so the catalog wait alone reaches it
-	// before the bar finished; the measured round put the human turn at 80 % of its
-	// bar and a zombini's at 50 %, so the two are tuned separately.
-	HumanReviveExtraMs   int `json:"humanReviveExtraMs"`
-	ZombiniReviveExtraMs int `json:"zombiniReviveExtraMs"`
+	// HumanTurnMs is the wait between a human's death report and the notice that it
+	// is a zombie now: the client draws its bar from the death animation, so this is
+	// measured on a real client rather than derived from the respawn catalog.
+	HumanTurnMs int `json:"humanTurnMs"`
+	// ZombiniTurnMs is the same wait for a zombini coming back, measured separately
+	// because its bar is longer.
+	ZombiniTurnMs int `json:"zombiniTurnMs"`
 }
 
 // Database holds the MariaDB connection settings.
