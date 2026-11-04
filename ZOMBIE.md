@@ -117,7 +117,7 @@ fantasy 的 `zombie_king_ultra_item_kind`（legacy 基线 104）。
 ## 构建
 
 ```bash
-cd projects/bf-go-server-zombie
+cd projects/bf-go-server
 go build ./...
 go build -o dist/bfserver-linux-amd64 ./cmd/bfserver
 GOOS=windows GOARCH=amd64 go build -o dist/bfserver.exe ./cmd/bfserver

@@ -1,10 +1,11 @@
 # Changelog
 
-## v0.3.0-zombie（未发布，独立分支 feature/zombie-mode）
+## v0.3.0-zombie（2026-11-04 已合入 main，定稿）
 
-从 `bf-go-server` v0.2.0（提交 `46e6033`）拉出的独立目录 `bf-go-server-zombie`，只做
-僵尸模式（mode 8）移植，道具战的代码与行为不变。规则、限制与真机测试清单见
-`ZOMBIE.md`。
+僵尸模式（mode 8）自 v0.2.0（提交 `46e6033`）起在分支 `feature/zombie-mode` 上开发，
+2026-11-04 以本提交 `d7c2b4b` 为定稿快进合入 `main`。**仓库合并说明**：原先独立的
+`bf-go-server-zombie` 目录已并回唯一的 `bf-go-server`（僵尸线是主线超集），此后一个仓库、
+一条 main，含模式 1（竞技）、3（道具）、8（僵尸）。规则、限制与真机测试清单见 `ZOMBIE.md`。
 
 ### Added
 
