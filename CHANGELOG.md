@@ -18,6 +18,10 @@
   `[Room] creation rejected`、`[Supplies] map report`（每个补给点的明细降为
   `[Supplies] map report detail`，DEBUG）
 - 文档与默认版本号对齐到 v0.3.1（`cmd/bfserver/main.go` 的默认 `Version`、README badge 与示例）
+- **单元测试移出发布树**：`go build` 本来就不把 `_test.go` 编进二进制（带与不带测试文件的构建产物
+  逐字节相同），按发布口径只保留发布代码；回归测试需要时从历史取回
+  （`git checkout f80a083 -- internal/`）。README 新增「发布流程」小节，写明版本号、产物、
+  `BIN_SHA256` 与 Release 资产四处必须同时更新
 
 ## v0.3.0（2026-11-03，僵尸模式）
 

@@ -65,6 +65,10 @@ sudo bash bfserver-install.sh
 二进制与配置 → 按版本号跑完 14 份迁移 → 生成配置与 26102 自签证书 → 注册 systemd
 服务并启动 → 自检三个端口。
 
+脚本锁定了版本（`VERSION=0.3.1`）并校验二进制的 SHA256，所以 **Release 上的资产必须与脚本一起更新**，
+缺任何一个会直接报下载失败：`bfserver-linux-amd64-v0.3.1.tar.gz`（内含 `bfserver`）与
+`tools/bfserver-install.sh` 本身。
+
 - 全程中文提示，参数都有默认值：公网 IP 自动探测（探测到内网地址会提醒你改）、
   注册邀请码随机生成、数据库密码随机 24 位（不打印，只落盘）
 - 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、
@@ -141,6 +145,13 @@ go build -ldflags "-X main.Version=0.3.1" -o bin/bfserver ./cmd/bfserver
 
 ./bin/bfserver --version
 # BubbleFighter CN0261 Go Server v0.3.1  By:rurudoo
+```
+
+发布树里**不带单元测试**（`go build` 本来也不会把它们编进二进制）。需要回归测试时从历史里取回：
+
+```bash
+git checkout f80a083 -- internal/   # f80a083 是移除测试前的最后一个提交
+go test ./...
 ```
 
 ## 快速开始（手动）
@@ -588,6 +599,24 @@ INFO 只留一局一次的 `[Supplies] map report`。
 | `progression.json` | 10 档等级 | 经验阈值、胜负平奖励、个人分权重、评级与奖牌门槛 |
 
 这些 JSON 都是**运行时读取**，改完重启服务端即生效，不需要重新编译。
+
+## 发布流程（打 tag 与上传资产）
+
+改版本号时按顺序做，四步都要对上，否则一键脚本会 404：
+
+```bash
+# 1. 改版本：cmd/bfserver/main.go 的默认 Version、README badge 与正文、tools/bfserver-install.sh 的 VERSION
+# 2. 构建两端产物（Linux 供一键脚本，Windows 供手动测试）
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.3.1" -o bfserver ./cmd/bfserver
+tar czf bfserver-linux-amd64-v0.3.1.tar.gz bfserver
+# 3. 算 tar.gz 的 sha256，写回 tools/bfserver-install.sh 的 BIN_SHA256
+sha256sum bfserver-linux-amd64-v0.3.1.tar.gz
+# 4. 提交、打 tag、推 main 与 tag，然后在 GitHub 建 Release 并上传两个资产：
+#    bfserver-linux-amd64-v0.3.1.tar.gz、bfserver-install.sh
+git tag -a v0.3.1 -m "v0.3.1"
+git push origin main
+git push origin v0.3.1
+```
 
 ## 命令行参数
 
