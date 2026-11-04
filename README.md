@@ -2,16 +2,19 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.1.3-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.3.0-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.1.3**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+当前版本 **v0.3.0**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环，
+支持竞技（mode 1）、道具战（mode 3）与僵尸（mode 8，见 `ZOMBIE.md`）三种模式。
 
-v0.1.3 修三处：
+v0.3.0 = v0.2.0（道具战最终版）+ 僵尸模式移植，僵尸规则与真机验收记录见 `ZOMBIE.md`。
+
+v0.1.3 修三处（历史记录）：
 
 1. **对局内「有人像雕像」的卡死**，根因是**同步阻塞写**：服务端每帧都是持锁
    `conn.Write`，而中继在一个 goroutine 里按顺序写给所有对端，只要有一台客户端短暂
@@ -56,7 +59,7 @@ cd bf-cn0261-go-server
 sudo bash bfserver-install.sh
 ```
 
-脚本按顺序完成 8 步：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载 v0.1.3
+脚本按顺序完成 8 步：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载发布版
 二进制与配置 → 按版本号跑完 14 份迁移 → 生成配置与 26102 自签证书 → 注册 systemd
 服务并启动 → 自检三个端口。
 
@@ -91,6 +94,7 @@ sudo bash bfserver-install.sh
 - 登录与角色：票据登录、建角、昵称校验、角色外观
 - 大厅：广场（每实例 16 人）、房间列表、建房/进房/换队/准备/踢人/聊天
 - 对局：加载门控、防御种子表、倒计时、生命状态机、复活、比分、结算
+- 模式：竞技（mode 1）、道具战（mode 3）、僵尸（mode 8，规则见 `ZOMBIE.md`）
 - 结算：每局写 `game_results` / `game_result_players` / `game_result_awards`，经验与 Lucci 落库
 - 商店与背包：目录、购买（Lucci/点卷）、装备、武器预设、期限道具过期清理
 - 认证端：登录器自助注册（邀请码 + 按 IP 限流）、一次性登录票据
@@ -98,7 +102,9 @@ sudo bash bfserver-install.sh
 
 尚未实现：
 
-- 除竞技模式（mode 1）与道具战（mode 3）以外的模式（夺星、僵尸、海盗等）
+- 除竞技（1）、道具战（3）、僵尸（8）以外的模式（夺星 5/6、僵尸 BOSS 16、
+  热血 13/14/18、爆破 19、队长战 20 等）。海盗模式（101）2026-11-04 曾移植到
+  独立分支，因客户端始终不把波次怪计入波次而搁置，代码未并入本仓库
 - 多个大厅频道（当前单频道，见「已知限制」）
 - 反作弊（战斗判定采用客户端上报，与原版一致）
 
@@ -129,10 +135,10 @@ sudo bash bfserver-install.sh
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建，把版本号写进二进制
-go build -ldflags "-X main.Version=0.1.3" -o bin/bfserver ./cmd/bfserver
+go build -ldflags "-X main.Version=0.3.0" -o bin/bfserver ./cmd/bfserver
 
 ./bin/bfserver --version
-# BubbleFighter CN0261 Go Server v0.1.3  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.3.0  By:rurudoo
 ```
 
 ## 快速开始（手动）
@@ -339,7 +345,7 @@ FORCE=1 ./gen-cert.sh                              # 已存在时覆盖
 正常启动的日志：
 
 ```
-msg="BubbleFighter CN0261 Go Server v0.1.3  By:rurudoo"
+msg="BubbleFighter CN0261 Go Server v0.3.0  By:rurudoo"
 msg="[Application] environment" go=go1.27.3 config=Local/server.json database=bfserver@127.0.0.1:3306/bubblefighter_cn0261 gamePort=26100 authPort=26102 relayPort=26104
 msg="[Application] ready port=26100 protocol=cn0261-ticket-login"
 msg="[Relay] listening" port=26104
@@ -517,7 +523,7 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 
 | 级别 | 写什么 | 例子 |
 | --- | --- | --- |
-| `info` | 一局的骨架：开局、结束、结算落库；一局对局下来几行而已 | `[Round] started`、`[Round] ended`、`settlement clamped` |
+| `info` | 一局的骨架：开局、结束、结算落库；一局对局下来几行而已 | `[Round] started`、`[Round] ended`、`[Round] settlement clamped` |
 | `warn` | 玩家能感知、但服务端自己扛过去的问题 | `game result packet rejected`、`character reload failed`、`loading timed out`、`[Relay] registration timeout` |
 | `error` | 数据写不进去、连接 panic、启动失败 | `settlement failed`、`startup failed` |
 | `debug` | 单个包的故事：进/出包、复活细节、被规则丢弃的包、重复到的确认包 | `inbound`、`[Relay] inbound`、`[Respawn] completed`、`[Respawn] confirmation ignored` |
@@ -525,8 +531,25 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 原则：**INFO 回答「这一局发生了什么」，DEBUG 回答「这个包发生了什么」。** 复活属于后者
 ——一局可能复活几十次，对开服的人没有信息量，所以 `[Respawn] completed` 放在 DEBUG，
 一行说清（下发的 `spawn`、客户端回传值、是否采纳、状态是否推进）；重复到达的确认包同样
-只在 DEBUG。**INFO 下打一局通常只有 3 行**：`[Round] started`、`[Round] ended`、
-`round cancelled`；出现夹断时再多一行 `settlement clamped`。
+只在 DEBUG。
+
+**一局竞技/道具局在 INFO 下通常只有 3 行**：`[Round] started`、`[Round] ended`、
+`[Round] cancelled`；出现夹断时再多一行 `[Round] settlement clamped`。
+
+僵尸局按同一原则留四行骨架（各自一局只出现一次）：
+
+| 行 | 意思 |
+| --- | --- |
+| `[Round] started` | 开局，带双方人数与时钟 |
+| `[Zombie] the king turned` | 本局的僵尸王是谁（含候选人类） |
+| `[Zombie] result decided` | 结算判定（人类胜利/僵尸胜利） |
+| `[Round] ended` | 回合结束，带比分与原因 |
+
+僵尸局里**可能重复发生**的事件一律在 DEBUG，别往 INFO 里加：`seat turned`（每次转化）、
+`conversion announced`（每次延时换队通知）、`the king fell`、`the king left`、`the last human left`、
+`the king used its ultra`、`respawn request`（每次死亡）、`box taken` / `item forwarded`（每个箱子/每个道具包）。
+道具模式同理：`[Supplies] pickup`、`item used`、`item slot switched`、`box created` 都在 DEBUG，
+INFO 只留一局一次的 `[Supplies] map report`。
 
 ### `config/` 目录里的数据表
 

@@ -276,9 +276,11 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 		kinds = append(kinds, point.Kind)
 		teams = append(teams, point.Team)
 	}
+	// One line per round: the point count is what an operator checks, the full
+	// kind and team lists are per-point detail and belong to the debug stream.
 	s.log.Info("[Supplies] map report", "room", room.ID, "points", len(points),
-		"refused", refused, "intervals", report.IntervalsStated,
-		"kinds", kinds, "teams", teams)
+		"refused", refused, "intervals", report.IntervalsStated)
+	s.log.Debug("[Supplies] map report detail", "room", room.ID, "kinds", kinds, "teams", teams)
 	if playing {
 		s.startSupplies(room, state)
 	}
@@ -380,7 +382,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		// phantom item behind on a duplicate or stale request: the seat then could
 		// not take anything else for the rest of the round.
 		room.mu.Unlock()
-		s.log.Info("item pickup of an unknown box ignored",
+		s.log.Debug("[Supplies] pickup of an unknown box ignored",
 			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
 		return nil
 	}
@@ -394,7 +396,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		}
 		room.mu.Unlock()
 		room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-		s.log.Info("[Supplies] immediate item picked", "room", room.ID, "slot", seat,
+		s.log.Debug("[Supplies] immediate item picked", "room", room.ID, "slot", seat,
 			"kind", kind, "object", objectID)
 		return nil
 	}
@@ -446,7 +448,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		// further, look for the client state in which it accepts an S713 for slot 1
 		// instead of repeating the packet.
 	}
-	s.log.Info("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
+	s.log.Debug("[Supplies] pickup", "room", room.ID, "slot", seat, "kind", kind,
 		"item_slot", itemSlot, "object", objectID, "map_point", target != nil)
 	return nil
 }
@@ -501,7 +503,7 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 	// are), so that confirmation goes to that seat alone.
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
 	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
-	s.log.Info("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
+	s.log.Debug("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every
@@ -531,14 +533,14 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 	if !found {
 		// The client asked to spend an item the round does not have for it: the two
 		// sides disagree about what that seat holds.
-		s.log.Info("item use without a held item; nothing broadcast",
+		s.log.Debug("[Supplies] item use without a held item; nothing broadcast",
 			"room", room.ID, "slot", seat)
 		return nil
 	}
 	// The picker's own client applies the item from this packet: with it withheld a
 	// whole round's items could not be used at all.
 	room.Broadcast(protocol.CreateSupplyUsed(uint32(seat), kind, uint32(itemSlot)))
-	s.log.Info("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind, "item_slot", itemSlot)
+	s.log.Debug("[Supplies] item used", "room", room.ID, "slot", seat, "kind", kind, "item_slot", itemSlot)
 	return nil
 }
 
@@ -615,7 +617,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	room.Broadcast(protocol.CreateSupplyCreate(objectID, class, protocol.SupplyReportPoint{
 		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: boxTeam,
 	}))
-	s.log.Info("[Supplies] box created", "room", room.ID, "slot", session.slot,
+	s.log.Debug("[Supplies] box created", "room", room.ID, "slot", session.slot,
 		"kind", request.Kind, "object", objectID, "class", class,
 		"team", boxTeam, "thrown_slot", thrownSlot)
 	return nil
@@ -656,7 +658,7 @@ func (s *Server) handleSwitchItemSlot(session *Session, packet protocol.Packet) 
 		return session.Send(protocol.CreateSupplySlotChanged(uint32(seat), uint32(itemSlot), kind, 1))
 	}
 	room.Broadcast(changed)
-	s.log.Info("[Supplies] item slot switched", "room", room.ID, "slot", seat,
+	s.log.Debug("[Supplies] item slot switched", "room", room.ID, "slot", seat,
 		"item_slot", itemSlot, "kind", kind)
 	return nil
 }
@@ -932,7 +934,7 @@ func (s *Server) forwardItemPacket(room *Room, from int, packet protocol.Packet,
 	// ammo box) are the client's own broadcasts, so seeing whether a packet ever
 	// arrived is how a missing effect is told from a dropped one.
 	if room.ZombieRound() {
-		s.log.Info("[Zombie] item packet forwarded", "room", room.ID, "id", packet.ID,
+		s.log.Debug("[Zombie] item packet forwarded", "room", room.ID, "id", packet.ID,
 			"bytes", len(packet.Payload), "from", from, "to", sent, "relay", viaRelay)
 		return
 	}

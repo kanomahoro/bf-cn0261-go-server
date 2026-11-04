@@ -258,7 +258,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	// asks for its respawn (and so shows the bar the mode has) is exactly what the
 	// round's default cannot tell from a silent client.
 	if room.ZombieRound() {
-		s.log.Info("[Zombie] respawn request", "room", room.ID, "slot", session.slot,
+		s.log.Debug("[Zombie] respawn request", "room", room.ID, "slot", session.slot,
 			"id", packet.ID, "value", request.Value, "team", room.Team(session.slot))
 	}
 	switch packet.ID {

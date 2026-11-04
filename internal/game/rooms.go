@@ -596,7 +596,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		return err
 	}
 	if session.Character.ID == 0 || session.room != nil || !session.inPlaza {
-		s.log.Info("room creation rejected", "reason", "not in lobby",
+		s.log.Info("[Room] creation rejected", "reason", "not in lobby",
 			"character", session.Character.ID, "inRoom", session.room != nil, "inPlaza", session.inPlaza)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
@@ -604,7 +604,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		len(request.Setting.Password) > 16 ||
 		(!request.Setting.PasswordRequired && len(request.Setting.Password) != 0) ||
 		(request.Setting.PasswordRequired && len(request.Setting.Password) == 0) {
-		s.log.Info("room creation rejected", "reason", "title or password",
+		s.log.Info("[Room] creation rejected", "reason", "title or password",
 			"title", len(request.Setting.Title), "password", len(request.Setting.Password),
 			"required", request.Setting.PasswordRequired)
 		return session.Send(protocol.CreateRoomResult(true, 1))
@@ -1396,7 +1396,7 @@ func (s *Server) cancelRound(room *Room) {
 	if _, file, line, ok := runtime.Caller(1); ok {
 		caller = fmt.Sprintf("%s:%d", filepath.Base(file), line)
 	}
-	s.log.Info("round cancelled", "room", room.ID, "caller", caller,
+	s.log.Info("[Round] cancelled", "room", room.ID, "caller", caller,
 		"started", room.StartedReport(), "phase", room.phase)
 	room.mu.Lock()
 	room.generation++
@@ -1527,7 +1527,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	room.mu.Unlock()
 	for _, slot := range flush {
 		if notice := zombieNotice(slot); notice != nil {
-			s.log.Info("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
+			s.log.Debug("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
 			room.Broadcast(*notice)
 		}
 	}
@@ -1677,7 +1677,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		}
 		lucciAfter, appliedLucci := store.ClampGain(lucciBefore, player.LucciGain, store.MaxLucci)
 		if appliedGain != player.ExperienceGain || appliedLucci != player.LucciGain {
-			s.log.Info("settlement clamped", "room", room.ID, "slot", player.Slot,
+			s.log.Info("[Round] settlement clamped", "room", room.ID, "slot", player.Slot,
 				"experienceBefore", before, "experienceAfter", after,
 				"experienceGain", appliedGain, "lucciBefore", lucciBefore,
 				"lucciAfter", lucciAfter, "lucciGain", appliedLucci)

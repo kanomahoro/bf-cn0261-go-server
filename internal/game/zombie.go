@@ -187,7 +187,7 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 		finish = zombieHumanTeam
 		room.zombieWinner = zombieHumanTeam
 		room.mu.Unlock()
-		s.log.Info("[Zombie] the king fell", "room", room.ID, "slot", slot)
+		s.log.Debug("[Zombie] the king fell", "room", room.ID, "slot", slot)
 		s.finishRound(room, false)
 		return
 	case team == zombieHumanTeam:
@@ -224,14 +224,14 @@ func (s *Server) zombieDeathSlot(room *Room, slot int) {
 	kingSlot = room.zombieKingSlot
 	room.mu.Unlock()
 
-	s.log.Info("[Zombie] seat turned", "room", room.ID, "slot", slot, "king", kingSlot)
+	s.log.Debug("[Zombie] seat turned", "room", room.ID, "slot", slot, "king", kingSlot)
 	if finish != 0 {
 		// The last human's turn *is* the round's end, so its notice has to go out
 		// here: announced later it would never arrive, and every client would still
 		// count a human and show the human-survived banner.
 		if announce {
 			if notice := zombieNotice(slot); notice != nil {
-				s.log.Info("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
+				s.log.Debug("[Zombie] conversion announced at the round end", "room", room.ID, "slot", slot)
 				room.Broadcast(*notice)
 			}
 		}
@@ -301,7 +301,7 @@ func (s *Server) announceZombieConversion(room *Room, slot int) {
 		s.log.Error("[Zombie] the conversion notice could not be encoded", "room", room.ID, "slot", slot)
 		return
 	}
-	s.log.Info("[Zombie] conversion announced", "room", room.ID, "slot", slot)
+	s.log.Debug("[Zombie] conversion announced", "room", room.ID, "slot", slot)
 	room.Broadcast(*notice)
 }
 
@@ -338,11 +338,11 @@ func (s *Server) handleZombieItemRequest(session *Session, packet protocol.Packe
 	king := room.zombieKingSlot
 	room.mu.RUnlock()
 	if !playing || king != session.slot {
-		s.log.Info("[Zombie] ultra request outside the king's round ignored", "room", room.ID, "slot", session.slot)
+		s.log.Debug("[Zombie] ultra request outside the king's round ignored", "room", room.ID, "slot", session.slot)
 		return
 	}
 	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(session.slot), zombieUltraItemKind))
-	s.log.Info("[Zombie] the king used its ultra", "room", room.ID, "slot", session.slot)
+	s.log.Debug("[Zombie] the king used its ultra", "room", room.ID, "slot", session.slot)
 }
 
 // zombieNotice builds the team-change notice for one seat, or nil when the
@@ -368,7 +368,7 @@ func (s *Server) zombieLeave(room *Room, slot int) (handled bool) {
 	if slot == room.zombieKingSlot {
 		room.zombieWinner = zombieHumanTeam
 		room.mu.Unlock()
-		s.log.Info("[Zombie] the king left", "room", room.ID, "slot", slot)
+		s.log.Debug("[Zombie] the king left", "room", room.ID, "slot", slot)
 		s.finishRound(room, false)
 		return true
 	}
@@ -388,7 +388,7 @@ func (s *Server) zombieLeave(room *Room, slot int) (handled bool) {
 	}
 	room.zombieWinner = zombieTeam
 	room.mu.Unlock()
-	s.log.Info("[Zombie] the last human left", "room", room.ID)
+	s.log.Debug("[Zombie] the last human left", "room", room.ID)
 	s.finishRound(room, false)
 	return true
 }

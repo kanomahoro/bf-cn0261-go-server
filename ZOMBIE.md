@@ -1,8 +1,9 @@
 # 僵尸模式（mode 8）移植说明
 
-本目录是 **`bf-go-server` v0.2.0（2026-11-03 道具战最终版，提交 `46e6033`）的独立分支**，
-只为一个目的：把原版「僵尸模式」（客户端 `wgtZombie`，模式号 **8**）移植过来，不碰
-主线的道具战代码。分支名 `feature/zombie-mode`。
+僵尸模式（客户端 `wgtZombie`，模式号 **8**）从 v0.2.0（道具战最终版，提交 `46e6033`）
+开始开发，定稿为 `d7c2b4b`（v0.3.0-zombie-r13）。**2026-11-04 已快进合入 `main`**，
+原先独立的 `bf-go-server-zombie` 目录不再存在：现在一个仓库、一条 main，同时含
+模式 1（竞技）、3（道具）、8（僵尸）。历史分支名保留在提交信息里（`feature/zombie-mode`）。
 
 ## 规则来源
 
@@ -113,6 +114,20 @@ fantasy 的 `zombie_king_ultra_item_kind`（legacy 基线 104）。
 7. 什么都不做等 180 秒 → 应判人类胜。
 7b. 僵尸王能量满按 SHIFT → 有没有大招表现（服务端只给王回 S715）
 8. 复活后确认复活点没有互相重叠、没有卡在图外。
+
+## 日志
+
+调试僵尸局把 `config/server.json` 的 `logging.level` 调成 `debug`，一局下来能看到每个包的
+故事；日常保持 `info`，一局只有四行骨架。
+
+| 级别 | 僵尸相关输出 |
+| --- | --- |
+| `info` | `[Round] started`、`[Zombie] the king turned`、`[Zombie] result decided`、`[Round] ended` |
+| `debug` | `[Zombie] seat turned`、`conversion announced`（延时换队通知）、`the king fell`、`the king left`、`the last human left`、`the king used its ultra`、`respawn request`、`box taken`、`item packet forwarded`、`[Supplies] map report detail` |
+
+真机排查的常用姿势：`grep "\[Zombie\]" Logs/Server.log`，按时间看「王诞生 → 转化 →
+救起/打倒 → 结算」是否成链；`grep "id=" ` 统计某个 opcode 的次数能区分「客户端没发」和
+「服务端没回」。
 
 ## 构建
 
