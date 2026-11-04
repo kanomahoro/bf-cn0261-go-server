@@ -50,21 +50,28 @@ func DefaultGameSetting() GameSetting {
 
 // SessionSetting mirrors the client's SessionSetting (room card) object.
 type SessionSetting struct {
-	State            uint32
-	RoomID           uint16
-	Title            []uint16
-	MemberCount      uint16
-	Value42          uint16
-	Capacity         uint16
+	State       uint32
+	RoomID      uint16
+	Title       []uint16
+	MemberCount uint16
+	Value42     uint16
+	Capacity    uint16
+	// PasswordRequired is the room's lock flag: the client draws the lock in the
+	// list and asks for a password on join. The password itself never travels in
+	// this structure (cn-717 reads only the flag at object +46), so there is
+	// nothing here to compare a joiner's text against.
 	PasswordRequired bool
-	Password         []uint16
-	Kind             uint32
-	Game             GameSetting
-	Value532         uint32
-	Value536         uint64
-	String544        []uint16
-	Values572        [4]uint32
-	Flag588          bool
+	// MasterNickname is the string the lobby row shows beside the title (object
+	// +48). The room list fills it with the master's name; every other use of the
+	// structure leaves it empty.
+	MasterNickname []uint16
+	Kind           uint32
+	Game           GameSetting
+	Value532       uint32
+	Value536       uint64
+	String544      []uint16
+	Values572      [4]uint32
+	Flag588        bool
 }
 
 // DefaultSessionSetting returns defaults matching the client constructor.
@@ -196,7 +203,7 @@ func ReadSessionSetting(r *Reader) (SessionSetting, error) {
 	if s.PasswordRequired, err = r.Boolean(); err != nil {
 		return s, err
 	}
-	if s.Password, err = r.String(SessionStringLimit); err != nil {
+	if s.MasterNickname, err = r.String(SessionStringLimit); err != nil {
 		return s, err
 	}
 	if s.Kind, err = r.Unsigned(); err != nil {
@@ -291,7 +298,7 @@ func WriteSessionSetting(w *Writer, s SessionSetting) error {
 	w.Short(s.Value42)
 	w.Short(s.Capacity)
 	w.Boolean(s.PasswordRequired)
-	if err := writeSettingString(w, s.Password); err != nil {
+	if err := writeSettingString(w, s.MasterNickname); err != nil {
 		return err
 	}
 	w.Unsigned(s.Kind)

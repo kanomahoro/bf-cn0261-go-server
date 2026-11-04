@@ -488,6 +488,22 @@ func (r *Room) Life() *BattleLife {
 	return r.life
 }
 
+// masterNickname returns the name the lobby row shows, taken from the seat that
+// currently owns the room.
+func (r *Room) masterNickname() []uint16 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	master := r.Master
+	if master < 0 || master >= maxRoomSlots {
+		return nil
+	}
+	seated := r.slots[master].session
+	if seated == nil {
+		return nil
+	}
+	return protocol.U16String(seated.Character.Nickname)
+}
+
 // refreshSetting recomputes the derived room-card counters.
 func (r *Room) refreshSetting() {
 	r.mu.Lock()
@@ -577,8 +593,13 @@ func (s *Server) handleSessionList(session *Session, packet protocol.Packet) err
 			break
 		}
 		room.refreshSetting()
+		card := room.SettingCopy()
+		// The row's string after the lock flag is the master's name (cn-717
+		// sub_6D3770 reads +12, +48 and the map name into the row's three columns),
+		// so the list states it even after the room changed hands.
+		card.MasterNickname = room.masterNickname()
 		writer := protocol.NewWriter()
-		if err := protocol.WriteSessionSetting(writer, room.SettingCopy()); err != nil {
+		if err := protocol.WriteSessionSetting(writer, card); err != nil {
 			return err
 		}
 		cards = append(cards, writer.Payload())
@@ -600,13 +621,12 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 			"character", session.Character.ID, "inRoom", session.room != nil, "inPlaza", session.inPlaza)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
-	if len(request.Setting.Title) > 64 ||
-		len(request.Setting.Password) > 16 ||
-		(!request.Setting.PasswordRequired && len(request.Setting.Password) != 0) ||
-		(request.Setting.PasswordRequired && len(request.Setting.Password) == 0) {
-		s.log.Info("[Room] creation rejected", "reason", "title or password",
-			"title", len(request.Setting.Title), "password", len(request.Setting.Password),
-			"required", request.Setting.PasswordRequired)
+	// The create request carries no password text: the client sends only the lock
+	// flag (has_password) and asks whoever joins for the text, so there is nothing
+	// to require here. Demanding a non-empty string rejected every locked room.
+	if len(request.Setting.Title) > 64 || len(request.Setting.MasterNickname) > 64 {
+		s.log.Info("[Room] creation rejected", "reason", "title",
+			"title", len(request.Setting.Title), "locked", request.Setting.PasswordRequired)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
 	game, err := normalizeGameSetting(request.Setting.Game, s.maps)
@@ -620,6 +640,8 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	setting.Kind = 2
 	setting.Game = game
 	setting.Capacity = uint16(maxRoomSlots)
+	// The lobby row shows the master's name in the string after the lock flag.
+	setting.MasterNickname = protocol.U16String(session.Character.Nickname)
 
 	s.mu.Lock()
 	if len(s.rooms) >= 1024 {
@@ -688,8 +710,14 @@ func (s *Server) handleJoinRoom(session *Session, packet protocol.Packet) error 
 		return session.Send(protocol.CreateRoomResult(false, 5))
 	}
 	setting := room.SettingCopy()
-	if setting.PasswordRequired && protocol.FromU16(setting.Password) != protocol.FromU16(request.Password) {
-		return session.Send(protocol.CreateRoomResult(false, 4))
+	// A locked room asks the joiner for a password on the client side; the text in
+	// the join request is the only copy of it that exists anywhere, because the
+	// create request never carried one. Comparing it against the room would compare
+	// it against the master's nickname, so the lock stays what the wire makes it: a
+	// prompt, not a server-side check.
+	if setting.PasswordRequired {
+		s.log.Debug("[Room] join to a locked room", "room", room.ID, "slot", session.slot,
+			"password_chars", len(request.Password))
 	}
 	capacity := int(setting.Capacity)
 	if capacity <= 0 || capacity > maxRoomSlots {
