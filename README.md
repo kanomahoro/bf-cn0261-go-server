@@ -2,17 +2,19 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.3.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.3.1-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.3.0**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环，
+当前版本 **v0.3.1**，已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环，
 支持竞技（mode 1）、道具战（mode 3）与僵尸（mode 8，见 `ZOMBIE.md`）三种模式。
 
-v0.3.0 = v0.2.0（道具战最终版）+ 僵尸模式移植，僵尸规则与真机验收记录见 `ZOMBIE.md`。
+- **v0.3.1** = 仓库合并（僵尸线并回主线，一个仓库一条 main）+ 日志级别按「INFO 骨架 / DEBUG 包」
+  收敛 + 文档与默认版本号对齐。**无协议与玩法改动**，行为与 v0.3.0 完全一致。
+- **v0.3.0** = v0.2.0（道具战最终版）+ 僵尸模式移植（真机验收定稿 r13，见 `ZOMBIE.md`）。
 
 v0.1.3 修三处（历史记录）：
 
@@ -135,10 +137,10 @@ sudo bash bfserver-install.sh
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建，把版本号写进二进制
-go build -ldflags "-X main.Version=0.3.0" -o bin/bfserver ./cmd/bfserver
+go build -ldflags "-X main.Version=0.3.1" -o bin/bfserver ./cmd/bfserver
 
 ./bin/bfserver --version
-# BubbleFighter CN0261 Go Server v0.3.0  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.3.1  By:rurudoo
 ```
 
 ## 快速开始（手动）
@@ -345,7 +347,7 @@ FORCE=1 ./gen-cert.sh                              # 已存在时覆盖
 正常启动的日志：
 
 ```
-msg="BubbleFighter CN0261 Go Server v0.3.0  By:rurudoo"
+msg="BubbleFighter CN0261 Go Server v0.3.1  By:rurudoo"
 msg="[Application] environment" go=go1.27.3 config=Local/server.json database=bfserver@127.0.0.1:3306/bubblefighter_cn0261 gamePort=26100 authPort=26102 relayPort=26104
 msg="[Application] ready port=26100 protocol=cn0261-ticket-login"
 msg="[Relay] listening" port=26104

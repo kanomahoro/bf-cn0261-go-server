@@ -1,11 +1,28 @@
 # Changelog
 
-## v0.3.0-zombie（2026-11-04 已合入 main，定稿）
+## v0.3.1（2026-11-04）
 
-僵尸模式（mode 8）自 v0.2.0（提交 `46e6033`）起在分支 `feature/zombie-mode` 上开发，
-2026-11-04 以本提交 `d7c2b4b` 为定稿快进合入 `main`。**仓库合并说明**：原先独立的
-`bf-go-server-zombie` 目录已并回唯一的 `bf-go-server`（僵尸线是主线超集），此后一个仓库、
-一条 main，含模式 1（竞技）、3（道具）、8（僵尸）。规则、限制与真机测试清单见 `ZOMBIE.md`。
+**无协议与玩法改动**：行为与 v0.3.0 完全一致，只做仓库与日志的整理。
+
+### Changed
+
+- **仓库合并**：僵尸模式自 v0.2.0（提交 `46e6033`）起在 `feature/zombie-mode` 分支开发，
+  以 `d7c2b4b` 为定稿快进合入 `main`。原先独立的 `bf-go-server-zombie` 目录不再存在，
+  此后一个仓库、一条 main，同时含模式 1（竞技）、3（道具）、8（僵尸）
+- **日志级别收敛**：按 README 既有约定（INFO = 一局的骨架，DEBUG = 单个包的故事）把僵尸与道具
+  模式里「每发生一次写一行」的输出降到 DEBUG —— `seat turned`、`conversion announced`、
+  `the king fell/left`、`ultra`、`respawn request`、`box taken`、`item packet forwarded`、
+  `[Supplies] pickup/item used/slot switched/box created`。INFO 现在一局竞技/道具局 3 行、
+  僵尸局 4 行
+- **日志前缀统一**，便于按 token grep：`[Round] cancelled`、`[Round] settlement clamped`、
+  `[Room] creation rejected`、`[Supplies] map report`（每个补给点的明细降为
+  `[Supplies] map report detail`，DEBUG）
+- 文档与默认版本号对齐到 v0.3.1（`cmd/bfserver/main.go` 的默认 `Version`、README badge 与示例）
+
+## v0.3.0（2026-11-03，僵尸模式）
+
+v0.2.0（道具战）之上移植僵尸模式（mode 8），真机验收通过后的定稿版本（提交 `d7c2b4b`，
+标签 `v0.3.0-zombie-r13`）。规则、限制与验收清单见 `ZOMBIE.md`。
 
 ### Added
 
