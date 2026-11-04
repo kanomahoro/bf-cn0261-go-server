@@ -553,6 +553,28 @@ pyinstaller --noconfirm --onefile --windowed --name BubbleFighterCN0261Launcher 
 道具模式同理：`[Supplies] pickup`、`item used`、`item slot switched`、`box created` 都在 DEBUG，
 INFO 只留一局一次的 `[Supplies] map report`。
 
+### `zombie` — 僵尸模式的换队等待
+
+2015 客户端自己不算复活时间：玩家死亡后由客户端播读条动画，服务端等读条走完再广播换队
+通知（S504），客户端收到才「起来」。两个等待是**真机量出来的**，不是推算的。
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `humanTurnMs` | `12000` | 人类死亡 → 通知「你变成僵尸」的等待（人类读条较短） |
+| `zombiniTurnMs` | `18000` | 小僵尸再死 → 通知复活的等待（小僵尸读条较长） |
+
+允许范围 500–60000 毫秒，超出范围启动即报错（几乎只能是手滑）。**整个 `zombie` 段可以省略**：
+缺省时用上面两个默认值，所以 v0.2.0 时代的旧配置不用改也能跑僵尸局。
+
+```json
+"zombie": {
+    "humanTurnMs": 12000,
+    "zombiniTurnMs": 18000
+}
+```
+
+> 注意 `zombiniTurnMs` 里的 `zombini` 不是笔误 —— 字段从移植那天就这么拼，改它会破坏现有配置。
+
 ### `config/` 目录里的数据表
 
 | 文件 | 内容规模 | 管什么 |

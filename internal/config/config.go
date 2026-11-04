@@ -142,10 +142,30 @@ func Load(path string) (Config, error) {
 	if decoder.More() {
 		return Config{}, fmt.Errorf("invalid configuration: trailing content")
 	}
+	cfg.applyDefaults()
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// Measured on a real client: the wait between a death report and the turn notice,
+// one for a human becoming the king and a longer one for a zombini coming back.
+const (
+	defaultHumanTurnMs   = 12000
+	defaultZombiniTurnMs = 18000
+)
+
+// applyDefaults fills the fields whose zero value means "not stated". A
+// configuration written before the zombie mode existed carries no zombie block,
+// and a zero wait would announce the turn the instant a player died.
+func (c *Config) applyDefaults() {
+	if c.Zombie.HumanTurnMs == 0 {
+		c.Zombie.HumanTurnMs = defaultHumanTurnMs
+	}
+	if c.Zombie.ZombiniTurnMs == 0 {
+		c.Zombie.ZombiniTurnMs = defaultZombiniTurnMs
+	}
 }
 
 func (c Config) Validate() error {
@@ -238,6 +258,14 @@ func (c Config) Validate() error {
 	}
 	if c.Logging.MaxFiles < 1 || c.Logging.MaxFiles > 64 {
 		return fmt.Errorf("logging.maxFiles must be between 1 and 64")
+	}
+	// The zombie turns are announcements timed against the client's own bar; a
+	// value outside this window is a typo rather than a preference.
+	if c.Zombie.HumanTurnMs < 500 || c.Zombie.HumanTurnMs > 60000 {
+		return fmt.Errorf("zombie.humanTurnMs must be between 500 and 60000")
+	}
+	if c.Zombie.ZombiniTurnMs < 500 || c.Zombie.ZombiniTurnMs > 60000 {
+		return fmt.Errorf("zombie.zombiniTurnMs must be between 500 and 60000")
 	}
 	return nil
 }
