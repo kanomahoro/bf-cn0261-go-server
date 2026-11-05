@@ -640,10 +640,11 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 			"character", session.Character.ID, "inRoom", session.room != nil, "inPlaza", session.inPlaza)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
-	// The password text travels in C402 after the setting, not in the setting
-	// itself: +46 is only the lock flag the lobby row draws. A locked room with
-	// no text is accepted and then behaves like an unlocked door, because the
-	// client lets the player type anything in that case anyway.
+	// The stored text is the room's only lock state, which is how Fantasy models it:
+	// the lobby row's has_password is derived from `Password.Length > 0`
+	// (RoomFlow.cs:243) and a joiner is refused only when the text is non-empty
+	// (RoomFlow.cs:294). So a create that sets the flag but sends no text makes an
+	// open room, not a locked door that everything walks through.
 	if len(request.Setting.Title) > 64 || len(request.Setting.MasterNickname) > 64 {
 		s.log.Info("[Room] creation rejected", "reason", "title",
 			"title", len(request.Setting.Title), "locked", request.Setting.PasswordRequired)
@@ -660,6 +661,9 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	setting.Kind = 2
 	setting.Game = game
 	setting.Capacity = uint16(maxRoomSlots)
+	// The password arrived outside the setting (C402 carries it after the last
+	// field), so the client's own +46 flag is only a hint; the text decides.
+	setting.PasswordRequired = len(request.Password) > 0
 	// The lobby row shows the master's name in the string after the lock flag.
 	setting.MasterNickname = protocol.U16String(session.Character.Nickname)
 
@@ -676,9 +680,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		ChannelIndex:   session.channelIndex,
 		zombieKingSlot: -1,
 	}
-	if setting.PasswordRequired {
-		room.SetPassword(request.Password)
-	}
+	room.SetPassword(request.Password)
 	s.nextRoom++
 	if s.nextRoom == 0 {
 		s.nextRoom = 1
@@ -733,16 +735,13 @@ func (s *Server) handleJoinRoom(session *Session, packet protocol.Packet) error 
 		return session.Send(protocol.CreateRoomResult(false, 5))
 	}
 	setting := room.SettingCopy()
-	// The lock: +46 is the flag the client checks before it asks the joiner for a
-	// password, and the text to compare arrives in this request. The creator's
-	// copy is the one C402 carried; a locked room that sent no text accepts the
-	// joiner, since there is nothing to compare against.
-	if setting.PasswordRequired {
-		if stored := room.PasswordCopy(); len(stored) != 0 && !slices.Equal(stored, request.Password) {
-			s.log.Debug("[Room] join refused, wrong password", "room", room.ID, "slot", session.slot,
-				"password_chars", len(request.Password))
-			return session.Send(protocol.CreateRoomResult(false, 4))
-		}
+	// The text decides, as in Fantasy RoomFlow.cs:294: a joiner is refused only
+	// when the room has a non-empty password and this request's copy differs.
+	// An empty room password means an open room.
+	if stored := room.PasswordCopy(); len(stored) != 0 && !slices.Equal(stored, request.Password) {
+		s.log.Debug("[Room] join refused, wrong password", "room", room.ID, "slot", session.slot,
+			"password_chars", len(request.Password))
+		return session.Send(protocol.CreateRoomResult(false, 4))
 	}
 	capacity := int(setting.Capacity)
 	if capacity <= 0 || capacity > maxRoomSlots {
