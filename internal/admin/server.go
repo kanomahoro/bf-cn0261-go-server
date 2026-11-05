@@ -391,8 +391,8 @@ func (s *Server) balance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("金币上限 %d", store.MaxLucci))
 		return
 	}
-	if body.Cash > maxCash {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("点券上限 %d", maxCash))
+	if body.Cash > store.MaxCash {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("点券上限 %d", store.MaxCash))
 		return
 	}
 	if err := s.game.AdminSetBalance(body.CharacterID, body.Lucci, body.Cash); err != nil {
@@ -401,9 +401,6 @@ func (s *Server) balance(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"ok": true, "note": "写库完成；玩家重新登录、购买或打完一局后生效"})
 }
-
-// maxCash is the highest cash value the wire and the column accept.
-const maxCash = 2147483647
 
 func (s *Server) notice(w http.ResponseWriter, r *http.Request) {
 	var body struct {

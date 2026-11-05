@@ -255,8 +255,8 @@ func (s *Server) AdminSetBalance(characterID, lucci, cash uint32) error {
 	if lucci > store.MaxLucci {
 		lucci = store.MaxLucci
 	}
-	if cash > maxCash {
-		cash = maxCash
+	if cash > store.MaxCash {
+		cash = store.MaxCash
 	}
 	if err := s.db.SetBalance(characterID, lucci, cash); err != nil {
 		return err
@@ -289,9 +289,6 @@ func (s *Server) AdminSetBan(accountID uint32, disabled bool) (bool, error) {
 		"ticketsRevoked", revoked, "kicked", kicked)
 	return kicked, nil
 }
-
-// maxCash is the highest cash value the wire and the column accept.
-const maxCash = 2147483647
 
 // AdminSearchCharacters finds players for the console's search box.
 func (s *Server) AdminSearchCharacters(term string, limit int) ([]store.AdminCharacter, error) {

@@ -575,6 +575,11 @@ const (
 // was actually applied, so the interface and the database always agree.
 const MaxLucci = 100_000_000
 
+// MaxCash is the highest cash balance the console will write. The column and the
+// wire accept up to 2147483647, but the operator-facing limit is the same one the
+// Lucci cap uses, so a typo cannot hand out two billion.
+const MaxCash = 100_000_000
+
 // NormalizeTotal pins a stored total to its cap. A value can only exceed the cap
 // through legacy data or a manual edit; the result row requires
 // `before + gain = after`, so the baseline has to be normalized as well.

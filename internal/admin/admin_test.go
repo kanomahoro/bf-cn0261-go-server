@@ -250,3 +250,22 @@ func TestServeOverHTTP(t *testing.T) {
 		t.Fatalf("serve did not stop")
 	}
 }
+
+// TestBalanceCapsRejectBothCurrencies pins the operator-facing ceiling: the
+// console writes at most one hundred million of either currency, even though the
+// columns could hold more.
+func TestBalanceCapsRejectBothCurrencies(t *testing.T) {
+	server := testServer("0123456789abcdef")
+	for name, body := range map[string]string{
+		"lucci over cap": `{"characterId":7,"lucci":100000001,"cash":0}`,
+		"cash over cap":  `{"characterId":7,"lucci":0,"cash":100000001}`,
+	} {
+		request := httptest.NewRequest(http.MethodPost, "/api/balance", strings.NewReader(body))
+		request.Header.Set("Authorization", "Bearer 0123456789abcdef")
+		recorder := httptest.NewRecorder()
+		server.routes().ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("%s: status = %d, want 400 (%s)", name, recorder.Code, recorder.Body.String())
+		}
+	}
+}
