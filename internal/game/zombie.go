@@ -65,6 +65,7 @@ func (r *Room) beginZombieRound() []protocol.Packet {
 	}
 	r.zombieKingSlot = -1
 	r.zombieWinner = 0
+	r.forfeitWinner = 0
 	r.zombiePendingNotice = [maxRoomSlots]bool{}
 	if r.zombieKingTimer != nil {
 		r.zombieKingTimer.Stop()

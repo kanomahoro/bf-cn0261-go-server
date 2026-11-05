@@ -94,6 +94,10 @@ type Room struct {
 	zombieKingSlot  int
 	zombieKingTimer *time.Timer
 	zombieWinner    uint8
+	// forfeitWinner is the team that wins because the other side left the round:
+	// 0 unless a mid-round departure left only one side seated. finishRound reads
+	// it once, in place of a score comparison.
+	forfeitWinner uint8
 	// zombiePendingNotice marks the seats whose conversion has not been announced
 	// yet: the notice waits for their respawn completion.
 	zombiePendingNotice [maxRoomSlots]bool
@@ -807,17 +811,18 @@ func (s *Server) leaveRoom(session *Session) error {
 	}
 	started := room.StartedReport()
 	room.Remove(slot)
-	// The departing member's relay transport goes with him; a round that was
-	// already running is cancelled below and releases the rest.
+	// The departing member's relay transport goes with him; whatever happens to the
+	// round afterwards is decided below.
 	if s.relay != nil {
 		s.relay.RevokeSlot(room.ID, uint8(slot))
 	}
-	// A member vanishing mid-match aborts the round for everyone else, exactly
-	// like GameRoundCoordinator::CancelForSession (S736 + open state). The zombie
-	// battle instead lets the departure decide its round when it can: the king's
-	// exit wins for the humans and the last human's leaves it to the zombies.
+	// A member vanishing mid-match no longer aborts the round for everyone: the
+	// seat is vacated and the rest keep playing, the way Fantasy's LeaveCoreAsync
+	// sends RoomSeatVacated and returns. The zombie battle still lets a departure
+	// decide its round when it can: the king's exit wins for the humans and the
+	// last human's leaves it to the zombies.
 	if started && !s.zombieLeave(room, slot) {
-		s.cancelRound(room)
+		s.roundAfterDeparture(room)
 	}
 	room.mu.RLock()
 	pings := room.pings
@@ -1443,6 +1448,38 @@ func (s *Server) startRound(room *Room, tracking int) {
 
 // cancelRound returns a started room to the open state and notifies everyone,
 // matching GameRoundCoordinator::Cancel (S736 + S501 + S503).
+// roundAfterDeparture keeps a round that is already being played alive after one
+// seat vanished. A round that has not reached phasePlaying is dropped instead:
+// its clients are still loading, so restarting costs nothing and a missing seat
+// would strand the players on the ready screen.
+func (s *Server) roundAfterDeparture(room *Room) {
+	room.mu.Lock()
+	phase := room.phase
+	remaining := room.occupiedLocked()
+	lastTeam := uint8(0)
+	if remaining == 1 {
+		for slot := range room.slots {
+			if room.slots[slot].session != nil {
+				lastTeam = room.slots[slot].team
+			}
+		}
+	}
+	room.mu.Unlock()
+	if remaining == 0 || phase != phasePlaying {
+		s.cancelRound(room)
+		return
+	}
+	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
+	if remaining == 1 && lastTeam != 0 {
+		// One side is gone from a two-team round, so there is nothing left to
+		// play: settle now and credit the seat that stayed with the win.
+		room.mu.Lock()
+		room.forfeitWinner = lastTeam
+		room.mu.Unlock()
+		s.finishRound(room, false)
+	}
+}
+
 func (s *Server) cancelRound(room *Room) {
 	caller := "unknown"
 	if _, file, line, ok := runtime.Caller(1); ok {
@@ -1470,6 +1507,7 @@ func (s *Server) cancelRound(room *Room) {
 	}
 	room.zombieKingSlot = -1
 	room.zombieWinner = 0
+	room.forfeitWinner = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	room.Started = false
 	room.phase = phaseOpen
@@ -1542,6 +1580,10 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	teamScores := room.teamScores
 	decided := room.zombieWinner
+	if decided == 0 {
+		decided = room.forfeitWinner
+	}
+	room.forfeitWinner = 0
 	life := room.life
 	room.life = nil
 	room.supplies = nil

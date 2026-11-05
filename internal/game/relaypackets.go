@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 )
@@ -158,11 +159,16 @@ func (s *Server) maybeSendDefenseSeeds(room *Room) {
 	s.log.Debug("defense seeds published", "room", room.ID)
 }
 
+// relaySeatGrace is how long a seat survives its relay transport dropping. The
+// game connection is still up in that case, so the member may register a new
+// relay connection; only when the grace period passes without one does the seat
+// go, and the round keeps running for the rest either way.
+const relaySeatGrace = 5 * time.Second
+
 // RelayDisconnected handles a member's relay transport disappearing while the
-// game connection is still up. The reference server treats that as the member
-// vanishing mid-match: CancelForSession aborts the round for everyone (S736 plus
-// the open room state) and revokes every relay reservation of that room, so no
-// half-dead transport can linger.
+// game connection is still up. A relay drop is not proof that the player left:
+// the transport can be re-established, so the seat is held for relaySeatGrace
+// and the round is never cancelled for it.
 func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	s.mu.Lock()
 	room := s.rooms[roomID]
@@ -170,7 +176,39 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	if room == nil || !room.StartedReport() {
 		return
 	}
-	s.log.Warn("relay transport lost; cancelling round",
-		"room", roomID, "slot", slot)
-	s.cancelRound(room)
+	s.log.Warn("relay transport lost; holding the seat",
+		"room", roomID, "slot", slot, "grace", relaySeatGrace)
+	time.AfterFunc(relaySeatGrace, func() { s.dropRelaySeat(roomID, slot) })
+}
+
+// dropRelaySeat removes a member whose relay never came back. The seat is
+// vacated like any other departure: the rest of the round keeps playing.
+func (s *Server) dropRelaySeat(roomID uint16, slot uint8) {
+	if s.relay != nil && s.relay.HasSlot(roomID, slot) {
+		return
+	}
+	s.mu.Lock()
+	room := s.rooms[roomID]
+	s.mu.Unlock()
+	if room == nil || !room.StartedReport() {
+		return
+	}
+	var target *Session
+	for _, member := range room.View() {
+		if member.Occupied && member.Slot == int(slot) {
+			target = member.Session
+			break
+		}
+	}
+	if target == nil {
+		return
+	}
+	s.log.Warn("relay seat dropped after the grace period", "room", roomID, "slot", slot)
+	if err := s.leaveRoom(target); err != nil {
+		s.log.Debug("leave after relay loss failed", "session", target.ID, "error", err)
+		return
+	}
+	if err := s.enterPlaza(target); err != nil {
+		s.log.Debug("plaza return after relay loss failed", "session", target.ID, "error", err)
+	}
 }

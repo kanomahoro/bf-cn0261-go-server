@@ -191,6 +191,20 @@ func (r *Relay) Register(key protocol.RelayKey, roomID uint16, slot uint8, peerA
 	}
 }
 
+// HasSlot reports whether a room slot still holds a registered relay transport.
+// The game side asks after a grace period: a member whose relay dropped may have
+// registered again by then.
+func (r *Relay) HasSlot(roomID uint16, slot uint8) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, conn := range r.rooms[roomID] {
+		if conn.slot == slot {
+			return true
+		}
+	}
+	return false
+}
+
 // ReleaseRoom drops every reservation and connection of a finished room.
 func (r *Relay) ReleaseRoom(roomID uint16) {
 	r.mu.Lock()
@@ -538,6 +552,18 @@ func (r *Relay) leave(client *relayConn) {
 		delete(r.rooms, roomID)
 	}
 	client.joined = false
+	// An unexpected teardown frees the reservation so the same client can register
+	// again from a new connection; the game side holds the seat for a grace period
+	// and only drops it when nothing re-registers.
+	if !released {
+		for key, reservation := range r.reservations {
+			if reservation.roomID == roomID && reservation.slot == slot && reservation.bound {
+				reservation.bound = false
+				r.reservations[key] = reservation
+				break
+			}
+		}
+	}
 	handler := r.onDisconnect
 	r.mu.Unlock()
 
