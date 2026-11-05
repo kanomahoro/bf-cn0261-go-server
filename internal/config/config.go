@@ -116,6 +116,32 @@ type Admin struct {
 	Token string `json:"token"`
 }
 
+// weakAdminTokens are the values people type when they mean "not yet set".
+var weakAdminTokens = map[string]bool{
+	"changeme": true, "changemechangeme": true, "password": true, "passwordpassword": true,
+	"token": true, "admintoken": true, "secret": true, "adminadminadmin": true,
+	"0000000000000000": true, "1234567890123456": true, "aaaaaaaaaaaaaaaa": true,
+}
+
+// ValidateAdminToken enforces what a bearer token has to survive: length, enough
+// distinct characters to make guessing pointless, and not being a placeholder.
+func ValidateAdminToken(token string) error {
+	if len(token) < 16 {
+		return fmt.Errorf("must be at least 16 characters")
+	}
+	if weakAdminTokens[strings.ToLower(token)] {
+		return fmt.Errorf("is a placeholder; generate a random value")
+	}
+	distinct := map[rune]bool{}
+	for _, character := range token {
+		distinct[character] = true
+	}
+	if len(distinct) < 8 {
+		return fmt.Errorf("must use at least 8 different characters")
+	}
+	return nil
+}
+
 // Config is the root server configuration.
 type Config struct {
 	GameMapsFile       string         `json:"gameMapsFile"`
@@ -224,8 +250,8 @@ func (c Config) Validate() error {
 		if c.Admin.ListenPort == 0 {
 			return fmt.Errorf("admin.listenPort must be between 1 and 65535")
 		}
-		if len(c.Admin.Token) < 16 {
-			return fmt.Errorf("admin.token must be at least 16 characters")
+		if err := ValidateAdminToken(c.Admin.Token); err != nil {
+			return fmt.Errorf("admin.token %w", err)
 		}
 	}
 	if c.Database.Host == "" {

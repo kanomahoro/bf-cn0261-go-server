@@ -26,6 +26,10 @@ import (
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
 )
 
+// sampleToken is the value config/server.json ships with: everyone who reads the
+// repository knows it, so it must never be treated as a secret.
+const sampleToken = "547566ff61272b15eadf0c5021b83e78"
+
 // Server is the management console.
 type Server struct {
 	cfg     config.Admin
@@ -37,11 +41,16 @@ type Server struct {
 	// cfgMu serializes configuration writes: a second save must not interleave
 	// with the read-merge-validate-replace sequence of the first.
 	cfgMu sync.Mutex
+	// authFails slows down token guessing; see ratelimit.go.
+	authFails *failLimiter
 }
 
 // New builds the console.
 func New(cfg config.Admin, gameServer *game.Server, db *store.DB, version, configPath string, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, game: gameServer, db: db, log: log, version: version, cfgPath: configPath}
+	return &Server{
+		cfg: cfg, game: gameServer, db: db, log: log, version: version,
+		cfgPath: configPath, authFails: newFailLimiter(),
+	}
 }
 
 // routes builds the console's handler table.
@@ -92,6 +101,10 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer cancel()
 		_ = httpServer.Shutdown(shutdown)
 	}()
+	if s.cfg.Token == sampleToken {
+		s.log.Warn("[Admin] admin.token is the sample value shipped in the repository; " +
+			"replace it before the console is reachable by anyone else")
+	}
 	s.log.Info("[Admin] listening", "address", listener.Addr().String())
 	s.printAddress(listener.Addr().String())
 	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -137,13 +150,25 @@ func (s *Server) guard(allowQuery bool, next http.HandlerFunc) http.HandlerFunc 
 				writeError(w, http.StatusInternalServerError, "内部错误")
 			}
 		}()
+		address := clientAddress(r.RemoteAddr)
+		now := time.Now()
+		if s.authFails != nil && s.authFails.blocked(address, now) {
+			writeError(w, http.StatusTooManyRequests, "尝试次数过多，请一分钟后再试")
+			return
+		}
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if token == "" && allowQuery {
 			token = r.URL.Query().Get("token")
 		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.Token)) != 1 {
+			if s.authFails != nil {
+				s.authFails.fail(address, now)
+			}
 			writeError(w, http.StatusUnauthorized, "token 无效")
 			return
+		}
+		if s.authFails != nil {
+			s.authFails.reset(address, now)
 		}
 		next(w, r)
 	}
