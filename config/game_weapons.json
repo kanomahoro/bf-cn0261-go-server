@@ -6097,6 +6097,38 @@
       }
     },
     {
+      "definitionId": 5004,
+      "weaponSlot": 3,
+      "weaponType": "Grenade",
+      "projectileCount": 1,
+      "damage": {
+        "baseDamage": 120.0,
+        "criticalMultiplier": 1.0,
+        "backMultiplier": 1.0,
+        "unscopedMultiplier": 1.0,
+        "wallAttackMultiplier": 1.0,
+        "wallDefenseMultiplier": 1.0,
+        "usesScope": false,
+        "canDamageStunned": false
+      }
+    },
+    {
+      "definitionId": 5005,
+      "weaponSlot": 3,
+      "weaponType": "Grenade",
+      "projectileCount": 1,
+      "damage": {
+        "baseDamage": 120.0,
+        "criticalMultiplier": 1.0,
+        "backMultiplier": 1.0,
+        "unscopedMultiplier": 1.0,
+        "wallAttackMultiplier": 1.0,
+        "wallDefenseMultiplier": 1.0,
+        "usesScope": false,
+        "canDamageStunned": false
+      }
+    },
+    {
       "definitionId": 7001,
       "weaponSlot": 2,
       "weaponType": "Near",

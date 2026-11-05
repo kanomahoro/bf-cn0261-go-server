@@ -173,8 +173,8 @@ func run(args []string) error {
 			return err
 		}
 		// The -create-account path creates a character too, so it needs the
-		// grenade catalogue rows for the starter loadout to include one.
-		if err := db.EnsureGrenadeItem(); err != nil {
+		// special-weapon catalogue rows for the starter loadout to include them.
+		if err := db.EnsureGrenadeItems(); err != nil {
 			return err
 		}
 		accounts := features.NewAccounts(db)
@@ -238,12 +238,12 @@ func run(args []string) error {
 	if err := db.CheckSchema(); err != nil {
 		return err
 	}
-	// The grenade's catalogue rows are seeded here rather than by a migration:
-	// CheckSchema pins the applied migration list exactly, and the insert is
-	// idempotent so an already-seeded database is unaffected.
-	logger.Info("[Database] ensuring the grenade item definition")
-	if err := db.EnsureGrenadeItem(); err != nil {
-		logger.Error("[Database] grenade item definition could not be ensured; new characters would start without grenades", "error", err)
+	// The special weapons' catalogue rows are seeded here rather than by a
+	// migration: CheckSchema pins the applied migration list exactly, and the
+	// insert is idempotent so an already-seeded database is unaffected.
+	logger.Info("[Database] ensuring the special weapon item definitions")
+	if err := db.EnsureGrenadeItems(); err != nil {
+		logger.Error("[Database] special weapon definitions could not be ensured; new characters would start without grenades", "error", err)
 		return err
 	}
 

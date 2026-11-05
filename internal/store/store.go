@@ -37,6 +37,19 @@ const (
 	grenadeOccupiedBit = 1 << GrenadeSlot
 )
 
+// specialWeapons is every special-weapon item the catalogue keeps, in the order
+// they were added. The item id is always 200000 + the weapon definition, so 5003
+// is the hand grenade, 5004 the sticky grenade and 5005 the proximity mine.
+// A character wears one of them at a time: slot 21 is exclusive.
+var specialWeapons = []struct {
+	ID   uint32
+	Name string
+}{
+	{GrenadeItemID, "手雷"},
+	{205004, "粘性手雷"},
+	{205005, "感应地雷"},
+}
+
 // ErrDuplicate reports a unique-constraint violation.
 var ErrDuplicate = errors.New("store: duplicate entry")
 
@@ -401,6 +414,22 @@ func insertCharacter(ctx context.Context, tx *sql.Tx, accountID uint32, nickname
 		characterID, StarterGrenades, GrenadeItemID, GrenadeSlot); err != nil {
 		return 0, mapError(err)
 	}
+	// The other special weapons arrive in the same transaction but unworn: slot
+	// 21 holds one item at a time, so the extra ones wait in the bag and the
+	// player switches them in from the equipment screen.
+	for _, weapon := range specialWeapons {
+		if weapon.ID == GrenadeItemID {
+			continue
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO character_items (character_id, item_id, quantity, equipped_slot, created_at, updated_at)
+			 SELECT ?, d.id, ?, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+			 FROM item_definitions d WHERE d.id = ? AND d.equipment_slot = ?
+			 ON DUPLICATE KEY UPDATE quantity = quantity`,
+			characterID, StarterGrenades, weapon.ID, GrenadeSlot); err != nil {
+			return 0, mapError(err)
+		}
+	}
 	return characterID, nil
 }
 
@@ -490,15 +519,16 @@ func (db *DB) CreateAccountWithCharacter(name, scheme, salt, hash, nickname stri
 	return character, nil
 }
 
-// EnsureGrenadeItem makes the grenade's catalogue rows exist. It runs at server
-// startup instead of a schema migration because CheckSchema pins the migration
-// list exactly; the statements are idempotent so a database that already holds
-// the rows (hand-seeded or created by an earlier start) is left untouched.
+// EnsureGrenadeItems makes the special weapons' catalogue rows exist. It runs at
+// server startup instead of a schema migration because CheckSchema pins the
+// migration list exactly; the statements are idempotent so a database that
+// already holds the rows (hand-seeded or created by an earlier start) is left
+// untouched.
 //
 // The character mask is taken from the appearance table so every character type
-// this build can actually create may wear the grenade; the fallback covers
-// types 1 through 12 when the table is empty.
-func (db *DB) EnsureGrenadeItem() error {
+// this build can actually create may wear them; the fallback covers types 1
+// through 12 when the table is empty.
+func (db *DB) EnsureGrenadeItems() error {
 	ctx, cancel := db.ctx()
 	defer cancel()
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -506,21 +536,23 @@ func (db *DB) EnsureGrenadeItem() error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
-		 SELECT ?, '手雷', ?, FALSE
-		 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = ?)`,
-		GrenadeItemID, GrenadeSlot, GrenadeItemID); err != nil {
-		return mapError(err)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-		 SELECT ?, ?,
-		        COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-		                  FROM character_appearances), 4095)
-		 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = ?)`,
-		GrenadeItemID, grenadeOccupiedBit, GrenadeItemID); err != nil {
-		return mapError(err)
+	for _, weapon := range specialWeapons {
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
+			 SELECT ?, ?, ?, FALSE
+			 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = ?)`,
+			weapon.ID, weapon.Name, GrenadeSlot, weapon.ID); err != nil {
+			return mapError(err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
+			 SELECT ?, ?,
+			        COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
+			                  FROM character_appearances), 4095)
+			 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = ?)`,
+			weapon.ID, grenadeOccupiedBit, weapon.ID); err != nil {
+			return mapError(err)
+		}
 	}
 	return tx.Commit()
 }
