@@ -52,5 +52,11 @@
     "zombie": {
         "humanTurnMs": 12000,
         "zombiniTurnMs": 18000
+    },
+    "admin": {
+        "enabled": true,
+        "listenAddress": "127.0.0.1",
+        "listenPort": 26110,
+        "token": "547566ff61272b15eadf0c5021b83e78"
     }
 }

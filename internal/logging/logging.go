@@ -94,7 +94,9 @@ func Initialize(cfg config.Logging) (*slog.Logger, error) {
 		level = slog.LevelError
 	}
 	handler := slog.NewTextHandler(writer, &slog.HandlerOptions{Level: level})
-	logger := slog.New(handler)
+	// The admin console shows a live tail from memory; the file keeps the full
+	// history, so the ring only tees off what the console may ask for.
+	logger := slog.New(Capture(handler))
 	slog.SetDefault(logger)
 	return logger, nil
 }

@@ -28,6 +28,9 @@ type RelayRegistry interface {
 	// SendToSlot pushes a packet to one member's relay connection. Defense seed
 	// tables travel this way, exactly like the reference implementation.
 	SendToSlot(roomID uint16, slot uint8, packet protocol.Packet) bool
+	// Active reports how many relay connections the process holds, for the admin
+	// console's overview.
+	Active() int
 }
 
 // Sender delivers one encoded packet to a client.
@@ -103,6 +106,7 @@ type Session struct {
 	channelType  uint32
 	channelIndex uint32
 	peerAddress  string
+	startedAt    time.Time
 
 	// room and slot are set once when the session joins and only read by the
 	// owning connection goroutine afterwards.
@@ -145,11 +149,12 @@ type Server struct {
 	prog       world.Progression
 	log        *slog.Logger
 
-	mu       sync.Mutex
-	chatMu   sync.Mutex
-	chats    map[uint32]*chatThrottle
-	rooms    map[uint16]*Room
-	nextRoom uint16
+	mu        sync.Mutex
+	chatMu    sync.Mutex
+	chats     map[uint32]*chatThrottle
+	rooms     map[uint16]*Room
+	nextRoom  uint16
+	startedAt time.Time
 	// online maps an account to the one session that holds it. A second login
 	// takes the account over: the older session is detached and its connection
 	// closed, so two live sessions never share an account.
@@ -199,6 +204,7 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		log:        log,
 		rooms:      map[uint16]*Room{},
 		nextRoom:   1,
+		startedAt:  time.Now(),
 		online:     map[uint32]*Session{},
 		channels:   NewChannelDirectory(nil),
 		plazas:     NewPlazaDirectory(),
@@ -230,7 +236,8 @@ func (s *Server) NewSession(id uint64, send Sender) *Session {
 			binary.LittleEndian.Uint32(raw[0:4]),
 			binary.LittleEndian.Uint32(raw[4:8]),
 		},
-		slot: -1,
+		slot:      -1,
+		startedAt: time.Now(),
 	}
 }
 

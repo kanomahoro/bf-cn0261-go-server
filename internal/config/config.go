@@ -104,6 +104,18 @@ type Logging struct {
 	MaxFiles         int    `json:"maxFiles"`
 }
 
+// Admin is the management HTTP endpoint. It is meant for the machine itself or a
+// private network: bind it to loopback and reach it through a tunnel unless the
+// network in between is trusted.
+type Admin struct {
+	Enabled       bool   `json:"enabled"`
+	ListenAddress string `json:"listenAddress"`
+	ListenPort    uint16 `json:"listenPort"`
+	// Token is the single bearer token every request must carry. Keep it long
+	// enough that guessing it is pointless.
+	Token string `json:"token"`
+}
+
 // Config is the root server configuration.
 type Config struct {
 	GameMapsFile       string         `json:"gameMapsFile"`
@@ -118,6 +130,7 @@ type Config struct {
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
 	Zombie             Zombie         `json:"zombie"`
+	Admin              Admin          `json:"admin"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.
@@ -202,6 +215,17 @@ func (c Config) Validate() error {
 		}
 		if c.Relay.AdvertisedAddress != "" && net.ParseIP(c.Relay.AdvertisedAddress) == nil {
 			return fmt.Errorf("relay.advertisedAddress must be an IPv4 address")
+		}
+	}
+	if c.Admin.Enabled {
+		if c.Admin.ListenAddress == "" {
+			return fmt.Errorf("admin.listenAddress must not be empty")
+		}
+		if c.Admin.ListenPort == 0 {
+			return fmt.Errorf("admin.listenPort must be between 1 and 65535")
+		}
+		if len(c.Admin.Token) < 16 {
+			return fmt.Errorf("admin.token must be at least 16 characters")
 		}
 	}
 	if c.Database.Host == "" {

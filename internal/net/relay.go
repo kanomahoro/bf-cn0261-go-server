@@ -191,6 +191,13 @@ func (r *Relay) Register(key protocol.RelayKey, roomID uint16, slot uint8, peerA
 	}
 }
 
+// Active reports how many relay connections the process currently holds.
+func (r *Relay) Active() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.active
+}
+
 // ReleaseRoom drops every reservation and connection of a finished room.
 func (r *Relay) ReleaseRoom(roomID uint16) {
 	r.mu.Lock()

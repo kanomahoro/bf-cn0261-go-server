@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/admin"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/config"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/features"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/game"
@@ -276,6 +277,10 @@ func run(args []string) error {
 	if cfg.Authentication.Enabled {
 		auth := net.NewAuth(cfg.Authentication, features.NewAccounts(db), cfg.Network.ListenPort, logger)
 		go func() { errs <- auth.Serve(ctx) }()
+	}
+	if cfg.Admin.Enabled {
+		console := admin.New(cfg.Admin, server, db, Version, *configPath, logger)
+		go func() { errs <- console.Serve(ctx) }()
 	}
 
 	signals := make(chan os.Signal, 1)

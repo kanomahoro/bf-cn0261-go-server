@@ -101,7 +101,9 @@ git checkout f80a083 -- internal/ && go test ./...
 | `logging` | `level`、轮转 | `trace/debug/info/warn/error`；默认 `info`，一局只写几行骨架 |
 | `zombie` | `humanTurnMs` 12000、`zombiniTurnMs` 18000 | 换队通知的等待（真机量出来的），范围 500–60000，整段可省略 |
 
-字段级说明、日志级别约定与各段默认值：见 [`docs/configuration.md`](docs/configuration.md)。
+字段级说明、日志级别约定与各段默认值：见 [`docs/configuration.md`](docs/configuration.md)
+
+管理后台（概览、在线玩家、房间、日志、战绩、公告、改钱包）：见 [`docs/admin.md`](docs/admin.md)。
 
 ## 命令行参数
 
@@ -131,7 +133,7 @@ internal/protocol/ 封包编解码
 internal/store/    持久化
 config/            默认配置与数据表（地图、武器、防御、角色、复活、成长）
 database/          迁移脚本
-docs/              细节文档（手动安装、配置、数据库、实现说明、发布）
+docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布）
 launcher/          登录器（Python）
 tools/             一键安装脚本
 ZOMBIE.md          僵尸模式规则与真机验收记录
@@ -158,7 +160,7 @@ ZOMBIE.md          僵尸模式规则与真机验收记录
 | 对局中对方定住不动（v0.1.2 及更早） | 同步阻塞写缺陷，升级即可，见 [`docs/design.md`](docs/design.md#发送队列与背压) |
 | 复活后和队友叠在一个点（v0.1.2 及更早） | 无复活点轮换，升级即可，见 [`docs/design.md`](docs/design.md#复活点) |
 | 满级角色结算显示 +0 经验 | 正常：经验被夹到等级表上限，日志有 `[Round] settlement clamped` |
-| 金币到 1000 万不再增加 | 正常：上限 `store.MaxLucci = 10,000,000` |
+| 金币到上限不再增加 | 正常：上限 `store.MaxLucci = 100,000,000`（1 亿） |
 | 打完一局没有结算界面 | 搜日志 `game result packet rejected`（WARN），多为角色数据异常 |
 
 ## 发布

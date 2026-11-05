@@ -37,6 +37,17 @@
 | `maxConnections` | `256` | 并发中继连接上限 |
 | `idleTimeoutSeconds` | `0` | 中继连接空闲超时；**`0`（默认）表示不按空闲断开** |
 
+## `admin` — 管理后台（26110）
+
+| 字段 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `true` | 是否启动管理后台；关掉不影响游戏 |
+| `listenAddress` | `127.0.0.1` | **只绑本机**；远程访问用 SSH 隧道，不要直接改成 `0.0.0.0` |
+| `listenPort` | `26110` | 后台端口 |
+| `token` | 随机串 | 每个请求的 Bearer token，少于 16 字符会启动失败 |
+
+功能与用法见 [`admin.md`](admin.md)。
+
 ## `database` — MariaDB
 
 | 字段 | 默认 | 说明 |
