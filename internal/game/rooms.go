@@ -800,6 +800,11 @@ func (s *Server) handleLeaveRoom(session *Session, packet protocol.Packet) error
 }
 
 func (s *Server) leaveRoom(session *Session) error {
+	// One departure at a time per session: the admin console, the player's own
+	// request and a dying socket can all arrive together, and only the first may
+	// run the sequence below.
+	session.transitionMu.Lock()
+	defer session.transitionMu.Unlock()
 	room := session.room
 	if room == nil {
 		return nil

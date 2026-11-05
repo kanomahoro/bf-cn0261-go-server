@@ -107,6 +107,10 @@ type Session struct {
 	channelIndex uint32
 	peerAddress  string
 	startedAt    time.Time
+	// transitionMu serializes this session's room departure. The console can kick
+	// a player while their own goroutine is leaving (or their socket closes), and
+	// the departure sequence must run once, not twice.
+	transitionMu sync.Mutex
 
 	// room and slot are set once when the session joins and only read by the
 	// owning connection goroutine afterwards.
