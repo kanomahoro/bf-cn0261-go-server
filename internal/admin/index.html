@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>泡泡战士服务端 · 管理后台</title>
+<title>泡泡战士 CN0261 Go 服务端 · 管理后台</title>
 <style>
   :root { color-scheme: dark; --bg:#14171c; --panel:#1c2027; --line:#2c323c; --text:#e6e9ef; --dim:#8b95a5; --accent:#4c9ffe; --warn:#e5724a; --ok:#4caf7d; }
   * { box-sizing: border-box; }
@@ -63,7 +63,7 @@
 </div>
 
 <header>
-  <h1>泡泡战士 CN0261 服务端</h1>
+  <h1>泡泡战士 CN0261 Go 服务端</h1>
   <span class="dim" id="verLine"></span>
   <nav>
     <button data-tab="overview" class="active">概览</button>
@@ -159,7 +159,7 @@
     <p class="hint">只改数据库，不刷新内存。玩家重新登录、在商店买一次东西或打完一局后生效。</p>
   </section>
   <footer>
-    <span>泡泡战士 CN0261 服务端</span>
+    <span>泡泡战士 CN0261 Go 服务端</span>
     <span id="foot-version"></span>
     <span>By <a href="https://github.com/kanomahoro" target="_blank" rel="noopener">rurudoo</a></span>
     <a href="https://github.com/kanomahoro/bf-cn0261-go-server" target="_blank" rel="noopener">GitHub 仓库</a>
@@ -225,7 +225,7 @@ async function loadOverview() {
   $("verLine").textContent = "v" + data.server.version + (data.server.commit ? " · " + data.server.commit.slice(0, 7) : "");
   $("foot-version").textContent = "v" + data.server.version;
   $("ov-server").innerHTML = [
-    ["程序", "泡泡战士 CN0261 服务端"],
+    ["程序", "泡泡战士 CN0261 Go 服务端"],
     ["版本", data.server.version],
     ["构建提交", data.server.commit || "（未嵌入）"],
     ["作者", "rurudoo（github.com/kanomahoro）"],
