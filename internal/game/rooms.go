@@ -1208,6 +1208,9 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.seedsSent = false
 	room.respawnCount = [maxRoomSlots]uint32{}
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
+	// A fresh round never inherits a decision from the previous one.
+	room.zombieWinner = 0
+	room.forfeitWinner = 0
 	// A fresh round starts with no item-mode state; the host reports its map
 	// points after the map loads.
 	room.supplies = nil
@@ -1446,8 +1449,6 @@ func (s *Server) startRound(room *Room, tracking int) {
 	room.mu.Unlock()
 }
 
-// cancelRound returns a started room to the open state and notifies everyone,
-// matching GameRoundCoordinator::Cancel (S736 + S501 + S503).
 // roundAfterDeparture keeps a round that is already being played alive after one
 // seat vanished. A round that has not reached phasePlaying is dropped instead:
 // its clients are still loading, so restarting costs nothing and a missing seat
@@ -1455,13 +1456,14 @@ func (s *Server) startRound(room *Room, tracking int) {
 func (s *Server) roundAfterDeparture(room *Room) {
 	room.mu.Lock()
 	phase := room.phase
+	mode := room.Setting.Game.Mode
 	remaining := room.occupiedLocked()
-	lastTeam := uint8(0)
-	if remaining == 1 {
-		for slot := range room.slots {
-			if room.slots[slot].session != nil {
-				lastTeam = room.slots[slot].team
-			}
+	// Count the seats each battle team still has: a round whose opponent side is
+	// empty cannot be played to a result, however many players it still shows.
+	seats := map[uint8]int{}
+	for slot := range room.slots {
+		if room.slots[slot].session != nil {
+			seats[room.slots[slot].team]++
 		}
 	}
 	room.mu.Unlock()
@@ -1470,16 +1472,31 @@ func (s *Server) roundAfterDeparture(room *Room) {
 		return
 	}
 	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
-	if remaining == 1 && lastTeam != 0 {
-		// One side is gone from a two-team round, so there is nothing left to
-		// play: settle now and credit the seat that stayed with the win.
+	// The zombie battle has no team 2 (humans are 1, zombies 14) and decides its
+	// own round through zombieLeave, so the two-team test below must not read its
+	// empty team 2 as a missing side.
+	if mode == zombieModeID {
+		return
+	}
+	winner := uint8(0)
+	switch {
+	case seats[1] == 0 && seats[2] > 0:
+		winner = 2
+	case seats[2] == 0 && seats[1] > 0:
+		winner = 1
+	}
+	if winner != 0 {
+		// One side left the two-team round. Settle now and credit the side that
+		// stayed, instead of running the clock down with nothing to fight.
 		room.mu.Lock()
-		room.forfeitWinner = lastTeam
+		room.forfeitWinner = winner
 		room.mu.Unlock()
 		s.finishRound(room, false)
 	}
 }
 
+// cancelRound returns a started room to the open state and notifies everyone,
+// matching GameRoundCoordinator::Cancel (S736 + S501 + S503).
 func (s *Server) cancelRound(room *Room) {
 	caller := "unknown"
 	if _, file, line, ok := runtime.Caller(1); ok {

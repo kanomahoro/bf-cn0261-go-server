@@ -176,14 +176,30 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	if room == nil || !room.StartedReport() {
 		return
 	}
+	// The grace period must act on the seat that lost its transport, not on
+	// whatever holds that slot five seconds later, so the session and the round
+	// generation travel with the timer.
+	var target *Session
+	for _, member := range room.View() {
+		if member.Occupied && member.Slot == int(slot) {
+			target = member.Session
+			break
+		}
+	}
+	if target == nil {
+		return
+	}
+	room.mu.RLock()
+	generation := room.generation
+	room.mu.RUnlock()
 	s.log.Warn("relay transport lost; holding the seat",
 		"room", roomID, "slot", slot, "grace", relaySeatGrace)
-	time.AfterFunc(relaySeatGrace, func() { s.dropRelaySeat(roomID, slot) })
+	time.AfterFunc(relaySeatGrace, func() { s.dropRelaySeat(roomID, slot, target, generation) })
 }
 
 // dropRelaySeat removes a member whose relay never came back. The seat is
 // vacated like any other departure: the rest of the round keeps playing.
-func (s *Server) dropRelaySeat(roomID uint16, slot uint8) {
+func (s *Server) dropRelaySeat(roomID uint16, slot uint8, expected *Session, generation int) {
 	if s.relay != nil && s.relay.HasSlot(roomID, slot) {
 		return
 	}
@@ -200,7 +216,10 @@ func (s *Server) dropRelaySeat(roomID uint16, slot uint8) {
 			break
 		}
 	}
-	if target == nil {
+	room.mu.RLock()
+	sameRound := room.generation == generation
+	room.mu.RUnlock()
+	if !sameRound || target == nil || target != expected {
 		return
 	}
 	s.log.Warn("relay seat dropped after the grace period", "room", roomID, "slot", slot)
