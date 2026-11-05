@@ -811,6 +811,11 @@ func (s *Server) leaveRoom(session *Session) error {
 	}
 	started := room.StartedReport()
 	room.Remove(slot)
+	// The seat leaves the round's life table too: its object must stop answering
+	// events, or the round that keeps running could still score hits on it.
+	if life := room.Life(); life != nil {
+		life.Drop(uint8(slot))
+	}
 	// The departing member's relay transport goes with him; whatever happens to the
 	// round afterwards is decided below.
 	if s.relay != nil {

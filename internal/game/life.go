@@ -48,6 +48,9 @@ type lifePlayer struct {
 	respawnAsked *time.Time
 	spawnIndex   uint32
 	score        protocol.BattleScore
+	// gone marks a seat whose player left the round: its object stops answering
+	// life events, so a departed character cannot still be hit or scored.
+	gone bool
 }
 
 // BattleLife tracks victim-reported knockdown, resuce and kick events for one
@@ -124,10 +127,22 @@ func (l *BattleLife) find(objectID uint32) (uint8, error) {
 		return 0, fmt.Errorf("life event has an invalid player object")
 	}
 	slot := uint8((objectID - 1000000) / 100000)
-	if l.players[slot].objectID != objectID {
+	if l.players[slot].objectID != objectID || l.players[slot].gone {
 		return 0, fmt.Errorf("life event object was not initialized by this round")
 	}
 	return slot, nil
+}
+
+// Drop takes a seat out of the round. Every later event that names its object is
+// refused, so the seat that a departing player left behind cannot be hit, scored
+// or rescued while the round keeps running.
+func (l *BattleLife) Drop(slot uint8) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if int(slot) >= maxRoomSlots {
+		return
+	}
+	l.players[slot].gone = true
 }
 
 // CanFire reports whether the player may attack.
