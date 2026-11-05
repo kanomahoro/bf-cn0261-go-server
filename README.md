@@ -2,16 +2,17 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.3.1-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.3.2-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.3.1**：竞技（mode 1）+ 道具战（mode 3）+ 僵尸（mode 8），
+当前版本 **v0.3.2**：竞技（mode 1）+ 道具战（mode 3）+ 僵尸（mode 8），
 已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
 
+- **v0.3.2** 管理控制台、房间密码、重复登录接管、广场幽灵座位与退房并发修复
 - **v0.3.1** 仓库合并与日志/文档整理，**无协议与玩法改动**
 - **v0.3.0** 僵尸模式（真机验收定稿，规则见 [`ZOMBIE.md`](ZOMBIE.md)）
 - **v0.2.0** 道具战；更早的变更见 [`CHANGELOG.md`](CHANGELOG.md)
@@ -66,9 +67,9 @@ sudo bash bfserver-install.sh        # 脚本在仓库 tools/ 下，Release 页�
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.3.1" -o bfserver ./cmd/bfserver
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.3.2" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v0.3.1  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.3.2  By:rurudoo
 ```
 
 发布树里不带单元测试（`go build` 也不会把它们编进二进制）。需要回归测试时从历史取回：

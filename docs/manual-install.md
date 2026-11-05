@@ -202,7 +202,7 @@ FORCE=1 ./gen-cert.sh                              # 已存在时覆盖
 正常启动的日志：
 
 ```
-msg="BubbleFighter CN0261 Go Server v0.3.1  By:rurudoo"
+msg="BubbleFighter CN0261 Go Server v0.3.2  By:rurudoo"
 msg="[Application] environment" go=go1.27.3 config=Local/server.json database=bfserver@127.0.0.1:3306/bubblefighter_cn0261 gamePort=26100 authPort=26102 relayPort=26104
 msg="[Application] ready port=26100 protocol=cn0261-ticket-login"
 msg="[Relay] listening" port=26104
