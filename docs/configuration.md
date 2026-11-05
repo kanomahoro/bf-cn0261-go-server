@@ -21,7 +21,7 @@
 | `listenAddress` | `0.0.0.0` | 监听地址；本机测试可改 `127.0.0.1` |
 | `listenPort` | `26100` | 游戏/大厅端口 |
 | `maxConnections` | `256` | 并发连接上限 |
-| `idleTimeoutSeconds` | `300` | 连接空闲超时（秒），超时即断开 |
+| `idleTimeoutSeconds` | `600` | 连接空闲超时（秒），超时即断开 |
 
 ## `relay` — 对局中继（26104）
 
