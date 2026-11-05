@@ -122,6 +122,14 @@ func (s *Server) authURL(next http.HandlerFunc) http.HandlerFunc {
 
 func (s *Server) guard(allowQuery bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// A panic here must not reach net/http's default handler: this runs beside
+		// the game server, and the operator has to see which call went wrong.
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				s.log.Error("[Admin] handler panic", "path", r.URL.Path, "panic", recovered)
+				writeError(w, http.StatusInternalServerError, "内部错误")
+			}
+		}()
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if token == "" && allowQuery {
 			token = r.URL.Query().Get("token")

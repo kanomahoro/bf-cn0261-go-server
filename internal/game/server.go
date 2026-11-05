@@ -532,6 +532,12 @@ func (s *Server) handleLogin(session *Session, packet protocol.Packet) error {
 	if err != nil {
 		return err
 	}
+	// The authentication service already refuses a banned account, but a ticket
+	// handed out before the ban could still be in flight; the game side is the
+	// last place that can say no.
+	if account.Disabled {
+		return session.Send(protocol.CreateLoginReply(1, 0, nil, session.Challenges[0], session.Challenges[1], nil))
+	}
 	session.Account = account
 	session.AccountName = account.Name
 	s.claimAccount(session, account.ID)
