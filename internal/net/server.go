@@ -123,6 +123,13 @@ func (c *connection) closeWithReason(reason string) {
 	_ = c.conn.Close()
 }
 
+// Close ends the connection with a reason in the log. The game side uses it to
+// drop a connection it took the account away from.
+func (c *connection) Close(reason string) error {
+	c.closeWithReason(reason)
+	return nil
+}
+
 // Touch refreshes the idle deadline. Relay traffic counts as activity for the
 // game connection too, otherwise a client that only talks over the relay is
 // dropped after one idle window. A zero idle window means the deadline is never

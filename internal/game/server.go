@@ -35,6 +35,13 @@ type Sender interface {
 	Send(protocol.Packet) error
 }
 
+// closer is implemented by a network connection that the game side may end, which
+// the duplicate-login takeover needs: the account's previous connection has to go
+// away instead of lingering as a session the player cannot use.
+type closer interface {
+	Close(reason string) error
+}
+
 // toucher is implemented by the network connection so relay traffic can keep
 // the game connection's idle deadline alive.
 type toucher interface {
@@ -143,6 +150,10 @@ type Server struct {
 	chats    map[uint32]*chatThrottle
 	rooms    map[uint16]*Room
 	nextRoom uint16
+	// online maps an account to the one session that holds it. A second login
+	// takes the account over: the older session is detached and its connection
+	// closed, so two live sessions never share an account.
+	online   map[uint32]*Session
 	channels *ChannelDirectory
 	plazas   *PlazaDirectory
 	relay    RelayRegistry
@@ -188,6 +199,7 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		log:        log,
 		rooms:      map[uint16]*Room{},
 		nextRoom:   1,
+		online:     map[uint32]*Session{},
 		channels:   NewChannelDirectory(nil),
 		plazas:     NewPlazaDirectory(),
 	}, nil
@@ -237,6 +249,15 @@ func (s *Server) Disconnect(session *Session) {
 		}
 	}
 	s.channels.Cancel(session.ID, session.Account.ID)
+	// The account is free again unless a newer session took it over meanwhile;
+	// that session's own Disconnect clears its entry.
+	if accountID := session.Account.ID; accountID != 0 {
+		s.mu.Lock()
+		if s.online[accountID] == session {
+			delete(s.online, accountID)
+		}
+		s.mu.Unlock()
+	}
 }
 
 // SetPeerAddress records the client endpoint for channel transfers.
@@ -465,6 +486,32 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	return nil
 }
 
+// claimAccount gives the session the account. When another live session still
+// holds it, that session is detached and its connection closed: the plaza refuses
+// a character that is already present, so without the takeover a second login
+// would sit on the loading screen for ever.
+func (s *Server) claimAccount(session *Session, accountID uint32) {
+	s.mu.Lock()
+	previous := s.online[accountID]
+	if previous == session {
+		s.mu.Unlock()
+		return
+	}
+	s.online[accountID] = session
+	s.mu.Unlock()
+	if previous == nil {
+		return
+	}
+	s.log.Info("[Login] account taken over", "account", accountID,
+		"previous", previous.ID, "session", session.ID)
+	s.Disconnect(previous)
+	if connection, ok := previous.send.(closer); ok {
+		if err := connection.Close("duplicate login"); err != nil {
+			s.log.Debug("closing the taken-over connection failed", "session", previous.ID, "error", err)
+		}
+	}
+}
+
 func (s *Server) handleLogin(session *Session, packet protocol.Packet) error {
 	token, err := protocol.ReadLoginTicket(packet)
 	if err != nil {
@@ -480,6 +527,7 @@ func (s *Server) handleLogin(session *Session, packet protocol.Packet) error {
 	}
 	session.Account = account
 	session.AccountName = account.Name
+	s.claimAccount(session, account.ID)
 	character, err := s.svc.Profile(accountID)
 	if errors.Is(err, features.ErrCharacterMissing) {
 		// No character yet: the reference server sends S12 so the client opens
