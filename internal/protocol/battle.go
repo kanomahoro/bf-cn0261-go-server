@@ -256,10 +256,16 @@ func ReadJoinRoomRequest(p Packet) (JoinRoomRequest, error) {
 }
 
 // CreateRoomRequest is C402.
+//
+// The body is the creator's SessionSetting, then the room password and one
+// trailing word (packets/room-control.yaml RoomCreateRequest reads the same
+// three parts for cn-406: "only three words and the password, with no tail").
+// The password lives here and not in SessionSetting: the setting only carries
+// the lock flag at +46, which is what the lobby list draws.
 type CreateRoomRequest struct {
-	Setting   SessionSetting
-	String600 []uint16
-	Flag628   bool
+	Setting  SessionSetting
+	Password []uint16
+	Flag628  bool
 }
 
 // ReadCreateRoomRequest parses C402.
@@ -273,7 +279,7 @@ func ReadCreateRoomRequest(p Packet) (CreateRoomRequest, error) {
 	if req.Setting, err = ReadSessionSetting(r); err != nil {
 		return req, err
 	}
-	if req.String600, err = r.String(SessionStringLimit); err != nil {
+	if req.Password, err = r.String(SessionStringLimit); err != nil {
 		return req, err
 	}
 	if req.Flag628, err = r.Boolean(); err != nil {

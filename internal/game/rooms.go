@@ -7,6 +7,7 @@ import (
 	"net"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"time"
 
@@ -54,7 +55,11 @@ type Room struct {
 	ChannelType  uint32
 	ChannelIndex uint32
 
-	slots        [maxRoomSlots]roomSlot
+	slots [maxRoomSlots]roomSlot
+	// password is the text the creator sent in C402, kept out of Setting so it is
+	// never written into a lobby row or a room snapshot. Empty when the room is
+	// open; a locked room with no text accepts any password (the wire allows it).
+	password     []uint16
 	life         *BattleLife
 	pings        *PingTracker
 	defenseSeeds map[int]defenseSeeds
@@ -92,6 +97,20 @@ type Room struct {
 	// zombiePendingNotice marks the seats whose conversion has not been announced
 	// yet: the notice waits for their respawn completion.
 	zombiePendingNotice [maxRoomSlots]bool
+}
+
+// SetPassword stores the room password.
+func (r *Room) SetPassword(password []uint16) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.password = append(r.password[:0], password...)
+}
+
+// PasswordCopy returns the stored room password.
+func (r *Room) PasswordCopy() []uint16 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return append([]uint16(nil), r.password...)
 }
 
 // View returns an immutable snapshot of the roster.
@@ -621,9 +640,10 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 			"character", session.Character.ID, "inRoom", session.room != nil, "inPlaza", session.inPlaza)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
-	// The create request carries no password text: the client sends only the lock
-	// flag (has_password) and asks whoever joins for the text, so there is nothing
-	// to require here. Demanding a non-empty string rejected every locked room.
+	// The password text travels in C402 after the setting, not in the setting
+	// itself: +46 is only the lock flag the lobby row draws. A locked room with
+	// no text is accepted and then behaves like an unlocked door, because the
+	// client lets the player type anything in that case anyway.
 	if len(request.Setting.Title) > 64 || len(request.Setting.MasterNickname) > 64 {
 		s.log.Info("[Room] creation rejected", "reason", "title",
 			"title", len(request.Setting.Title), "locked", request.Setting.PasswordRequired)
@@ -655,6 +675,9 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		ChannelType:    session.channelType,
 		ChannelIndex:   session.channelIndex,
 		zombieKingSlot: -1,
+	}
+	if setting.PasswordRequired {
+		room.SetPassword(request.Password)
 	}
 	s.nextRoom++
 	if s.nextRoom == 0 {
@@ -710,14 +733,16 @@ func (s *Server) handleJoinRoom(session *Session, packet protocol.Packet) error 
 		return session.Send(protocol.CreateRoomResult(false, 5))
 	}
 	setting := room.SettingCopy()
-	// A locked room asks the joiner for a password on the client side; the text in
-	// the join request is the only copy of it that exists anywhere, because the
-	// create request never carried one. Comparing it against the room would compare
-	// it against the master's nickname, so the lock stays what the wire makes it: a
-	// prompt, not a server-side check.
+	// The lock: +46 is the flag the client checks before it asks the joiner for a
+	// password, and the text to compare arrives in this request. The creator's
+	// copy is the one C402 carried; a locked room that sent no text accepts the
+	// joiner, since there is nothing to compare against.
 	if setting.PasswordRequired {
-		s.log.Debug("[Room] join to a locked room", "room", room.ID, "slot", session.slot,
-			"password_chars", len(request.Password))
+		if stored := room.PasswordCopy(); len(stored) != 0 && !slices.Equal(stored, request.Password) {
+			s.log.Debug("[Room] join refused, wrong password", "room", room.ID, "slot", session.slot,
+				"password_chars", len(request.Password))
+			return session.Send(protocol.CreateRoomResult(false, 4))
+		}
 	}
 	capacity := int(setting.Capacity)
 	if capacity <= 0 || capacity > maxRoomSlots {
