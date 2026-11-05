@@ -11,6 +11,9 @@
   header { display:flex; align-items:center; gap:16px; padding:10px 16px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:5; }
   header h1 { font-size:15px; margin:0; font-weight:600; }
   header .dim { color:var(--dim); font-size:12px; }
+  .legal { display:flex; gap:10px; align-items:flex-start; padding:9px 16px; background:#2a2113; border-bottom:1px solid #4a3a1c; color:#e9c98a; font-size:12px; line-height:1.5; }
+  .legal b { color:#ffd27f; }
+  .gate-legal { margin-top:14px; padding-top:12px; border-top:1px solid var(--line); color:var(--dim); font-size:11px; line-height:1.6; }
   nav { display:flex; gap:4px; margin-left:auto; flex-wrap:wrap; }
   nav button { background:none; border:1px solid transparent; color:var(--dim); padding:5px 10px; border-radius:6px; cursor:pointer; font-size:13px; }
   nav button.active { color:var(--text); border-color:var(--line); background:#242a33; }
@@ -59,6 +62,10 @@
     <p class="hint">输入 server.json 里 <code>admin.token</code> 的值</p>
     <div class="row"><input id="token" type="password" placeholder="token" style="flex:1"></div>
     <button class="act" onclick="saveToken()">进入</button>
+    <div class="gate-legal">
+      仅供学习与技术研究，禁止商业用途。<br>
+      游戏名称、商标、美术与音频等素材的权利归原权利人所有。
+    </div>
   </div>
 </div>
 
@@ -76,6 +83,12 @@
     <button data-tab="config">配置</button>
   </nav>
 </header>
+
+<div class="legal">
+  <span>⚠</span>
+  <span><b>本项目仅供学习与技术研究使用</b>（网络协议、服务端架构、数据库设计），
+    <b>禁止用于商业运营</b>或任何侵犯他人权利的场景。游戏名称、商标、美术与音频等素材的权利归原权利人所有。</span>
+</div>
 
 <main>
   <section id="tab-overview" class="active">
@@ -181,6 +194,9 @@
     <span id="foot-version"></span>
     <span>By <a href="https://github.com/kanomahoro" target="_blank" rel="noopener">rurudoo</a></span>
     <a href="https://github.com/kanomahoro/bf-cn0261-go-server" target="_blank" rel="noopener">GitHub 仓库</a>
+    <a href="https://github.com/kanomahoro/bf-cn0261-go-server/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    <span>© 2026 rurudoo</span>
+    <span>仅供学习与技术研究，禁止商业用途</span>
   </footer>
 </main>
 
@@ -477,6 +493,9 @@ async function setBalance() {
 }
 
 function showTab(name) {
+  // Each tab starts at the top, so the licence notice above the content is read
+  // again instead of being scrolled past for ever.
+  window.scrollTo(0, 0);
   document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll("section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
   if (name === "search") loadBans();
