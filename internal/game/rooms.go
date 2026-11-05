@@ -850,8 +850,11 @@ func (s *Server) leaveRoom(session *Session) error {
 	master := room.ReassignMasterIfNeeded()
 	room.refreshSetting()
 
+	// The leaver's own copy can fail — its socket is already gone in the disconnect
+	// and relay paths — and that must not cost the room its departure notice: the
+	// round goes on, so every other client has to learn that this seat is empty.
 	if err := session.Send(departure); err != nil {
-		return err
+		s.log.Debug("departure reply failed", "session", session.ID, "error", err)
 	}
 	room.Broadcast(departure)
 	if masterReply, err := protocol.CreateRoomMasterReply(uint32(master)); err == nil {
