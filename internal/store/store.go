@@ -560,14 +560,14 @@ func (db *DB) EnsureGrenadeItems() error {
 // Starter wallet for a new character. The reference hands out 10000 lucci and
 // no cash; this server gives enough that buying gear never gets in the way.
 //
-// Five million covers the whole on-sale catalogue roughly four times over (one
+// Ten million covers the whole on-sale catalogue roughly eight times over (one
 // of every stock costs ~1.25M lucci / ~0.38M cash) while staying far below both
 // limits: character_stats checks value <= 2147483647 and the wire validator
 // rejects anything above math.MaxInt32, and settlement adds each match's
 // LucciGain to the balance, so the starter amount must leave room to grow.
 const (
-	StarterLucci = 5_000_000
-	StarterCash  = 5_000_000
+	StarterLucci = 10_000_000
+	StarterCash  = 10_000_000
 )
 
 // MaxLucci is the highest balance settlement will store or report. Anything a
