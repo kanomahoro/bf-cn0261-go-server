@@ -28,9 +28,6 @@ type RelayRegistry interface {
 	// SendToSlot pushes a packet to one member's relay connection. Defense seed
 	// tables travel this way, exactly like the reference implementation.
 	SendToSlot(roomID uint16, slot uint8, packet protocol.Packet) bool
-	// HasSlot reports whether a slot still holds a registered relay transport.
-	// The relay-loss grace period asks it before it gives the seat up.
-	HasSlot(roomID uint16, slot uint8) bool
 }
 
 // Sender delivers one encoded packet to a client.
