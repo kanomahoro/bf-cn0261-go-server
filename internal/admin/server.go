@@ -17,6 +17,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/config"
@@ -33,6 +34,9 @@ type Server struct {
 	log     *slog.Logger
 	version string
 	cfgPath string
+	// cfgMu serializes configuration writes: a second save must not interleave
+	// with the read-merge-validate-replace sequence of the first.
+	cfgMu sync.Mutex
 }
 
 // New builds the console.
@@ -58,6 +62,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/balance", s.auth(s.balance))
 	mux.HandleFunc("POST /api/notice", s.auth(s.notice))
 	mux.HandleFunc("GET /api/server", s.auth(s.serverInfo))
+	mux.HandleFunc("GET /api/config", s.auth(s.getConfig))
+	mux.HandleFunc("POST /api/config", s.auth(s.saveConfig))
 	mux.HandleFunc("GET /", s.page)
 	return mux
 }

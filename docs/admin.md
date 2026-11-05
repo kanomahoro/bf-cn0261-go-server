@@ -46,6 +46,17 @@
 | 查玩家 | 按账号名 / 昵称 / 账号 ID / 角色 ID 搜索，显示等级、金币、点券、封禁状态；下方列出**已封禁账号**，可直接解封 |
 | 战绩 | 对局列表 + 每局详情（泡封/击爆/营救/经验/金币/等级），可导出 CSV |
 | 操作 | 全服公告；改金币 / 点券（最简版） |
+| 配置 | 在线编辑一部分配置项，保存前校验；保存后需要**手动重启**才生效 |
+
+## 在线配置
+
+「配置」页只开放**一部分**字段：端口、连接上限、空闲超时、中继对外 IP、僵尸等待、日志级别、注册邀请码与限流。
+
+- **保存前会校验**：服务端把合并后的内容写到同目录的 `server.json.new`，用同一套 `config.Load` 校验，
+  通过后才备份 `server.json.bak` 并原子替换；任何一步失败都不会动原文件
+- **不在线编辑**的：数据库连接与密码、证书路径、文件路径、管理后台自己的端口与 token
+- **保存后不会自动生效**：页面弹窗提示需要手动重启服务端
+- 没有「重启」按钮，重启请用服务管理器（systemd / NSSM / 手动）
 
 ## 两个要知道的行为
 
@@ -62,7 +73,8 @@
 GET  /api/overview             GET  /api/players        POST /api/players/kick
 POST /api/players/ban          GET  /api/rooms          POST /api/rooms/disband
 GET  /api/logs?limit=&q=       GET  /api/search?q=      GET  /api/results?mode=&limit=&offset=
-GET  /api/bans                 GET  /api/results/detail?id=   GET  /api/results.csv?mode=
+GET  /api/bans                 GET  /api/config        POST /api/config
+GET  /api/results/detail?id=   GET  /api/results.csv?mode=
 POST /api/balance              POST /api/notice         GET  /api/server
 ```
 

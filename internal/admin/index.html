@@ -73,6 +73,7 @@
     <button data-tab="search">查玩家</button>
     <button data-tab="results">战绩</button>
     <button data-tab="ops">操作</button>
+    <button data-tab="config">配置</button>
   </nav>
 </header>
 
@@ -164,6 +165,17 @@
     </div>
     <p class="hint">只改数据库，不刷新内存。玩家重新登录、在商店买一次东西或打完一局后生效。</p>
   </section>
+  <section id="tab-config">
+    <h2>服务端配置</h2>
+    <p class="hint" id="config-note"></p>
+    <div id="config-form"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="act" onclick="saveConfig()">保存配置</button>
+      <button class="act" onclick="loadConfig()">重新读取</button>
+      <span class="hint">保存会先校验；不合法的值不会写进文件。改完需要手动重启服务端。</span>
+    </div>
+  </section>
+
   <footer>
     <span>泡泡战士 CN0261 Go 服务端</span>
     <span id="foot-version"></span>
@@ -372,6 +384,57 @@ async function disband(roomId) {
   loadRooms(); loadPlayers();
 }
 
+let configFieldsCache = [];
+
+async function loadConfig() {
+  const data = await api("/api/config");
+  configFieldsCache = data.fields || [];
+  $("config-note").textContent = data.note || "";
+  const groups = {};
+  for (const field of configFieldsCache) {
+    const group = field.key.split(".")[0];
+    (groups[group] ||= []).push(field);
+  }
+  const titles = { network: "游戏连接", relay: "中继", zombie: "僵尸模式", logging: "日志", authentication: "认证/注册" };
+  $("config-form").innerHTML = Object.entries(groups).map(([group, fields]) => `
+    <h2 style="margin-top:18px">${titles[group] || group}</h2>
+    <table><tbody>
+    ${fields.map((field) => {
+      const id = "cfg-" + field.key.replace(/\./g, "-");
+      let input;
+      if (field.type === "bool") {
+        input = `<input type="checkbox" id="${id}" data-key="${field.key}" data-type="bool" ${field.value ? "checked" : ""}>`;
+      } else if (field.type === "int") {
+        input = `<input type="number" id="${id}" data-key="${field.key}" data-type="int" value="${field.value}" ${field.min != null ? `min="${field.min}"` : ""} ${field.max != null ? `max="${field.max}"` : ""} style="width:160px">`;
+      } else {
+        input = `<input type="text" id="${id}" data-key="${field.key}" data-type="string" value="${esc(field.value)}" style="width:280px">`;
+      }
+      return `<tr><th style="width:320px">${esc(field.label)}${field.hint ? `<div class="hint">${esc(field.hint)}</div>` : ""}</th><td>${input}</td></tr>`;
+    }).join("")}
+    </tbody></table>`).join("");
+}
+
+async function saveConfig() {
+  const payload = {};
+  document.querySelectorAll("#config-form [data-key]").forEach((element) => {
+    const key = element.dataset.key;
+    if (element.dataset.type === "bool") payload[key] = element.checked;
+    else if (element.dataset.type === "int") payload[key] = Number(element.value);
+    else payload[key] = element.value;
+  });
+  try {
+    const data = await api("/api/config", { method: "POST", body: JSON.stringify(payload) });
+    if (data.restartRequired) {
+      alert("配置已保存。\n\n需要手动重启服务端后才会生效。\n旧配置已备份为同目录下的 .bak 文件。");
+    } else {
+      alert("配置已保存。");
+    }
+    loadConfig();
+  } catch (error) {
+    alert("保存失败：" + error.message);
+  }
+}
+
 async function sendNotice() {
   const text = $("notice-text").value.trim();
   if (!text) return toast("先写点内容");
@@ -394,6 +457,7 @@ function showTab(name) {
   document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll("section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
   if (name === "search") loadBans();
+  if (name === "config") loadConfig();
   if (name === "logs") loadLogs();
   if (name === "results") loadResults();
 }
