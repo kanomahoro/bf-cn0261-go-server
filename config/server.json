@@ -9,7 +9,7 @@
         "listenAddress": "0.0.0.0",
         "listenPort": 26100,
         "maxConnections": 256,
-        "idleTimeoutSeconds": 600
+        "idleTimeoutSeconds": 0
     },
     "relay": {
         "enabled": true,
@@ -17,7 +17,7 @@
         "listenPort": 26104,
         "advertisedAddress": "127.0.0.1",
         "maxConnections": 256,
-        "idleTimeoutSeconds": 120
+        "idleTimeoutSeconds": 0
     },
     "database": {
         "host": "127.0.0.1",
