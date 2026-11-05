@@ -79,6 +79,17 @@ func (s *Server) routes() *http.ServeMux {
 
 // Serve answers until the context is cancelled.
 func (s *Server) Serve(ctx context.Context) error {
+	// Configuration validation already refuses this, but an empty token would make
+	// every request pass the constant-time comparison, so the console refuses to
+	// start without one.
+	if s.cfg.Token == "" {
+		return errors.New("admin console needs a token")
+	}
+	if s.authFails == nil {
+		// New sets this; a console built another way must still be limited rather
+		// than silently accepting unlimited guesses.
+		s.authFails = newFailLimiter()
+	}
 	address := net.JoinHostPort(s.cfg.ListenAddress, strconv.Itoa(int(s.cfg.ListenPort)))
 	// Bind before announcing anything: an operator must never be pointed at a port
 	// that is already taken by something else.

@@ -250,6 +250,14 @@ func (s *Server) BroadcastNotice(text string) (int, error) {
 // existed. The live session is deliberately untouched: the server reloads a
 // balance at login, at a purchase and after a match, so a write is enough.
 func (s *Server) AdminSetBalance(characterID, lucci, cash uint32) error {
+	// The HTTP layer clamps too, but a value that reaches here must never break the
+	// column's CHECK constraints.
+	if lucci > store.MaxLucci {
+		lucci = store.MaxLucci
+	}
+	if cash > maxCash {
+		cash = maxCash
+	}
 	if err := s.db.SetBalance(characterID, lucci, cash); err != nil {
 		return err
 	}
@@ -281,6 +289,9 @@ func (s *Server) AdminSetBan(accountID uint32, disabled bool) (bool, error) {
 		"ticketsRevoked", revoked, "kicked", kicked)
 	return kicked, nil
 }
+
+// maxCash is the highest cash value the wire and the column accept.
+const maxCash = 2147483647
 
 // AdminSearchCharacters finds players for the console's search box.
 func (s *Server) AdminSearchCharacters(term string, limit int) ([]store.AdminCharacter, error) {

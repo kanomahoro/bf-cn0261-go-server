@@ -2,22 +2,27 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/config"
 )
 
 func testServer(token string) *Server {
 	return &Server{
-		cfg: config.Admin{Token: token},
-		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cfg:       config.Admin{Token: token},
+		log:       slog.New(slog.NewTextHandler(io.Discard, nil)),
+		authFails: newFailLimiter(),
 	}
 }
 
@@ -166,5 +171,82 @@ func TestSecurityHeaders(t *testing.T) {
 	}
 	if csp := recorder.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'self'") {
 		t.Fatalf("CSP = %q, want it to pin connect-src", csp)
+	}
+}
+
+// freePort reserves a port the OS just handed out, so a test can bind a real
+// listener without guessing.
+func freePort(t *testing.T) uint16 {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve port: %v", err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+	return uint16(port)
+}
+
+// TestServeOverHTTP exercises the real listener: page served, API guarded, the
+// guessing brake attached, and a clean stop when the context ends.
+func TestServeOverHTTP(t *testing.T) {
+	port := freePort(t)
+	server := testServer("0123456789abcdef")
+	server.cfg.ListenAddress = "127.0.0.1"
+	server.cfg.ListenPort = port
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- server.Serve(ctx) }()
+
+	base := "http://127.0.0.1:" + strconv.Itoa(int(port))
+	var response *http.Response
+	for attempt := 0; attempt < 50; attempt++ {
+		response, _ = http.Get(base + "/")
+		if response != nil {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if response == nil {
+		t.Fatalf("console never answered")
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("page status = %d", response.StatusCode)
+	}
+	if response.Header.Get("X-Frame-Options") != "DENY" {
+		t.Fatalf("headers missing on the real listener")
+	}
+
+	// Ten wrong tokens from the same address must trip the brake: the tenth is
+	// still answered with 401, the eleventh is refused before it is checked.
+	client := &http.Client{}
+	blocked := false
+	for attempt := 0; attempt < authFailLimit+1; attempt++ {
+		request, _ := http.NewRequest(http.MethodGet, base+"/api/players", nil)
+		request.Header.Set("Authorization", "Bearer wrong")
+		reply, err := client.Do(request)
+		if err != nil {
+			t.Fatalf("attempt %d: %v", attempt, err)
+		}
+		reply.Body.Close()
+		if reply.StatusCode == http.StatusTooManyRequests {
+			blocked = true
+			break
+		}
+	}
+	if !blocked {
+		t.Fatalf("guessing was never braked")
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serve returned %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatalf("serve did not stop")
 	}
 }
