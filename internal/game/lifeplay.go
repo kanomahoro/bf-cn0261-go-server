@@ -257,39 +257,18 @@ func (s *Server) handleReturnToNormal(session *Session, packet protocol.Packet, 
 // respawns_.Evaluate, so a player who switched bodies waits the new body's
 // delay instead of the creation type's.
 func (s *Server) respawnDelay(character store.Character, items []store.Item) time.Duration {
-	equipped := protocol.ResolveEquippedCharacter(character.CharacterType, s.svc.WireItems(items))
-	return s.respawn.Delay(equipped, respawnItemIDs(items))
-}
-
-// respawnItemIDs lists the items the respawn catalog may credit. Only worn gear
-// counts: an item sitting in the bag still has its catalog entry, so passing the
-// whole inventory lets a player keep the reduction after taking the necklace
-// off. GameDefenseCatalog::Evaluate filters the same way (EquippedSlot != 0).
-func respawnItemIDs(items []store.Item) []uint32 {
-	ids := make([]uint32, 0, len(items))
+	itemIDs := make([]uint32, 0, len(items))
 	for _, item := range items {
+		// Only worn gear counts: a bagged necklace keeps its catalog entry, so
+		// passing the whole inventory lets a player keep the reduction after
+		// taking it off.
 		if item.EquippedSlot == 0 || item.Quantity == 0 {
 			continue
 		}
-		ids = append(ids, item.ItemID)
+		itemIDs = append(itemIDs, item.ItemID)
 	}
-	return ids
-}
-
-// slotRespawnDelay is respawnDelay for a seated slot, read under the room lock.
-func (s *Server) slotRespawnDelay(room *Room, slot int) time.Duration {
-	room.mu.RLock()
-	character, items := room.slots[slot].character, room.slots[slot].items
-	room.mu.RUnlock()
-	return s.respawnDelay(character, items)
-}
-
-// absDuration returns the magnitude of d.
-func absDuration(d time.Duration) time.Duration {
-	if d < 0 {
-		return -d
-	}
-	return d
+	equipped := protocol.ResolveEquippedCharacter(character.CharacterType, s.svc.WireItems(items))
+	return s.respawn.Delay(equipped, itemIDs)
 }
 
 func (s *Server) tryRespawn(room *Room, slot int) {
@@ -313,9 +292,10 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 	// The spawn offer is withheld for the catalog delay so the victim's client
 	// can play its respawn progress bar; offering immediately revives instantly.
 	room.mu.RLock()
+	character, items := room.slots[slot].character, room.slots[slot].items
 	generation := room.generation
 	room.mu.RUnlock()
-	delay := s.slotRespawnDelay(room, slot)
+	delay := s.respawnDelay(character, items)
 	// The map catalog owns the number of markers per team; cycling stays inside
 	// what the map actually defines.
 	teamSpawnCount := uint32(4)

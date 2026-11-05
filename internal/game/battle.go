@@ -3,7 +3,6 @@ package game
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
@@ -266,14 +265,6 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	case 713, 32904:
 		if err := life.RequestRespawn(uint8(session.slot), objectID); err != nil {
 			return err
-		}
-		// The second word is the wait the client will draw, and the client revives
-		// on its own when it elapses; the catalog is only our copy of that rule.
-		// A gap means the catalog drifted away from the client's item table, which
-		// is the one thing the bar cannot tell us by itself.
-		if client, catalog := time.Duration(request.Value)*time.Millisecond, s.slotRespawnDelay(room, session.slot); absDuration(client-catalog) > 100*time.Millisecond {
-			s.log.Debug("[Respawn] delay drift", "room", room.ID, "slot", session.slot,
-				"client_ms", request.Value, "catalog_ms", catalog.Milliseconds())
 		}
 		s.tryRespawn(room, session.slot)
 	case 32925:
