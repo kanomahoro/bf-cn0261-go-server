@@ -77,3 +77,32 @@
 | `character_weapon_presets` | 每个角色的预设槽（2 或 3 个、当前选中项） |
 | `character_weapon_preset_items` | 预设槽里存的武器道具 ID |
 | `schema_migrations` | 已应用的迁移版本（启动时 `CheckSchema` 校验 1..14） |
+
+## 运维：手工改余额
+
+后台还没有管理界面，改金币/点券直接改库即可，**改完不用重启服务端**：
+
+```sql
+-- 按角色昵称：1000 万金币 + 1000 万点券
+UPDATE character_stats SET lucci = 10000000, cash = 10000000,
+       updated_at = UTC_TIMESTAMP(6)
+WHERE character_id = (SELECT id FROM characters WHERE nickname = '角色名');
+
+-- 按账号名（一个账号一个角色）
+UPDATE character_stats SET lucci = 10000000, cash = 10000000,
+       updated_at = UTC_TIMESTAMP(6)
+WHERE character_id = (SELECT c.id FROM characters c
+                      JOIN accounts a ON a.id = c.account_id
+                      WHERE a.account_name = '账号名');
+
+-- 加减（原子操作，不会覆盖别人的改动）
+UPDATE character_stats SET lucci = lucci + 500000,
+       updated_at = UTC_TIMESTAMP(6)
+WHERE character_id = 42;
+```
+
+上限：`lucci` 结算封顶 1 亿（`store.MaxLucci`），`cash`/`lucci` 的列约束都是 `<= 2147483647`，
+填超了整条 UPDATE 会失败。
+
+**生效时机**（服务端本来就会重读余额并下发）：登录、在商店买一次东西、打完一局结算。
+玩家若一直挂在广场不动，客户端要等这三种时机之一才会显示新数字。
