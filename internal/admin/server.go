@@ -51,6 +51,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/rooms/disband", s.auth(s.disband))
 	mux.HandleFunc("GET /api/logs", s.auth(s.logs))
 	mux.HandleFunc("GET /api/search", s.auth(s.search))
+	mux.HandleFunc("GET /api/bans", s.auth(s.bans))
 	mux.HandleFunc("GET /api/results", s.auth(s.results))
 	mux.HandleFunc("GET /api/results/detail", s.auth(s.resultDetail))
 	mux.HandleFunc("GET /api/results.csv", s.authURL(s.resultsCSV))
@@ -260,6 +261,15 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, out)
+}
+
+func (s *Server) bans(w http.ResponseWriter, r *http.Request) {
+	bans, err := s.db.ListBans()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, bans)
 }
 
 func (s *Server) results(w http.ResponseWriter, r *http.Request) {

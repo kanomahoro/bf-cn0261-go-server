@@ -43,7 +43,7 @@
 | 在线玩家 | 昵称、账号、等级、位置（广场 / 房号+座位）、IP、在线时长；**踢下线 / 封号** |
 | 房间 | 房号、标题、模式、地图、人数、阶段、是否锁房；**强制解散** |
 | 日志 | 内存里最近 5000 条，按关键字过滤（`[Room]`、`[Relay]`、`[Admin]`…） |
-| 查玩家 | 按账号名 / 昵称 / 账号 ID / 角色 ID 搜索，显示等级、金币、点券、封禁状态 |
+| 查玩家 | 按账号名 / 昵称 / 账号 ID / 角色 ID 搜索，显示等级、金币、点券、封禁状态；下方列出**已封禁账号**，可直接解封 |
 | 战绩 | 对局列表 + 每局详情（泡封/击爆/营救/经验/金币/等级），可导出 CSV |
 | 操作 | 全服公告；改金币 / 点券（最简版） |
 
@@ -62,7 +62,7 @@
 GET  /api/overview             GET  /api/players        POST /api/players/kick
 POST /api/players/ban          GET  /api/rooms          POST /api/rooms/disband
 GET  /api/logs?limit=&q=       GET  /api/search?q=      GET  /api/results?mode=&limit=&offset=
-GET  /api/results/detail?id=   GET  /api/results.csv?mode=
+GET  /api/bans                 GET  /api/results/detail?id=   GET  /api/results.csv?mode=
 POST /api/balance              POST /api/notice         GET  /api/server
 ```
 

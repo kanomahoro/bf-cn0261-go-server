@@ -125,6 +125,12 @@
       <thead><tr><th>昵称</th><th>账号</th><th>等级</th><th>金币</th><th>点券</th><th>类型</th><th>状态</th><th>操作</th></tr></thead>
       <tbody id="search-body"></tbody>
     </table>
+
+    <h2 style="margin-top:22px">已封禁账号 <button class="act" onclick="loadBans()">刷新</button></h2>
+    <table>
+      <thead><tr><th>账号</th><th>昵称</th><th>变动时间</th><th>操作</th></tr></thead>
+      <tbody id="bans-body"></tbody>
+    </table>
   </section>
 
   <section id="tab-results">
@@ -297,6 +303,17 @@ async function doSearch() {
     </tr>`).join("") || '<tr><td colspan="8" class="hint">没有匹配的玩家</td></tr>';
 }
 
+async function loadBans() {
+  const bans = await api("/api/bans");
+  $("bans-body").innerHTML = bans.map((b) => `
+    <tr>
+      <td>${esc(b.accountName)} <span class="hint">#${b.accountId}</span></td>
+      <td>${esc(b.nickname) || '<span class="hint">（无角色）</span>'}</td>
+      <td>${esc(b.changedAt.replace("T", " ").slice(0, 19))}</td>
+      <td><button class="act" onclick="ban(${b.accountId}, false)">解封</button></td>
+    </tr>`).join("") || '<tr><td colspan="4" class="hint">当前没有被封禁的账号</td></tr>';
+}
+
 function pickBalance(characterId, nickname) {
   showTab("ops");
   $("bal-char").value = characterId;
@@ -343,7 +360,9 @@ async function ban(accountId, disabled) {
   if (disabled && !confirm("封禁会立刻断开该账号并作废未使用的登录票据，继续？")) return;
   const data = await api("/api/players/ban", { method: "POST", body: JSON.stringify({ accountId, disabled }) });
   toast(disabled ? "已封禁" + (data.kicked ? "，并已踢下线" : "") : "已解封");
-  loadPlayers(); doSearch();
+  loadPlayers();
+  if ($("search-q").value.trim()) doSearch();
+  loadBans();
 }
 
 async function disband(roomId) {
@@ -374,6 +393,7 @@ async function setBalance() {
 function showTab(name) {
   document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("active", b.dataset.tab === name));
   document.querySelectorAll("section").forEach((s) => s.classList.toggle("active", s.id === "tab-" + name));
+  if (name === "search") loadBans();
   if (name === "logs") loadLogs();
   if (name === "results") loadResults();
 }

@@ -126,6 +126,39 @@ func (db *DB) RevokeLoginTickets(accountID uint32) (int64, error) {
 	return res.RowsAffected()
 }
 
+// AdminBan is one banned account as the console lists it.
+type AdminBan struct {
+	AccountID   uint32    `json:"accountId"`
+	AccountName string    `json:"accountName"`
+	Nickname    string    `json:"nickname"`
+	ChangedAt   time.Time `json:"changedAt"`
+}
+
+// ListBans returns every disabled account, most recently changed first.
+func (db *DB) ListBans() ([]AdminBan, error) {
+	ctx, cancel := db.ctx()
+	defer cancel()
+	rows, err := db.sql.QueryContext(ctx,
+		`SELECT a.id, a.account_name, COALESCE(c.nickname, ''), a.updated_at
+		 FROM accounts a
+		 LEFT JOIN characters c ON c.account_id = a.id
+		 WHERE a.disabled = TRUE
+		 ORDER BY a.updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []AdminBan{}
+	for rows.Next() {
+		var entry AdminBan
+		if err := rows.Scan(&entry.AccountID, &entry.AccountName, &entry.Nickname, &entry.ChangedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return out, rows.Err()
+}
+
 // AdminResult is one finished match as the console lists it.
 type AdminResult struct {
 	ID          string
