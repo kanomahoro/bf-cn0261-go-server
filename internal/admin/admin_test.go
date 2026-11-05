@@ -147,3 +147,24 @@ func TestSaveConfigValidatesBeforeWriting(t *testing.T) {
 		t.Fatalf("forbidden key: status = %d, want 400", recorder.Code)
 	}
 }
+
+// TestSecurityHeaders pins the three headers the console promises plus the CSP
+// that keeps an injected script from talking to another host.
+func TestSecurityHeaders(t *testing.T) {
+	server := testServer("0123456789abcdef")
+	handler := server.headers(server.routes())
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/", nil))
+	for header, want := range map[string]string{
+		"X-Content-Type-Options": "nosniff",
+		"X-Frame-Options":        "DENY",
+		"Referrer-Policy":        "no-referrer",
+	} {
+		if got := recorder.Header().Get(header); got != want {
+			t.Fatalf("%s = %q, want %q", header, got, want)
+		}
+	}
+	if csp := recorder.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'self'") {
+		t.Fatalf("CSP = %q, want it to pin connect-src", csp)
+	}
+}
