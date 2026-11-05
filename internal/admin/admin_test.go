@@ -27,9 +27,6 @@ func TestAuthRequiresTheToken(t *testing.T) {
 	handler := testServer("0123456789abcdef").auth(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	urlHandler := testServer("0123456789abcdef").authURL(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
 
 	cases := []struct {
 		name   string
@@ -40,7 +37,7 @@ func TestAuthRequiresTheToken(t *testing.T) {
 		{"no token", "", "", http.StatusUnauthorized},
 		{"wrong token", "Bearer nope", "", http.StatusUnauthorized},
 		{"header token", "Bearer 0123456789abcdef", "", http.StatusOK},
-		{"query token", "", "token=0123456789abcdef", http.StatusOK},
+		{"query token", "", "token=0123456789abcdef", http.StatusUnauthorized},
 	}
 	for _, testCase := range cases {
 		request := httptest.NewRequest(http.MethodGet, "/api/overview"+querySuffix(testCase.query), nil)
@@ -49,22 +46,9 @@ func TestAuthRequiresTheToken(t *testing.T) {
 		}
 		recorder := httptest.NewRecorder()
 		handler(recorder, request)
-		want := testCase.want
-		if testCase.query != "" {
-			// A query token is only accepted where the route opts in (the CSV).
-			want = http.StatusUnauthorized
+		if recorder.Code != testCase.want {
+			t.Fatalf("%s: status = %d, want %d", testCase.name, recorder.Code, testCase.want)
 		}
-		if recorder.Code != want {
-			t.Fatalf("%s: status = %d, want %d", testCase.name, recorder.Code, want)
-		}
-	}
-
-	// The CSV route is the one that opts in.
-	csvRequest := httptest.NewRequest(http.MethodGet, "/api/results.csv?token=0123456789abcdef", nil)
-	csvRecorder := httptest.NewRecorder()
-	urlHandler(csvRecorder, csvRequest)
-	if csvRecorder.Code != http.StatusOK {
-		t.Fatalf("csv query token: status = %d, want 200", csvRecorder.Code)
 	}
 }
 

@@ -299,6 +299,8 @@ async function doSearch() {
   const term = $("search-q").value.trim();
   if (!term) return;
   const rows = await api("/api/search?q=" + encodeURIComponent(term));
+  searchCache = {};
+  for (const row of rows) searchCache[row.characterId] = row;
   $("search-body").innerHTML = rows.map((p) => `
     <tr>
       <td>${esc(p.nickname)}</td>
@@ -309,7 +311,7 @@ async function doSearch() {
       <td>${p.characterType}</td>
       <td>${p.disabled ? '<span class="tag bad">封禁</span>' : '<span class="tag ok">正常</span>'}</td>
       <td>
-        <button class="act" onclick="pickBalance(${p.characterId}, '${esc(p.nickname)}')">改钱包</button>
+        <button class="act" onclick="pickBalance(${p.characterId})">改钱包</button>
         <button class="act" onclick="ban(${p.accountId}, ${!p.disabled})">${p.disabled ? "解封" : "封号"}</button>
       </td>
     </tr>`).join("") || '<tr><td colspan="8" class="hint">没有匹配的玩家</td></tr>';
@@ -326,11 +328,17 @@ async function loadBans() {
     </tr>`).join("") || '<tr><td colspan="4" class="hint">当前没有被封禁的账号</td></tr>';
 }
 
-function pickBalance(characterId, nickname) {
+// searchCache keeps the last search rows so a handler only ever receives a
+// numeric id. Nicknames are player-controlled text and must never be pasted into
+// an inline handler.
+let searchCache = {};
+
+function pickBalance(characterId) {
+  const entry = searchCache[characterId];
   showTab("ops");
   $("bal-char").value = characterId;
   $("bal-lucci").focus();
-  toast("已选中 " + nickname + "（角色 " + characterId + "）");
+  toast("已选中 " + ((entry && entry.nickname) || "角色") + "（角色 " + characterId + "）");
 }
 
 async function loadResults() {
@@ -356,9 +364,24 @@ async function showResult(id) {
     "</tbody></table>";
 }
 
-function downloadCSV() {
+async function downloadCSV() {
   const mode = $("res-mode").value;
-  window.open("/api/results.csv?mode=" + mode + "&token=" + encodeURIComponent(token), "_blank");
+  const response = await fetch("/api/results.csv?mode=" + mode, {
+    headers: { "Authorization": "***" + token },
+  });
+  if (!response.ok) {
+    alert("导出失败：" + response.status);
+    return;
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "matches.csv";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 async function kick(accountId) {

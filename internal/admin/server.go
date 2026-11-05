@@ -67,7 +67,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/bans", s.auth(s.bans))
 	mux.HandleFunc("GET /api/results", s.auth(s.results))
 	mux.HandleFunc("GET /api/results/detail", s.auth(s.resultDetail))
-	mux.HandleFunc("GET /api/results.csv", s.authURL(s.resultsCSV))
+	mux.HandleFunc("GET /api/results.csv", s.auth(s.resultsCSV))
 	mux.HandleFunc("POST /api/balance", s.auth(s.balance))
 	mux.HandleFunc("POST /api/notice", s.auth(s.notice))
 	mux.HandleFunc("GET /api/server", s.auth(s.serverInfo))
@@ -87,7 +87,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		return err
 	}
 	httpServer := &http.Server{
-		Handler: s.routes(),
+		Handler: s.headers(s.routes()),
 		// The console is tiny, so every phase gets a bound: an exposed port must not
 		// let a stalled client hold a connection open indefinitely.
 		ReadHeaderTimeout: 10 * time.Second,
@@ -113,6 +113,22 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
+// headers sets the three response headers that cost nothing and stop the console
+// from being framed, sniffed or leaking its URL as a referrer.
+func (s *Server) headers(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		// The page is one file with inline script and style, so those two have to be
+		// allowed; connect-src keeps anything injected from talking to another host.
+		w.Header().Set("Content-Security-Policy",
+			"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // printAddress puts the console URL on stdout, where an operator starting the
 // server by hand will see it without reading the log file.
 func (s *Server) printAddress(address string) {
@@ -129,18 +145,14 @@ func (s *Server) printAddress(address string) {
 	fmt.Println("--------------------------------------------------------------")
 }
 
-// auth requires the configured bearer token in the Authorization header.
+// auth requires the configured bearer token in the Authorization header. The
+// token is never accepted from the URL: it would end up in browser history, in
+// logs and in any copy of the link.
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
-	return s.guard(false, next)
+	return s.guard(next)
 }
 
-// authURL is auth with the token also accepted as a query parameter, which the
-// CSV download needs: a new window cannot carry a request header.
-func (s *Server) authURL(next http.HandlerFunc) http.HandlerFunc {
-	return s.guard(true, next)
-}
-
-func (s *Server) guard(allowQuery bool, next http.HandlerFunc) http.HandlerFunc {
+func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// A panic here must not reach net/http's default handler: this runs beside
 		// the game server, and the operator has to see which call went wrong.
@@ -157,9 +169,6 @@ func (s *Server) guard(allowQuery bool, next http.HandlerFunc) http.HandlerFunc 
 			return
 		}
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token == "" && allowQuery {
-			token = r.URL.Query().Get("token")
-		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.Token)) != 1 {
 			if s.authFails != nil {
 				s.authFails.fail(address, now)
