@@ -38,6 +38,24 @@ func banner() string {
 	return "BubbleFighter CN0261 Go Server v" + Version + "  By:" + Author
 }
 
+// consoleHint names the management console once the server is listening. It is
+// printed as a plain line rather than a log record, so an operator sees it among
+// the startup chatter without scrolling back through the log file.
+func consoleHint(cfg config.Config, configPath string) string {
+	if !cfg.Admin.Enabled {
+		return ""
+	}
+	host := cfg.Admin.ListenAddress
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	address := fmt.Sprintf("http://%s:%d/", host, cfg.Admin.ListenPort)
+	return "--------------------------------------------------------------\n" +
+		" Admin console : " + address + "\n" +
+		" Token         : admin.token in " + configPath + "\n" +
+		"--------------------------------------------------------------"
+}
+
 // usageText describes the real flag set; keep it in sync with the flags below.
 func usageText() string {
 	return banner() + `
@@ -281,6 +299,10 @@ func run(args []string) error {
 	if cfg.Admin.Enabled {
 		console := admin.New(cfg.Admin, server, db, Version, *configPath, logger)
 		go func() { errs <- console.Serve(ctx) }()
+	}
+
+	if hint := consoleHint(cfg, *configPath); hint != "" {
+		fmt.Println(hint)
 	}
 
 	signals := make(chan os.Signal, 1)
