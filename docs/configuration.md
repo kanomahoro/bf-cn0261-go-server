@@ -21,7 +21,11 @@
 | `listenAddress` | `0.0.0.0` | 监听地址；本机测试可改 `127.0.0.1` |
 | `listenPort` | `26100` | 游戏/大厅端口 |
 | `maxConnections` | `256` | 并发连接上限 |
-| `idleTimeoutSeconds` | `600` | 连接空闲超时（秒），超时即断开 |
+| `idleTimeoutSeconds` | `600` | 连接空闲超时（秒），静默超过该时长即断开；**`0` 表示不按空闲断开** |
+
+每个接入连接都开启 **TCP keepalive**（空闲 15s 起探测、每 15s 一次、4 次无响应判死），
+所以把空闲超时设成 `0` 也不会留下半死连接：真掉线的对端由内核在约 60 秒内报错断开，
+只是静默但活着的客户端不再被计时踢掉（Fantasy 就是 `0` + keepalive 这套）。
 
 ## `relay` — 对局中继（26104）
 
@@ -31,7 +35,7 @@
 | `listenAddress` / `listenPort` | `0.0.0.0` / `26104` | 监听地址与端口 |
 | `advertisedAddress` | `127.0.0.1` | **会真实下发客户端**：开对局时写进 S601 的 4 字节 IPv4。对外开服必须填公网 IP |
 | `maxConnections` | `256` | 并发中继连接上限 |
-| `idleTimeoutSeconds` | `120` | 中继连接空闲超时 |
+| `idleTimeoutSeconds` | `120` | 中继连接空闲超时；**`0` 表示不按空闲断开** |
 
 ## `database` — MariaDB
 

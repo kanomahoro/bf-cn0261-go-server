@@ -271,6 +271,7 @@ func (a *Auth) Serve(ctx context.Context) error {
 }
 
 func (a *Auth) handle(conn net.Conn) {
+	enableKeepAlive(conn)
 	defer a.release()
 	defer conn.Close()
 	defer func() {

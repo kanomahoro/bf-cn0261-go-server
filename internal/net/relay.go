@@ -289,6 +289,7 @@ func (r *Relay) Serve(ctx context.Context) error {
 }
 
 func (r *Relay) handle(conn net.Conn) {
+	enableKeepAlive(conn)
 	client := &relayConn{
 		conn:  conn,
 		codec: protocol.NewLambdaCodec(protocol.EndpointServer),

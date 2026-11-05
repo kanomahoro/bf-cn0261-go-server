@@ -125,8 +125,12 @@ func (c *connection) closeWithReason(reason string) {
 
 // Touch refreshes the idle deadline. Relay traffic counts as activity for the
 // game connection too, otherwise a client that only talks over the relay is
-// dropped after one idle window.
+// dropped after one idle window. A zero idle window means the deadline is never
+// armed, so there is nothing to refresh.
 func (c *connection) Touch() {
+	if c.idle <= 0 {
+		return
+	}
 	c.mu.Lock()
 	closed := c.closed
 	c.mu.Unlock()
@@ -173,6 +177,7 @@ func (c *connection) Send(p protocol.Packet) error {
 }
 
 func (g *Game) handle(ctx context.Context, id uint64, conn net.Conn) {
+	enableKeepAlive(conn)
 	defer g.release()
 	defer conn.Close()
 	var session *game.Session

@@ -187,8 +187,8 @@ func (c Config) Validate() error {
 	if c.Network.MaxConnections < 1 || c.Network.MaxConnections > 65535 {
 		return fmt.Errorf("network.maxConnections must be between 1 and 65535")
 	}
-	if c.Network.IdleTimeoutSeconds < 1 || c.Network.IdleTimeoutSeconds > 3600 {
-		return fmt.Errorf("network.idleTimeoutSeconds must be between 1 and 3600")
+	if c.Network.IdleTimeoutSeconds < 0 || c.Network.IdleTimeoutSeconds > 3600 {
+		return fmt.Errorf("network.idleTimeoutSeconds must be between 0 and 3600 (0 disables the idle timeout)")
 	}
 	if c.Relay.Enabled {
 		if c.Relay.ListenPort == 0 {
@@ -197,8 +197,8 @@ func (c Config) Validate() error {
 		if c.Relay.MaxConnections < 1 || c.Relay.MaxConnections > 65535 {
 			return fmt.Errorf("relay.maxConnections must be between 1 and 65535")
 		}
-		if c.Relay.IdleTimeoutSeconds < 1 || c.Relay.IdleTimeoutSeconds > 3600 {
-			return fmt.Errorf("relay.idleTimeoutSeconds must be between 1 and 3600")
+		if c.Relay.IdleTimeoutSeconds < 0 || c.Relay.IdleTimeoutSeconds > 3600 {
+			return fmt.Errorf("relay.idleTimeoutSeconds must be between 0 and 3600 (0 disables the idle timeout)")
 		}
 		if c.Relay.AdvertisedAddress != "" && net.ParseIP(c.Relay.AdvertisedAddress) == nil {
 			return fmt.Errorf("relay.advertisedAddress must be an IPv4 address")
