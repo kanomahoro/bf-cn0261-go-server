@@ -99,8 +99,8 @@ func (r *relayConn) send(p protocol.Packet) {
 }
 
 // RelayDisconnectHandler reports that a member's relay transport went away
-// without the server closing it. The reference treats that exactly like the
-// member vanishing mid-match.
+// without the server closing it. Every peer packet travels that transport, so the
+// game side treats it as the member dropping out of the round.
 type RelayDisconnectHandler func(roomID uint16, slot uint8)
 
 // RelayHandler receives every in-match packet that arrives over a relay
