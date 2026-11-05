@@ -15,7 +15,7 @@ set -Eeuo pipefail
 VERSION="0.3.2"
 REPO="kanomahoro/bf-cn0261-go-server"
 BIN_ASSET="bfserver-linux-amd64-v${VERSION}.tar.gz"
-BIN_SHA256="b8080ce67625d0f37bca6bea6f5c22558f0bbb9843e38300f142df401065ce41"
+BIN_SHA256="776c7307ded2126a0e104728284cce74bf3af56867c5b774399d10f64d4e3e31"
 PREFIX="/opt/bfserver"
 SERVICE="bfserver"
 DB_NAME="bubblefighter_cn0261"
