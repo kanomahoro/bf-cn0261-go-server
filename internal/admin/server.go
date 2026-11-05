@@ -63,12 +63,21 @@ func (s *Server) routes() *http.ServeMux {
 
 // Serve answers until the context is cancelled.
 func (s *Server) Serve(ctx context.Context) error {
-	mux := s.routes()
-
+	address := net.JoinHostPort(s.cfg.ListenAddress, strconv.Itoa(int(s.cfg.ListenPort)))
+	// Bind before announcing anything: an operator must never be pointed at a port
+	// that is already taken by something else.
+	listener, err := net.Listen("tcp", address)
+	if err != nil {
+		return err
+	}
 	httpServer := &http.Server{
-		Addr:              net.JoinHostPort(s.cfg.ListenAddress, strconv.Itoa(int(s.cfg.ListenPort))),
-		Handler:           mux,
+		Handler: s.routes(),
+		// The console is tiny, so every phase gets a bound: an exposed port must not
+		// let a stalled client hold a connection open indefinitely.
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       20 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	go func() {
 		<-ctx.Done()
@@ -76,11 +85,28 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer cancel()
 		_ = httpServer.Shutdown(shutdown)
 	}()
-	s.log.Info("[Admin] listening", "address", httpServer.Addr)
-	if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	s.log.Info("[Admin] listening", "address", listener.Addr().String())
+	s.printAddress(listener.Addr().String())
+	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
 	return nil
+}
+
+// printAddress puts the console URL on stdout, where an operator starting the
+// server by hand will see it without reading the log file.
+func (s *Server) printAddress(address string) {
+	host, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	fmt.Println("--------------------------------------------------------------")
+	fmt.Println(" Admin console : http://" + net.JoinHostPort(host, port) + "/")
+	fmt.Println(" Token         : admin.token in " + s.cfgPath)
+	fmt.Println("--------------------------------------------------------------")
 }
 
 // auth requires the configured bearer token in the Authorization header.

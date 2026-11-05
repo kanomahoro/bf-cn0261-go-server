@@ -265,7 +265,13 @@ func (s *Server) AdminSetBan(accountID uint32, disabled bool) (bool, error) {
 	}
 	var revoked int64
 	if disabled {
-		revoked, _ = s.db.RevokeLoginTickets(accountID)
+		count, err := s.db.RevokeLoginTickets(accountID)
+		if err != nil {
+			// The ban itself is stored; a ticket that could not be burnt is worth a
+			// warning, because it still opens the game until it expires.
+			s.log.Warn("[Admin] ticket revocation failed", "account", accountID, "error", err)
+		}
+		revoked = count
 	}
 	kicked := false
 	if disabled {

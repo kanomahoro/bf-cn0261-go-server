@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -70,8 +71,11 @@ func (db *DB) SetBalance(characterID, lucci, cash uint32) error {
 	if err != nil {
 		return mapError(err)
 	}
+	// MariaDB counts only rows whose values actually changed, so a write that
+	// sets the balance it already holds reports zero here. Ask whether the row
+	// exists instead of reading that as "no such character".
 	if affected, err := res.RowsAffected(); err == nil && affected == 0 {
-		return ErrNotFound
+		return existsOr(db, ctx, "SELECT 1 FROM character_stats WHERE character_id = ?", characterID)
 	}
 	return nil
 }
@@ -86,8 +90,24 @@ func (db *DB) SetAccountDisabled(accountID uint32, disabled bool) error {
 	if err != nil {
 		return mapError(err)
 	}
+	// Banning an account that is already banned changes nothing, and MariaDB
+	// reports zero rows for that; only a missing account is an error.
 	if affected, err := res.RowsAffected(); err == nil && affected == 0 {
+		return existsOr(db, ctx, "SELECT 1 FROM accounts WHERE id = ?", accountID)
+	}
+	return nil
+}
+
+// existsOr reports ErrNotFound when the statement finds no row, and nil when it
+// does: the "nothing changed" case a no-op UPDATE produces.
+func existsOr(db *DB, ctx context.Context, query string, args ...any) error {
+	var one int
+	err := db.sql.QueryRowContext(ctx, query, args...).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
+	}
+	if err != nil {
+		return mapError(err)
 	}
 	return nil
 }
