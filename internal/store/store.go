@@ -573,7 +573,7 @@ const (
 // MaxLucci is the highest balance settlement will store or report. Anything a
 // match would add past it is clamped and the result screen reports the gain that
 // was actually applied, so the interface and the database always agree.
-const MaxLucci = 10_000_000
+const MaxLucci = 100_000_000
 
 // NormalizeTotal pins a stored total to its cap. A value can only exceed the cap
 // through legacy data or a manual edit; the result row requires
