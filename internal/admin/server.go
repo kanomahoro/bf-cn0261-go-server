@@ -243,7 +243,7 @@ func (s *Server) ban(w http.ResponseWriter, r *http.Request) {
 	}
 	kicked, err := s.game.AdminSetBan(body.AccountID, body.Disabled)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, storeMessage(err, "账号不存在"))
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "kicked": kicked})
@@ -385,7 +385,7 @@ func (s *Server) balance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.game.AdminSetBalance(body.CharacterID, body.Lucci, body.Cash); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, http.StatusBadRequest, storeMessage(err, "角色不存在（没有余额记录）"))
 		return
 	}
 	writeJSON(w, map[string]any{"ok": true, "note": "写库完成；玩家重新登录、购买或打完一局后生效"})
@@ -461,6 +461,15 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+// storeMessage turns the store's sentinel error into something an operator can
+// act on; anything else keeps the original text, which usually names the column.
+func storeMessage(err error, missing string) string {
+	if errors.Is(err, store.ErrNotFound) {
+		return missing
+	}
+	return err.Error()
 }
 
 func errorText(err error) string {
