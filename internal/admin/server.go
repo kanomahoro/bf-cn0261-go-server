@@ -53,7 +53,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/search", s.auth(s.search))
 	mux.HandleFunc("GET /api/results", s.auth(s.results))
 	mux.HandleFunc("GET /api/results/detail", s.auth(s.resultDetail))
-	mux.HandleFunc("GET /api/results.csv", s.auth(s.resultsCSV))
+	mux.HandleFunc("GET /api/results.csv", s.authURL(s.resultsCSV))
 	mux.HandleFunc("POST /api/balance", s.auth(s.balance))
 	mux.HandleFunc("POST /api/notice", s.auth(s.notice))
 	mux.HandleFunc("GET /api/server", s.auth(s.serverInfo))
@@ -83,11 +83,21 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-// auth requires the configured bearer token on every API call.
+// auth requires the configured bearer token in the Authorization header.
 func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
+	return s.guard(false, next)
+}
+
+// authURL is auth with the token also accepted as a query parameter, which the
+// CSV download needs: a new window cannot carry a request header.
+func (s *Server) authURL(next http.HandlerFunc) http.HandlerFunc {
+	return s.guard(true, next)
+}
+
+func (s *Server) guard(allowQuery bool, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if token == "" {
+		if token == "" && allowQuery {
 			token = r.URL.Query().Get("token")
 		}
 		if subtle.ConstantTimeCompare([]byte(token), []byte(s.cfg.Token)) != 1 {

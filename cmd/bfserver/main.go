@@ -298,7 +298,13 @@ func run(args []string) error {
 	}
 	if cfg.Admin.Enabled {
 		console := admin.New(cfg.Admin, server, db, Version, *configPath, logger)
-		go func() { errs <- console.Serve(ctx) }()
+		// The console is auxiliary: a port it cannot bind must not take the game
+		// server down with it, so its failure is logged rather than fatal.
+		go func() {
+			if err := console.Serve(ctx); err != nil && !errors.Is(err, context.Canceled) {
+				logger.Error("[Admin] console stopped", "error", err)
+			}
+		}()
 	}
 
 	if hint := consoleHint(cfg, *configPath); hint != "" {

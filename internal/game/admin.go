@@ -63,14 +63,33 @@ func (s *Server) Snapshot() AdminOverview {
 	}
 }
 
-// AdminPlayers lists every logged-in session.
+// AdminPlayers lists every logged-in session. A seat is resolved from the room
+// roster rather than from the session's own fields: those are written by the
+// session's goroutine, and the console only needs a consistent snapshot.
 func (s *Server) AdminPlayers() []AdminPlayer {
 	s.mu.Lock()
 	sessions := make([]*Session, 0, len(s.online))
 	for _, session := range s.online {
 		sessions = append(sessions, session)
 	}
+	rooms := make([]*Room, 0, len(s.rooms))
+	for _, room := range s.rooms {
+		rooms = append(rooms, room)
+	}
 	s.mu.Unlock()
+
+	type seat struct {
+		room uint16
+		slot int
+	}
+	seats := make(map[*Session]seat, len(sessions))
+	for _, room := range rooms {
+		for _, member := range room.View() {
+			if member.Occupied {
+				seats[member.Session] = seat{room: room.ID, slot: member.Slot}
+			}
+		}
+	}
 
 	out := make([]AdminPlayer, 0, len(sessions))
 	for _, session := range sessions {
@@ -87,10 +106,10 @@ func (s *Server) AdminPlayers() []AdminPlayer {
 			Slot:        -1,
 			Where:       "登录中",
 		}
-		if room := session.room; room != nil {
+		if found, ok := seats[session]; ok {
 			entry.Where = "房间"
-			entry.RoomID = room.ID
-			entry.Slot = session.slot
+			entry.RoomID = found.room
+			entry.Slot = found.slot
 		} else if session.inPlaza {
 			entry.Where = "广场"
 		}
