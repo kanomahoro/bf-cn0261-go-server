@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -202,11 +203,13 @@ func (s *Server) AdminDisbandRoom(roomID uint16) (int, bool) {
 }
 
 // BroadcastNotice sends one system chat line to every logged-in session and
-// reports how many received it.
-func (s *Server) BroadcastNotice(text string) int {
+// reports how many received it. The text follows the chat rules (1..256 UTF-16
+// units, no control characters), so an over-long notice is refused instead of
+// silently reaching nobody.
+func (s *Server) BroadcastNotice(text string) (int, error) {
 	notice, err := protocol.CreateChatNotice(protocol.U16String(text))
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("公告内容不合法：需 1~256 个字符且不含控制字符")
 	}
 	s.mu.Lock()
 	targets := make([]*Session, 0, len(s.online))
@@ -221,7 +224,7 @@ func (s *Server) BroadcastNotice(text string) int {
 		}
 	}
 	s.log.Info("[Admin] notice broadcast", "delivered", delivered, "text", text)
-	return delivered
+	return delivered, nil
 }
 
 // AdminSetBalance writes a wallet through the store and reports whether the row

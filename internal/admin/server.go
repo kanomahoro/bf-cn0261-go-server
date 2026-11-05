@@ -312,7 +312,11 @@ func (s *Server) notice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "公告内容为空")
 		return
 	}
-	delivered := s.game.BroadcastNotice(text)
+	delivered, err := s.game.BroadcastNotice(text)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	writeJSON(w, map[string]any{"ok": true, "delivered": delivered})
 }
 
