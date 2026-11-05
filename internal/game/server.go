@@ -251,9 +251,9 @@ func (s *Server) Disconnect(session *Session) {
 	if session == nil {
 		return
 	}
-	if session.inPlaza {
-		s.leavePlaza(session)
-	}
+	// Unconditional: an entry that failed halfway may have left a seat with the flag
+	// still false, and a stale seat locks the player out of the plaza.
+	s.leavePlaza(session)
 	if session.room != nil {
 		if err := s.leaveRoom(session); err != nil {
 			s.log.Debug("leave on disconnect failed", "session", session.ID, "error", err)

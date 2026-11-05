@@ -199,19 +199,22 @@ func (d *PlazaDirectory) move(sessionID uint64, position protocol.PlazaPosition)
 	return plaza, slot, true
 }
 
-// containsCharacter reports whether the character is already present.
-func (d *PlazaDirectory) containsCharacter(characterID uint32, exclude uint64) bool {
+// characterHolder returns the session that already occupies this character's
+// plaza seat, if it is not the excluded one. The caller decides whether that
+// session is still alive: a seat whose session was never cleaned up must not
+// block the player from coming back.
+func (d *PlazaDirectory) characterHolder(characterID uint32, exclude uint64) *Session {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	for _, plaza := range d.plazas {
 		for _, member := range plaza.Members {
 			if member.sessionID != 0 && member.sessionID != exclude &&
 				member.session != nil && member.session.CharacterID() == characterID {
-				return true
+				return member.session
 			}
 		}
 	}
-	return false
+	return nil
 }
 
 // plazaSnapshot captures the roster and card under the directory lock so no
@@ -304,20 +307,32 @@ func (s *Server) enterPlaza(session *Session) error {
 			return err
 		}
 	}
-	if s.plazas.containsCharacter(session.Character.ID, session.ID) {
-		return fmt.Errorf("character is already present on another connection")
+	if holder := s.plazas.characterHolder(session.Character.ID, session.ID); holder != nil {
+		// A seat whose session is gone must not lock the player out: the console, a
+		// dying socket or an aborted entry can leave one behind.
+		if s.accountOnline(holder) {
+			return fmt.Errorf("character is already present on another connection")
+		}
+		s.log.Warn("[Plaza] dropping a seat whose session is gone",
+			"character", session.Character.ID, "holder", holder.ID)
+		s.dropPlazaSeat(holder.ID)
 	}
 	plaza, slot, err := s.plazas.enter(session, session.channelType, session.channelIndex)
 	if err != nil {
 		return err
 	}
+	// The seat exists from here on, so the flag must be set before anything can
+	// fail: a failure below rolls the seat back, and a disconnect cleans it up.
+	session.inPlaza = true
 	snapshot := s.plazas.snapshot(plaza)
 	members := s.plazaMembers(snapshot)
 	entry, err := protocol.CreateRoomEntryReply(snapshot.setting, uint32(snapshot.masterSlot), uint32(slot), members)
 	if err != nil {
+		s.leavePlaza(session)
 		return err
 	}
 	if err := session.Send(entry); err != nil {
+		s.leavePlaza(session)
 		return err
 	}
 	if slotReply, err := protocol.CreateRoomSlotReply(uint32(slot), members[slot]); err == nil {
@@ -326,29 +341,48 @@ func (s *Server) enterPlaza(session *Session) error {
 	if setting, err := protocol.CreateRoomSettingReply(snapshot.setting); err == nil {
 		s.broadcastPlaza(plaza, setting, session.ID)
 	}
-	session.inPlaza = true
 	return nil
+}
+
+// accountOnline reports whether the session is still the account's live one.
+func (s *Server) accountOnline(session *Session) bool {
+	if session == nil {
+		return false
+	}
+	accountID := session.Account.ID
+	if accountID == 0 {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.online[accountID] == session
 }
 
 // leavePlaza removes the session and announces the departure.
 func (s *Server) leavePlaza(session *Session) {
 	session.inPlaza = false
-	plaza, slot, masterChanged, ok := s.plazas.leave(session.ID)
+	s.dropPlazaSeat(session.ID)
+}
+
+// dropPlazaSeat removes one plaza seat by session id and announces it. A session
+// that is not seated is a no-op, so callers can use it without checking.
+func (s *Server) dropPlazaSeat(sessionID uint64) {
+	plaza, slot, masterChanged, ok := s.plazas.leave(sessionID)
 	if !ok {
 		return
 	}
 	departure, err := protocol.CreateRoomDepartureReply(uint32(slot))
 	if err == nil {
-		s.broadcastPlaza(plaza, departure, session.ID)
+		s.broadcastPlaza(plaza, departure, sessionID)
 	}
 	if masterChanged {
 		if master, err := protocol.CreateRoomMasterReply(uint32(s.plazas.snapshot(plaza).masterSlot)); err == nil {
-			s.broadcastPlaza(plaza, master, session.ID)
+			s.broadcastPlaza(plaza, master, sessionID)
 		}
 	}
 	snapshot := s.plazas.snapshot(plaza)
 	if setting, err := protocol.CreateRoomSettingReply(snapshot.setting); err == nil {
-		s.broadcastPlaza(plaza, setting, session.ID)
+		s.broadcastPlaza(plaza, setting, sessionID)
 	}
 }
 
