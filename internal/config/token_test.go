@@ -12,13 +12,15 @@ func TestValidateAdminToken(t *testing.T) {
 		}
 	}
 	bad := []string{
-		"",                   // empty
-		"short",              // too short
-		"aaaaaaaaaaaaaaaaaa", // one character repeated
-		"1234567890123456",   // sequential digits
-		"changemechangeme",   // placeholder
-		"passwordpassword",   // placeholder
-		"abcabcabcabcabcabc", // six distinct characters only
+		"",                     // empty
+		"short",                // too short
+		"aaaaaaaaaaaaaaaaaa",   // one character repeated
+		"1234567890123456",     // sequential digits
+		"changemechangeme",     // placeholder
+		"changeme12345678",     // placeholder with digits glued on
+		"passwordpassword",     // placeholder
+		"my-qwerty-token-2026", // placeholder inside a longer value
+		"abcabcabcabcabcabc",   // six distinct characters only
 	}
 	for _, token := range bad {
 		if err := ValidateAdminToken(token); err == nil {

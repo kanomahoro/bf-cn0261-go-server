@@ -116,11 +116,16 @@ type Admin struct {
 	Token string `json:"token"`
 }
 
-// weakAdminTokens are the values people type when they mean "not yet set".
+// weakAdminTokens are the exact values people type when they mean "not yet set".
 var weakAdminTokens = map[string]bool{
-	"changeme": true, "changemechangeme": true, "password": true, "passwordpassword": true,
-	"token": true, "admintoken": true, "secret": true, "adminadminadmin": true,
+	"token": true, "secret": true, "adminadminadmin": true,
 	"0000000000000000": true, "1234567890123456": true, "aaaaaaaaaaaaaaaa": true,
+}
+
+// weakAdminFragments catch the same words with digits glued on, which is how
+// "changeme12345678" gets past an exact-match check.
+var weakAdminFragments = []string{
+	"changeme", "password", "qwerty", "letmein", "123456", "111111", "adminadmin",
 }
 
 // ValidateAdminToken enforces what a bearer token has to survive: length, enough
@@ -129,8 +134,14 @@ func ValidateAdminToken(token string) error {
 	if len(token) < 16 {
 		return fmt.Errorf("must be at least 16 characters")
 	}
-	if weakAdminTokens[strings.ToLower(token)] {
+	lowered := strings.ToLower(token)
+	if weakAdminTokens[lowered] {
 		return fmt.Errorf("is a placeholder; generate a random value")
+	}
+	for _, fragment := range weakAdminFragments {
+		if strings.Contains(lowered, fragment) {
+			return fmt.Errorf("contains the placeholder %q; generate a random value", fragment)
+		}
 	}
 	distinct := map[rune]bool{}
 	for _, character := range token {
