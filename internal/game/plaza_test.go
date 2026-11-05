@@ -105,3 +105,25 @@ func TestEnterPlazaRefusesALiveDuplicate(t *testing.T) {
 		t.Fatalf("a second live session was seated on the same character")
 	}
 }
+
+// TestLoginClearsASeatLeftByAnEarlierSession covers the path a player hits after
+// quitting mid-match on an older build: the login itself must free the seat, so
+// the lobby entry that follows cannot be refused.
+func TestLoginClearsASeatLeftByAnEarlierSession(t *testing.T) {
+	server := plazaTestServer(t)
+	stale := plazaTestSession(21, 7, 3, nil)
+	if _, _, err := server.plazas.enter(stale, lobbyChannelType, 0); err != nil {
+		t.Fatalf("seat the stale session: %v", err)
+	}
+	live := plazaTestSession(22, 7, 3, &recordingSender{})
+	server.online[3] = live
+	if err := server.sendLoginReply(live); err != nil {
+		t.Fatalf("login reply: %v", err)
+	}
+	if holder := server.plazas.characterHolder(7, live.ID); holder != nil {
+		t.Fatalf("login left the earlier seat in place")
+	}
+	if err := server.enterPlaza(live); err != nil {
+		t.Fatalf("lobby entry refused after login: %v", err)
+	}
+}

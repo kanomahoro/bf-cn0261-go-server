@@ -575,6 +575,17 @@ func (s *Server) sendLoginReply(session *Session) error {
 		binary.LittleEndian.Uint32(raw[0:4]),
 		binary.LittleEndian.Uint32(raw[4:8]),
 	}
+	// The account was just taken over, so any plaza seat still carrying this
+	// character belongs to a session that is gone. Dropping it here means the
+	// player reaches the lobby even when the entry that failed earlier could not
+	// clean up after itself.
+	if session.Character.ID != 0 {
+		if holder := s.plazas.characterHolder(session.Character.ID, session.ID); holder != nil {
+			s.log.Warn("[Plaza] dropping a seat left by an earlier session",
+				"character", session.Character.ID, "holder", holder.ID)
+			s.dropPlazaSeat(holder.ID)
+		}
+	}
 	character := s.svc.WireCharacter(session.Character)
 	return session.Send(protocol.CreateLoginReply(0, session.Account.ID,
 		protocol.U16String(session.AccountName), session.Challenges[0],
