@@ -215,3 +215,51 @@ func TestMapPoolsPerAdmittedMode(t *testing.T) {
 		t.Errorf("theme filter returned %d of 57", got)
 	}
 }
+
+// The individual mode leaves the respawn point to the client, the way the zombie
+// battle does, so the whole respawn walk has to accept the marker it reports. A
+// marker it cannot use would strand the seat in the offered state for the round.
+func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
+	life := NewBattleLife(nil, true)
+	for slot := 0; slot < 2; slot++ {
+		if err := life.Bind(uint8(slot), objectFor(slot), 0); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	knock := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+		DirectDeath:  true,
+	}
+	if accepted, err := life.Apply(0, knock, false); err != nil || !accepted {
+		t.Fatalf("direct death rejected: accepted=%v err=%v", accepted, err)
+	}
+	if err := life.RequestRespawn(0, objectFor(0)); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if !life.BeginRespawn(0) {
+		t.Fatal("the dead seat did not enter the respawn wait")
+	}
+	if _, err := life.OfferRespawn(0, 11); err != nil {
+		t.Fatalf("offer: %v", err)
+	}
+	// The client answers with a point of its own, outside the marker group the
+	// server offered: that is the client's call in this mode.
+	if _, err := life.ConfirmRespawn(0, objectFor(0), 3); err != nil {
+		t.Errorf("teamless round refused the client's confirmation: %v", err)
+	}
+	if err := life.AdoptSpawnIndex(0, 3); err != nil {
+		t.Errorf("teamless round refused the client's marker: %v", err)
+	}
+
+	// A seated round keeps the group rule.
+	seated := NewBattleLife(nil, false)
+	if err := seated.Bind(0, objectFor(0), 1); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if err := seated.AdoptSpawnIndex(0, 27); err == nil {
+		t.Error("a team-one seat adopted the other block's marker")
+	}
+}

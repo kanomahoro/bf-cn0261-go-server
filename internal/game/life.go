@@ -116,7 +116,11 @@ func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
 		return fmt.Errorf("spawn adoption requires an initialized player")
 	}
 	player := &l.players[slot]
-	if !l.validMarker(player.team, spawnIndex) {
+	// A teamless round leaves the spawn point to the client: the individual mode
+	// picks it locally the way the zombie battle does, so the marker it reports is
+	// taken as it is. In a seated round the marker names a side, which is why the
+	// group check stays there.
+	if !l.teamless && !l.validMarker(player.team, spawnIndex) {
 		return fmt.Errorf("respawn confirmation changed the selected spawn")
 	}
 	player.spawnIndex = spawnIndex
@@ -627,9 +631,10 @@ func (l *BattleLife) ConfirmRespawn(slot uint8, objectID, spawnIndex uint32) (bo
 	if spawnIndex != player.spawnIndex {
 		// The client answers with the marker it actually used. It is authoritative
 		// for its own character, and refusing here would skip the S707 broadcast
-		// that tells every observer the respawn finished, so adopt a marker that
-		// still belongs to the team block and only reject anything outside it.
-		if spawnIndex/10 != uint32(player.team) || spawnIndex%10 < 1 || spawnIndex%10 > 8 {
+		// that tells every observer the respawn finished, so adopt the marker and
+		// only reject one that cannot be a spawn point at all -- nothing, in a
+		// teamless round, where the client owns the point outright.
+		if !l.teamless && !l.validMarker(player.team, spawnIndex) {
 			return false, fmt.Errorf("respawn confirmation changed the selected spawn")
 		}
 		player.spawnIndex = spawnIndex
