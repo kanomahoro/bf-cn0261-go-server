@@ -333,13 +333,11 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 		}
 		objectID, err := current.OfferRespawn(uint8(slot), spawnIndex)
 		if err != nil {
-			s.log.Info("[Respawn] offer refused", "room", room.ID, "slot", slot,
+			s.log.Debug("[Respawn] offer refused", "room", room.ID, "slot", slot,
 				"marker", spawnIndex, "error", err)
 			return
 		}
-		// Temporary diagnostic: what the server offered, so a client that picks a
-		// point of its own can be told from one that keeps the offer.
-		s.log.Info("[Respawn] offered", "room", room.ID, "slot", slot, "marker", spawnIndex,
+		s.log.Debug("[Respawn] offered", "room", room.ID, "slot", slot, "marker", spawnIndex,
 			"team", room.Team(slot), "mode", room.SettingCopy().Game.Mode)
 		_ = target.Send(protocol.CreateRespawnOffer(objectID, spawnIndex))
 	}
