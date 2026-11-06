@@ -371,3 +371,26 @@ func TestAmmoSupplyModes(t *testing.T) {
 		}
 	}
 }
+
+// Seats killed by the same blast respawn together, so the picker has to hand out
+// distinct points: the first build gave three seats marker 26 inside six seconds.
+func TestIndividualModeSpreadsSimultaneousRespawns(t *testing.T) {
+	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	seen := map[uint32]int{}
+	for slot := 0; slot < 8; slot++ {
+		marker := room.NextSpawnIndex(slot, 8)
+		if marker == 0 {
+			t.Fatalf("slot %d got no marker", slot)
+		}
+		seen[marker]++
+	}
+	if len(seen) != 8 {
+		t.Errorf("8 seats took %d distinct markers: %v", len(seen), seen)
+	}
+
+	// Every marker is held now, so the next pick still has to answer with one of
+	// them rather than nothing.
+	if marker := room.NextSpawnIndex(0, 8); marker == 0 {
+		t.Error("an exhausted pool produced no marker")
+	}
+}

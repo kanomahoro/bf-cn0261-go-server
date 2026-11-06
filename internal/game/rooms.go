@@ -83,6 +83,10 @@ type Room struct {
 	// lastSpawn remembers the random marker an individual-round seat took last,
 	// so the next respawn never lands on the same point.
 	lastSpawn [maxRoomSlots]uint32
+	// spawnUsedAt keeps a marker out of circulation for a moment after it is handed
+	// out. Without it two seats the same blast killed come back on one point: three
+	// of them took marker 26 within six seconds of each other on the first build.
+	spawnUsedAt [29]time.Time
 	// respawnAt records when each seat last came back, so the box the client
 	// places a few seconds after a respawn can be told from a knock-down box.
 	respawnAt [maxRoomSlots]time.Time
@@ -477,6 +481,10 @@ func (r *Room) StartedReport() bool {
 // teammates and they would share a marker. The ordinal inside the team is used
 // instead, so the first member of a team takes marker 1, the second marker 2,
 // and each respawn advances by one.
+// spawnHold keeps a marker out of circulation right after it is handed out, long
+// enough for the seat that took it to walk away.
+const spawnHold = 6 * time.Second
+
 func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -485,18 +493,46 @@ func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
 	}
 	// The individual hot-blood battle drops every seat at a random point of the
 	// map and never on the marker it used last: the retail mode moves the respawn
-	// point each time. Both battle groups are ordinary points there, not a side.
+	// point each time. Both battle groups are ordinary points there, not a side,
+	// and the client takes whatever marker it is given, so the spread is this
+	// server's job.
 	if r.Setting.Game.Mode == singlePvpModeID {
 		span := teamSpawnCount
 		if span > 8 {
 			span = 8
 		}
-		pick := uint32(mathrand.Intn(int(span) * 2))
-		index := (pick/span+1)*10 + pick%span + 1
-		if index == r.lastSpawn[slot] {
-			index = (pick/span+1)*10 + (pick%span+1)%span + 1
+		now := time.Now()
+		free := make([]uint32, 0, 2*span)
+		var oldest uint32
+		var oldestAt time.Time
+		for _, base := range []uint32{10, 20} {
+			for within := uint32(1); within <= span; within++ {
+				marker := base + within
+				if marker == r.lastSpawn[slot] {
+					continue
+				}
+				held := r.spawnUsedAt[marker]
+				if !now.Before(held) {
+					free = append(free, marker)
+					continue
+				}
+				// Every marker is held: take the one whose hold ends first.
+				if oldest == 0 || held.Before(oldestAt) {
+					oldest, oldestAt = marker, held
+				}
+			}
+		}
+		index := oldest
+		if len(free) > 0 {
+			index = free[mathrand.Intn(len(free))]
+		}
+		if index == 0 {
+			index = 11
 		}
 		r.lastSpawn[slot] = index
+		if int(index) < len(r.spawnUsedAt) {
+			r.spawnUsedAt[index] = now.Add(spawnHold)
+		}
 		return index
 	}
 	team := r.slots[slot].team
@@ -1262,6 +1298,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.seedsSent = false
 	room.respawnCount = [maxRoomSlots]uint32{}
 	room.lastSpawn = [maxRoomSlots]uint32{}
+	room.spawnUsedAt = [29]time.Time{}
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	// A fresh round never inherits a decision from the previous one.
 	room.zombieWinner = 0
