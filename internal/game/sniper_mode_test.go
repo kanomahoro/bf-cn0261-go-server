@@ -397,22 +397,19 @@ func TestIndividualModeSpreadsSimultaneousRespawns(t *testing.T) {
 }
 
 // The hold table is what keeps two seats off one point, so pin both branches: a
-// single free marker is the only answer, and an exhausted pool answers with the
-// marker whose hold ends first.
+// single free point is the only answer, and a fully held block answers with the
+// point whose hold ends first.
 func TestIndividualModeHonoursTheHoldTable(t *testing.T) {
-	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
 	now := time.Now()
 	all := func() []uint32 {
-		markers := make([]uint32, 0, 16)
-		for _, base := range []uint32{10, 20} {
-			for within := uint32(1); within <= 8; within++ {
-				markers = append(markers, base+within)
-			}
+		markers := make([]uint32, 0, 8)
+		for within := uint32(1); within <= 8; within++ {
+			markers = append(markers, 10+within)
 		}
 		return markers
 	}
 
-	// Everything held except 15.
+	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
 	for _, marker := range all() {
 		if marker != 15 {
 			room.spawnUsedAt[marker] = now.Add(time.Minute)
@@ -422,22 +419,21 @@ func TestIndividualModeHonoursTheHoldTable(t *testing.T) {
 		t.Errorf("the only free marker was not taken: got %d", got)
 	}
 
-	// Everything held: the earliest expiry answers.
-	room2 := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	exhausted := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
 	for _, marker := range all() {
-		room2.spawnUsedAt[marker] = now.Add(time.Minute)
+		exhausted.spawnUsedAt[marker] = now.Add(time.Minute)
 	}
-	room2.spawnUsedAt[24] = now.Add(10 * time.Second)
-	if got := room2.NextSpawnIndex(0, 8); got != 24 {
-		t.Errorf("an exhausted pool answered %d instead of the earliest release 24", got)
+	exhausted.spawnUsedAt[14] = now.Add(10 * time.Second)
+	if got := exhausted.NextSpawnIndex(0, 8); got != 14 {
+		t.Errorf("an exhausted block answered %d instead of the earliest release 14", got)
 	}
 
-	// A seat never repeats the point it took last, not even once the pool is
-	// exhausted and the fallback answers.
-	room3 := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	// A seat never repeats the point it took last, not even when the fallback
+	// answers.
+	repeat := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
 	previous := uint32(0)
 	for i := 0; i < 40; i++ {
-		got := room3.NextSpawnIndex(0, 8)
+		got := repeat.NextSpawnIndex(0, 8)
 		if got == 0 {
 			t.Fatalf("pick %d returned no marker", i)
 		}
@@ -448,18 +444,20 @@ func TestIndividualModeHonoursTheHoldTable(t *testing.T) {
 	}
 }
 
-// The markers sit in two blocks, one on each team's side of the map, so taking
-// them in turn is what spreads a wipe across the map instead of one corner.
-func TestIndividualModeAlternatesSides(t *testing.T) {
+// The mode uses one block only: the second block names the same places under
+// other numbers (a seat on 26 stood exactly on 18), so mixing them overlaps
+// players. Eight distinct points cover a full room.
+func TestIndividualModeKeepsToOneBlock(t *testing.T) {
 	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
-	groups := make([]uint32, 0, 6)
-	for slot := 0; slot < 6; slot++ {
+	seen := map[uint32]bool{}
+	for slot := 0; slot < 8; slot++ {
 		marker := room.NextSpawnIndex(slot, 8)
-		groups = append(groups, marker/10)
-	}
-	for i := 1; i < len(groups); i++ {
-		if groups[i] == groups[i-1] {
-			t.Fatalf("two respawns in a row took the same side: %v", groups)
+		if marker/10 != 1 {
+			t.Fatalf("marker %d came from the second block", marker)
 		}
+		if seen[marker] {
+			t.Fatalf("marker %d was handed out twice", marker)
+		}
+		seen[marker] = true
 	}
 }

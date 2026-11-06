@@ -83,9 +83,6 @@ type Room struct {
 	// lastSpawn remembers the random marker an individual-round seat took last,
 	// so the next respawn never lands on the same point.
 	lastSpawn [maxRoomSlots]uint32
-	// lastSpawnGroup remembers which block of markers the last respawn came from, so
-	// the next one goes to the other side of the map.
-	lastSpawnGroup uint32
 	// spawnUsedAt keeps a marker out of circulation for a moment after it is handed
 	// out. Without it two seats the same blast killed come back on one point: three
 	// of them took marker 26 within six seconds of each other on the first build.
@@ -504,53 +501,37 @@ func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
 		if span > 8 {
 			span = 8
 		}
+		// Only the first block is used. The second one (21-28) names the same
+		// places under different numbers -- a seat brought back on 26 stood exactly
+		// on 18 -- so mixing the two is what put two players on one spot. The first
+		// block's eight points are distinct, which covers a full room.
 		now := time.Now()
-		// The markers come in two blocks of eight, one on each team's side of the
-		// map, and the client takes whatever marker it is handed. Taking them in
-		// turn therefore drops consecutive respawns at opposite ends of the map
-		// instead of piling a wipe into one corner.
-		preferred, alternate := uint32(10), uint32(20)
-		if r.lastSpawnGroup == 10 {
-			preferred, alternate = 20, 10
-		}
-		freeIn := func(base uint32) []uint32 {
-			free := make([]uint32, 0, span)
-			for within := uint32(1); within <= span; within++ {
-				marker := base + within
-				if marker == r.lastSpawn[slot] || now.Before(r.spawnUsedAt[marker]) {
-					continue
-				}
+		free := make([]uint32, 0, span)
+		var oldest uint32
+		var oldestAt time.Time
+		for within := uint32(1); within <= span; within++ {
+			marker := 10 + within
+			if marker == r.lastSpawn[slot] {
+				continue
+			}
+			held := r.spawnUsedAt[marker]
+			if !now.Before(held) {
 				free = append(free, marker)
+				continue
 			}
-			return free
-		}
-		index := uint32(0)
-		if free := freeIn(preferred); len(free) > 0 {
-			index = free[mathrand.Intn(len(free))]
-		} else if free := freeIn(alternate); len(free) > 0 {
-			index = free[mathrand.Intn(len(free))]
-		}
-		if index == 0 {
-			// Every marker is held: the one whose hold ends first answers.
-			var oldestAt time.Time
-			for _, base := range []uint32{10, 20} {
-				for within := uint32(1); within <= span; within++ {
-					marker := base + within
-					if marker == r.lastSpawn[slot] {
-						continue
-					}
-					held := r.spawnUsedAt[marker]
-					if oldestAt.IsZero() || held.Before(oldestAt) {
-						index, oldestAt = marker, held
-					}
-				}
+			// Every point is held: the one whose hold ends first answers.
+			if oldest == 0 || held.Before(oldestAt) {
+				oldest, oldestAt = marker, held
 			}
+		}
+		index := oldest
+		if len(free) > 0 {
+			index = free[mathrand.Intn(len(free))]
 		}
 		if index == 0 {
 			index = 11
 		}
 		r.lastSpawn[slot] = index
-		r.lastSpawnGroup = index / 10 * 10
 		if int(index) < len(r.spawnUsedAt) {
 			r.spawnUsedAt[index] = now.Add(spawnHold)
 		}
@@ -1320,7 +1301,6 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.respawnCount = [maxRoomSlots]uint32{}
 	room.lastSpawn = [maxRoomSlots]uint32{}
 	room.spawnUsedAt = [29]time.Time{}
-	room.lastSpawnGroup = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	// A fresh round never inherits a decision from the previous one.
 	room.zombieWinner = 0
