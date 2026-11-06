@@ -444,8 +444,8 @@ async function loadPlayers() {
       <td class="hide-sm">${esc(p.address)}</td>
       <td class="hide-sm">${fmtDur(p.onlineForSeconds)}</td>
       <td>
-        <button class="act" onclick="kick(${p.accountId})">踢下线</button>
-        <button class="act danger" onclick="ban(${p.accountId}, true)">封号</button>
+        <button class="act" onclick="kick(${p.accountId}, this)">踢下线</button>
+        <button class="act danger" onclick="ban(${p.accountId}, true, this)">封号</button>
       </td>
     </tr>`).join("") || '<tr><td colspan="8" class="hint">当前没有在线玩家</td></tr>';
   pager("players", loadPlayers);
@@ -468,7 +468,7 @@ async function loadRooms() {
       <td>${r.locked
         ? '<span class="tag bad" title="房主设了密码，加入时要输密码">有密码</span>'
         : '<span class="tag mute" title="任何人都能直接加入">无密码</span>'}</td>
-      <td><button class="act danger" onclick="disband(${r.id})">解散</button></td>
+      <td><button class="act danger" onclick="disband(${r.id}, this)">解散</button></td>
     </tr>`).join("") || '<tr><td colspan="9" class="hint">当前没有房间</td></tr>';
   pager("rooms", loadRooms);
 }
@@ -521,7 +521,7 @@ async function doSearch() {
       <td>${p.disabled ? '<span class="tag bad">封禁</span>' : '<span class="tag ok">正常</span>'}</td>
       <td>
         <button class="act" onclick="pickBalance(${p.characterId})">改钱包</button>
-        <button class="act" onclick="ban(${p.accountId}, ${!p.disabled})">${p.disabled ? "解封" : "封号"}</button>
+        <button class="act" onclick="ban(${p.accountId}, ${!p.disabled}, this)">${p.disabled ? "解封" : "封号"}</button>
       </td>
     </tr>`).join("") || '<tr><td colspan="9" class="hint">没有匹配的玩家</td></tr>';
   pager("search", doSearch);
@@ -537,7 +537,7 @@ async function loadBans() {
       <td>${esc(b.accountName)} <span class="hint">#${b.accountId}</span></td>
       <td>${esc(b.nickname) || '<span class="hint">（无角色）</span>'}</td>
       <td>${esc(b.changedAt.replace("T", " ").slice(0, 19))}</td>
-      <td><button class="act" onclick="ban(${b.accountId}, false)">解封</button></td>
+      <td><button class="act" onclick="ban(${b.accountId}, false, this)">解封</button></td>
     </tr>`).join("") || '<tr><td colspan="4" class="hint">当前没有被封禁的账号</td></tr>';
   pager("bans", loadBans);
 }
@@ -673,27 +673,53 @@ async function downloadCSV() {
   URL.revokeObjectURL(url);
 }
 
-async function kick(accountId) {
+// The three actions below all name a numeric id that may already be gone by the
+// time the click lands (the player logged off, another admin disbanded the room).
+// The server validates and answers 404/400, so there is nothing to corrupt -- but
+// the list has to be reloaded either way, otherwise the row the operator just
+// clicked stays on screen as if it still existed.
+async function kick(accountId, button) {
   if (!confirm("把这个玩家踢下线？")) return;
-  await api("/api/players/kick", { method: "POST", body: JSON.stringify({ accountId }) });
-  toast("已踢下线");
-  loadPlayers();
+  if (button) button.disabled = true;
+  try {
+    await api("/api/players/kick", { method: "POST", body: JSON.stringify({ accountId }) });
+    toast("已踢下线");
+  } catch (error) {
+    toast("没能踢下线：" + error.message);
+  } finally {
+    if (button) button.disabled = false;
+    loadPlayers();
+  }
 }
 
-async function ban(accountId, disabled) {
+async function ban(accountId, disabled, button) {
   if (disabled && !confirm("封禁会立刻断开该账号并作废未使用的登录票据，继续？")) return;
-  const data = await api("/api/players/ban", { method: "POST", body: JSON.stringify({ accountId, disabled }) });
-  toast(disabled ? "已封禁" + (data.kicked ? "，并已踢下线" : "") : "已解封");
-  loadPlayers();
-  if ($("search-q").value.trim()) doSearch();
-  loadBans();
+  if (button) button.disabled = true;
+  try {
+    const data = await api("/api/players/ban", { method: "POST", body: JSON.stringify({ accountId, disabled }) });
+    toast(disabled ? "已封禁" + (data.kicked ? "，并已踢下线" : "") : "已解封");
+  } catch (error) {
+    toast((disabled ? "没能封禁：" : "没能解封：") + error.message);
+  } finally {
+    if (button) button.disabled = false;
+    loadPlayers();
+    if ($("search-q").value.trim()) doSearch();
+    loadBans();
+  }
 }
 
-async function disband(roomId) {
+async function disband(roomId, button) {
   if (!confirm("解散房间 " + roomId + "？所有人会被送回广场")) return;
-  const data = await api("/api/rooms/disband", { method: "POST", body: JSON.stringify({ roomId }) });
-  toast("已解散，" + data.members + " 人回到广场");
-  loadRooms(); loadPlayers();
+  if (button) button.disabled = true;
+  try {
+    const data = await api("/api/rooms/disband", { method: "POST", body: JSON.stringify({ roomId }) });
+    toast("已解散，" + data.members + " 人回到广场");
+  } catch (error) {
+    toast("没能解散：" + error.message);
+  } finally {
+    if (button) button.disabled = false;
+    loadRooms(); loadPlayers();
+  }
 }
 
 let configFieldsCache = [];
