@@ -302,3 +302,35 @@ func TestHotBloodRoundKeepsTheDeadSeatAlive(t *testing.T) {
 		t.Errorf("attacker pangs = %v (err %v), want 2", score.PangCount, err)
 	}
 }
+
+// A hot-blood round has no bubble stage, so a knock that does not set the
+// direct-death flag is still the kill: parking the seat in a bubble would strand
+// it there, because the mode sends no kick and its death report is ignored.
+func TestHotBloodRoundCountsAKnockWithoutTheFlag(t *testing.T) {
+	life := NewBattleLife(nil, lifeRules{instantRevive: true})
+	for slot := 0; slot < 2; slot++ {
+		if err := life.Bind(uint8(slot), objectFor(slot), uint8(slot+1)); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	event := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+	}
+	if accepted, err := life.Apply(0, event, false); err != nil || !accepted {
+		t.Fatalf("knock rejected: accepted=%v err=%v", accepted, err)
+	}
+	if score, err := life.Score(1); err != nil || score.PangCount != 1 {
+		t.Errorf("attacker pangs = %v (err %v), want 1", score.PangCount, err)
+	}
+	if score, _ := life.Score(0); score.BubbleCount != 0 {
+		t.Errorf("the victim was left in %d bubbles", score.BubbleCount)
+	}
+	// The seat must still be hittable.
+	event.Tick = 200
+	if accepted, err := life.Apply(0, event, false); err != nil || !accepted {
+		t.Errorf("second knock rejected: accepted=%v err=%v", accepted, err)
+	}
+}

@@ -389,7 +389,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		tickCopy := tick
 		victim.knockTick = &tickCopy
 		victim.deadReported = false
-		if event.DirectDeath {
+		if event.DirectDeath || l.rules.instantRevive {
 			// A hot-blood seat is back on its feet immediately: the kill is counted
 			// below, and holding the seat dead here would stop every later hit on it.
 			if !l.rules.instantRevive {
@@ -405,7 +405,12 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		// kick ever follows and the kill would otherwise go uncounted. Credit the
 		// attacker with the pang, which is also what puts the +1 on their team,
 		// because a team's score is the sum of its members' pang counts.
-		if event.DirectDeath {
+		//
+		// A hot-blood round has no bubble stage at all, so a knock there is that
+		// kill even without the flag: parking the seat in a bubble would leave it
+		// with no way back, since the mode sends no kick and its death report is
+		// ignored.
+		if event.DirectDeath || l.rules.instantRevive {
 			if l.opposes(victim.team, actor.team) && !selfDamage {
 				increment(&actor.score.PangCount)
 			}
