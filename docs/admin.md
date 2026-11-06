@@ -43,8 +43,8 @@
 | 页面 | 内容 |
 | --- | --- |
 | 概览 | 在线玩家数、房间数、中继连接数、运行时长、数据库延迟、版本与构建提交 |
-| 在线玩家 | 昵称、**角色 ID**（可点复制）、账号、等级、位置（广场 / 房号+座位）、IP、在线时长；**踢下线 / 封号** |
-| 房间 | 房号、标题、模式、地图、人数、房主位、阶段、**是否设密码**；**强制解散** |
+| 在线玩家 | 昵称、**角色 ID**（可点复制）、账号、等级、位置（广场 / 房号+座位）、IP、在线时长；**踢下线 / 封号**；可翻页 |
+| 房间 | 房号、标题、模式、地图、人数、房主位、阶段、**是否设密码**；**强制解散**；可翻页 |
 | 日志 | 内存里最近 5000 条，按关键字过滤（`[Room]`、`[Relay]`、`[Admin]`…），可翻页回看；自动刷新时只看最新一页 |
 | 查玩家 | 按账号名 / 昵称 / 账号 ID / 角色 ID 搜索，显示**角色 ID**、等级、金币、点券、封禁状态，结果可翻页；下方列出**已封禁账号**（可翻页），可直接解封 |
 | 战绩 | 左表右详情：点任意一行，右侧直接展开泡封/击爆/营救/经验/金币/等级，不用滚到页底；可翻页、可导出 CSV |
@@ -77,8 +77,8 @@
 ## API（需要 `Authorization: Bearer <token>`）
 
 ```
-GET  /api/overview             GET  /api/players        POST /api/players/kick
-POST /api/players/ban          GET  /api/rooms          POST /api/rooms/disband
+GET  /api/overview             GET  /api/players?limit=&offset=   POST /api/players/kick
+POST /api/players/ban          GET  /api/rooms?limit=&offset=     POST /api/rooms/disband
 GET  /api/logs?limit=&offset=&q=   GET  /api/search?q=&limit=&offset=
 GET  /api/results?mode=&limit=&offset=   GET  /api/results/detail?id=
 GET  /api/bans?limit=&offset=  GET  /api/config        POST /api/config
@@ -86,7 +86,7 @@ GET  /api/results.csv?mode=
 POST /api/balance              POST /api/notice         GET  /api/server
 ```
 
-四个列表接口（`logs` / `search` / `bans` / `results`）统一返回
+六个列表接口（`players` / `rooms` / `logs` / `search` / `bans` / `results`）统一返回
 `{"total": 总数, "offset": 实际起点, "limit": 实际每页条数, "items": [...]}`，控制台的分页器直接
 拿 `total` 算页数；`offset` 越过末尾时会被拉回最后一页。
 

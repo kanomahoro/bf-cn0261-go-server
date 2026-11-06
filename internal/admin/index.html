@@ -135,6 +135,7 @@
         <tbody id="players-body"></tbody>
       </table>
     </div>
+    <div class="row pager" id="players-pager"></div>
   </section>
 
   <section id="tab-rooms">
@@ -149,6 +150,7 @@
         <tbody id="rooms-body"></tbody>
       </table>
     </div>
+    <div class="row pager" id="rooms-pager"></div>
   </section>
 
   <section id="tab-logs">
@@ -307,6 +309,8 @@ function listOf(value) {
 // states the window it actually used, so a delete that shrank the list cannot
 // leave the pager pointing past the end.
 const PAGES = {
+  players: { limit: 20, input: 0, offset: 0, total: 0 },
+  rooms: { limit: 20, input: 0, offset: 0, total: 0 },
   results: { limit: 50, input: 0, offset: 0, total: 0, term: "" },
   search: { limit: 20, input: 0, offset: 0, total: 0, term: "" },
   bans: { limit: 20, input: 0, offset: 0, total: 0 },
@@ -425,8 +429,11 @@ async function loadOverview() {
 }
 
 async function loadPlayers() {
-  const players = listOf(await api("/api/players"));
-  $("players-count").textContent = "共 " + players.length + " 人";
+  const state = PAGES.players;
+  const data = (await api("/api/players?limit=" + state.limit + "&offset=" + state.offset)) || {};
+  const players = applyPage("players", data, data.items);
+  if (clampPage("players")) return loadPlayers();
+  $("players-count").textContent = "共 " + state.total + " 人";
   $("players-body").innerHTML = players.map((p) => `
     <tr>
       <td>${esc(p.nickname)}</td>
@@ -441,10 +448,14 @@ async function loadPlayers() {
         <button class="act danger" onclick="ban(${p.accountId}, true)">封号</button>
       </td>
     </tr>`).join("") || '<tr><td colspan="8" class="hint">当前没有在线玩家</td></tr>';
+  pager("players", loadPlayers);
 }
 
 async function loadRooms() {
-  const rooms = listOf(await api("/api/rooms"));
+  const state = PAGES.rooms;
+  const data = (await api("/api/rooms?limit=" + state.limit + "&offset=" + state.offset)) || {};
+  const rooms = applyPage("rooms", data, data.items);
+  if (clampPage("rooms")) return loadRooms();
   $("rooms-body").innerHTML = rooms.map((r) => `
     <tr>
       <td>${r.id}</td>
@@ -459,6 +470,7 @@ async function loadRooms() {
         : '<span class="tag mute" title="任何人都能直接加入">无密码</span>'}</td>
       <td><button class="act danger" onclick="disband(${r.id})">解散</button></td>
     </tr>`).join("") || '<tr><td colspan="9" class="hint">当前没有房间</td></tr>';
+  pager("rooms", loadRooms);
 }
 
 async function loadLogs() {

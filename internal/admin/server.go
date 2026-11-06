@@ -229,11 +229,35 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) players(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.game.AdminPlayers())
+	limit, offset := pageArgs(r, 20)
+	items, total, used := window(s.game.AdminPlayers(), limit, offset)
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: items})
 }
 
 func (s *Server) rooms(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, s.game.AdminRooms())
+	limit, offset := pageArgs(r, 20)
+	items, total, used := window(s.game.AdminRooms(), limit, offset)
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: items})
+}
+
+// window takes one page out of an already sorted in-memory list, clamping the
+// offset onto the last page the way the database-backed lists do.
+func window[T any](items []T, limit, offset int) ([]T, int, int) {
+	total := len(items)
+	if total == 0 {
+		return []T{}, 0, 0
+	}
+	if limit <= 0 {
+		limit = total
+	}
+	if offset > total-1 {
+		offset = total - 1
+	}
+	end := offset + limit
+	if end > total {
+		end = total
+	}
+	return items[offset:end], total, offset
 }
 
 func (s *Server) kick(w http.ResponseWriter, r *http.Request) {
