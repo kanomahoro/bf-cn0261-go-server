@@ -51,7 +51,11 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 		// MapMeta flag for the mode is set on them.
 		case mode == 8 && !entry.NormalMode:
 			continue
-		case mode != 1 && mode != 3 && mode != 8:
+		// The sniper battle (mode 12) does the same: the client's isSniperModeMap
+		// flag covers every competitive map, so its pool is the no-item one.
+		case mode == 12 && !entry.NormalMode:
+			continue
+		case mode != 1 && mode != 3 && mode != 8 && mode != 12:
 			continue
 		}
 		if theme != "" && theme != "All" && theme != entry.Theme {
