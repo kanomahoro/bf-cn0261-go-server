@@ -129,7 +129,7 @@ func TestHotBloodIndividualOpens(t *testing.T) {
 // A teamless round has no sides: the zero team every seat carries must not read
 // as friendly, or the round would credit nobody.
 func TestTeamlessRoundCountsEverySeatAsAnOpponent(t *testing.T) {
-	life := NewBattleLife(nil, lifeRules{teamless: true})
+	life := NewBattleLife(nil, true)
 	if err := life.Bind(0, objectFor(0), 0); err != nil {
 		t.Fatalf("a teamless seat must bind with team zero: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestTeamlessRoundCountsEverySeatAsAnOpponent(t *testing.T) {
 
 // The team rule must not loosen for the modes that have sides.
 func TestTeamRoundStillRefusesAFriendlyKill(t *testing.T) {
-	life := NewBattleLife(nil, lifeRules{})
+	life := NewBattleLife(nil, false)
 	for slot := uint8(0); slot < 2; slot++ {
 		if err := life.Bind(slot, objectFor(int(slot)), 1); err != nil {
 			t.Fatalf("bind %d: %v", slot, err)
@@ -182,7 +182,7 @@ func TestTeamRoundStillRefusesAFriendlyKill(t *testing.T) {
 // A teamless seat may respawn on either battle group; a seated one stays inside
 // its own group.
 func TestTeamlessSpawnMarkersSpanBothGroups(t *testing.T) {
-	teamless := NewBattleLife(nil, lifeRules{teamless: true})
+	teamless := NewBattleLife(nil, true)
 	for _, marker := range []uint32{11, 18, 21, 28} {
 		if !teamless.validMarker(0, marker) {
 			t.Errorf("teamless marker %d rejected", marker)
@@ -193,7 +193,7 @@ func TestTeamlessSpawnMarkersSpanBothGroups(t *testing.T) {
 			t.Errorf("teamless marker %d accepted", marker)
 		}
 	}
-	team := NewBattleLife(nil, lifeRules{})
+	team := NewBattleLife(nil, false)
 	if !team.validMarker(1, 11) || team.validMarker(1, 21) {
 		t.Error("a team-one seat left its own marker group")
 	}
@@ -220,7 +220,7 @@ func TestMapPoolsPerAdmittedMode(t *testing.T) {
 // battle does, so the whole respawn walk has to accept the marker it reports. A
 // marker it cannot use would strand the seat in the offered state for the round.
 func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
-	life := NewBattleLife(nil, lifeRules{teamless: true})
+	life := NewBattleLife(nil, true)
 	for slot := 0; slot < 2; slot++ {
 		if err := life.Bind(uint8(slot), objectFor(slot), 0); err != nil {
 			t.Fatalf("bind %d: %v", slot, err)
@@ -255,82 +255,11 @@ func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
 	}
 
 	// A seated round keeps the group rule.
-	seated := NewBattleLife(nil, lifeRules{})
+	seated := NewBattleLife(nil, false)
 	if err := seated.Bind(0, objectFor(0), 1); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	if err := seated.AdoptSpawnIndex(0, 27); err == nil {
 		t.Error("a team-one seat adopted the other block's marker")
-	}
-}
-
-// A hot-blood round brings a killed seat back at once: the tracker must not park
-// it dead, or the next hit on that seat would be dropped and nobody could score.
-func TestHotBloodRoundKeepsTheDeadSeatAlive(t *testing.T) {
-	life := NewBattleLife(nil, lifeRules{instantRevive: true})
-	if err := life.Bind(0, objectFor(0), 1); err != nil {
-		t.Fatalf("bind victim: %v", err)
-	}
-	if err := life.Bind(1, objectFor(1), 2); err != nil {
-		t.Fatalf("bind attacker: %v", err)
-	}
-	knock := func(tick uint32) bool {
-		event := protocol.PeerLifeEvent{
-			Kind:         protocol.LifeKnocked,
-			VictimObject: objectFor(0),
-			ActorObject:  objectFor(1),
-			Tick:         tick,
-			DirectDeath:  true,
-		}
-		accepted, err := life.Apply(0, event, false)
-		if err != nil {
-			t.Fatalf("knock at tick %d: %v", tick, err)
-		}
-		return accepted
-	}
-	if !knock(100) {
-		t.Fatal("first direct death rejected")
-	}
-	death := protocol.PeerLifeEvent{Kind: protocol.LifeDead, VictimObject: objectFor(0)}
-	if _, err := life.Apply(0, death, false); err != nil {
-		t.Fatalf("death report: %v", err)
-	}
-	if !knock(200) {
-		t.Error("a second direct death was rejected; the seat stayed dead")
-	}
-	if score, err := life.Score(1); err != nil || score.PangCount != 2 {
-		t.Errorf("attacker pangs = %v (err %v), want 2", score.PangCount, err)
-	}
-}
-
-// A hot-blood round has no bubble stage, so a knock that does not set the
-// direct-death flag is still the kill: parking the seat in a bubble would strand
-// it there, because the mode sends no kick and its death report is ignored.
-func TestHotBloodRoundCountsAKnockWithoutTheFlag(t *testing.T) {
-	life := NewBattleLife(nil, lifeRules{instantRevive: true})
-	for slot := 0; slot < 2; slot++ {
-		if err := life.Bind(uint8(slot), objectFor(slot), uint8(slot+1)); err != nil {
-			t.Fatalf("bind %d: %v", slot, err)
-		}
-	}
-	event := protocol.PeerLifeEvent{
-		Kind:         protocol.LifeKnocked,
-		VictimObject: objectFor(0),
-		ActorObject:  objectFor(1),
-		Tick:         100,
-	}
-	if accepted, err := life.Apply(0, event, false); err != nil || !accepted {
-		t.Fatalf("knock rejected: accepted=%v err=%v", accepted, err)
-	}
-	if score, err := life.Score(1); err != nil || score.PangCount != 1 {
-		t.Errorf("attacker pangs = %v (err %v), want 1", score.PangCount, err)
-	}
-	if score, _ := life.Score(0); score.BubbleCount != 0 {
-		t.Errorf("the victim was left in %d bubbles", score.BubbleCount)
-	}
-	// The seat must still be hittable.
-	event.Tick = 200
-	if accepted, err := life.Apply(0, event, false); err != nil || !accepted {
-		t.Errorf("second knock rejected: accepted=%v err=%v", accepted, err)
 	}
 }
