@@ -263,3 +263,32 @@ func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
 		t.Error("a team-one seat adopted the other block's marker")
 	}
 }
+
+// The individual mode draws its respawn point from the whole map and never the
+// point that seat used last, which is the one piece of new spawn logic the mode
+// adds.
+func TestIndividualModeDrawsARandomSpawnPoint(t *testing.T) {
+	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	previous := uint32(0)
+	for i := 0; i < 200; i++ {
+		marker := room.NextSpawnIndex(0, 8)
+		group, within := marker/10, marker%10
+		if (group != 1 && group != 2) || within < 1 || within > 8 {
+			t.Fatalf("marker %d is outside both battle groups", marker)
+		}
+		if marker == previous {
+			t.Fatalf("marker %d repeated", marker)
+		}
+		previous = marker
+	}
+
+	// A seated round keeps the team ring: team one never leaves its own group.
+	seated := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: 1}}}
+	seated.slots[0].team = 1
+	seated.slots[0].session = &Session{}
+	for i := 0; i < 20; i++ {
+		if marker := seated.NextSpawnIndex(0, 8); marker/10 != 1 {
+			t.Fatalf("a team-one seat took marker %d", marker)
+		}
+	}
+}
