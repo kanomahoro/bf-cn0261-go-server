@@ -41,28 +41,20 @@ func (m Maps) Find(name string) (Map, bool) {
 func (m Maps) Candidates(mode uint32, theme string) []Map {
 	var out []Map
 	for _, entry := range m.Maps {
-		switch {
-		case mode == 1 && !entry.NormalMode:
-			continue
-		case mode == 3 && !entry.ItemMode:
-			continue
-		// The zombie battle (mode 8) plays the ordinary competitive maps: the
-		// retail game offered it on every no-item map, and the client's own
-		// MapMeta flag for the mode is set on them.
-		case mode == 8 && !entry.NormalMode:
-			continue
-		// The sniper battle (mode 12) does the same: the client's isSniperModeMap
-		// flag covers every competitive map, so its pool is the no-item one.
-		case mode == 12 && !entry.NormalMode:
-			continue
-		// The hot-blood team battles (14 team survival, 18 sniper team survival)
-		// also play the competitive maps: the client's isNotemTeamModeMap and
-		// isSurvivalSniperModeMap flags cover them, neither offers boxes.
-		case mode == 14 && !entry.NormalMode:
-			continue
-		case mode == 18 && !entry.NormalMode:
-			continue
-		case mode != 1 && mode != 3 && mode != 8 && mode != 12 && mode != 14 && mode != 18:
+		// Modes 1, 8, 12, 14 and 18 play the no-item maps: the client's flags for
+		// them -- isNotemTeamModeMap, isZombieModeMap, isSniperModeMap and
+		// isSurvivalSniperModeMap -- all cover the same competitive set. The item
+		// battle plays the item maps. Any other mode has no pool on this server.
+		switch mode {
+		case 1, 8, 12, 14, 18:
+			if !entry.NormalMode {
+				continue
+			}
+		case 3:
+			if !entry.ItemMode {
+				continue
+			}
+		default:
 			continue
 		}
 		if theme != "" && theme != "All" && theme != entry.Theme {

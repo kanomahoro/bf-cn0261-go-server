@@ -149,16 +149,17 @@ const (
 // and score limit.
 //
 // The normal mode (1), the item battle (3), the sniper battle (12), the two
-// hot-blood team battles (14, 18) and the zombie battle (8) are accepted. The 2015 client owns the item mode's rules;
-// the server owns the box kinds the build offers, the box ownership it reports
-// and the refresh of the host's map points (see internal/game/supplies.go). The
-// sniper battle is the ordinary competitive round with a different weapon set,
-// which the client restricts itself: nothing here changes for it beyond
-// admitting the mode. The hot-blood team battles (14, 18) are the same round
-// without the bubble stage, counted from the direct-death knockdown report. The zombie battle keeps no rules in the client at all: the
-// server picks the king, converts the dead and decides the round (see
-// internal/game/zombie.go). world.Maps.Candidates already filters maps by their
-// itemMode/normalMode flags.
+// hot-blood team battles (14, 18) and the zombie battle (8) are accepted. The
+// 2015 client owns the item mode's rules; the server owns the box kinds the
+// build offers, the box ownership it reports and the refresh of the host's map
+// points (see internal/game/supplies.go). The sniper battle is the ordinary
+// competitive round with a different weapon set, which the client restricts
+// itself: nothing here changes for it beyond admitting the mode. The hot-blood
+// team battles (14, 18) are the same round without the bubble stage, counted
+// from the direct-death knockdown report. The zombie battle keeps no rules in
+// the client at all: the server picks the king, converts the dead and decides
+// the round (see internal/game/zombie.go). world.Maps.Candidates already filters
+// maps by their itemMode/normalMode flags.
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
 	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&

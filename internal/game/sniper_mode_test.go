@@ -121,3 +121,20 @@ func TestHotBloodIndividualStaysClosed(t *testing.T) {
 		t.Errorf("mode 13 got %d map candidates", len(got))
 	}
 }
+
+// Every admitted mode must keep the pool it had: the refactor of Candidates
+// collapsed four identical no-item branches into one, so pin the counts.
+func TestMapPoolsPerAdmittedMode(t *testing.T) {
+	maps := loadTestMaps(t)
+	for _, mode := range []uint32{1, 8, 12, 14, 18} {
+		if got := len(maps.Candidates(mode, "All")); got != 57 {
+			t.Errorf("mode %d candidates = %d, want 57", mode, got)
+		}
+	}
+	if got := len(maps.Candidates(3, "All")); got != 57 {
+		t.Errorf("item mode candidates = %d, want 57", got)
+	}
+	if got := len(maps.Candidates(1, "Military")); got == 0 || got >= 57 {
+		t.Errorf("theme filter returned %d of 57", got)
+	}
+}
