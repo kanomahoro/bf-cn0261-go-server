@@ -144,12 +144,19 @@ const (
 	sniperTeamSurvivalModeID = 18
 )
 
+// singlePvpModeID is the individual hot-blood battle (wgtSinglePvp). It is the
+// same round again, but has no teams at all: every seat is its own side, the
+// spawn point is picked across the whole map on each respawn, and the round ends
+// as a draw -- the retail client ranks the seats itself from the score rows.
+const singlePvpModeID = 13
+
 // normalizeGameSetting reproduces RoomDirectory::NormalizeGameSetting: it keeps
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
 //
 // The normal mode (1), the item battle (3), the sniper battle (12), the two
-// hot-blood team battles (14, 18) and the zombie battle (8) are accepted. The
+// hot-blood battles (13 individual, 14/18 team) and the zombie battle (8) are
+// accepted. The
 // 2015 client owns the item mode's rules; the server owns the box kinds the
 // build offers, the box ownership it reports and the refresh of the host's map
 // points (see internal/game/supplies.go). The sniper battle is the ordinary
@@ -163,8 +170,8 @@ const (
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
 	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&
-		request.Mode != teamSurvivalModeID && request.Mode != sniperTeamSurvivalModeID &&
-		request.Mode != zombieModeID {
+		request.Mode != singlePvpModeID && request.Mode != teamSurvivalModeID &&
+		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {

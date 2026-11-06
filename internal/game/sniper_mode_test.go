@@ -68,7 +68,7 @@ func TestNewerModesResolveToTheCompetitivePool(t *testing.T) {
 // to the modes the server refuses.
 func TestNewerModesDoNotOpenOtherModes(t *testing.T) {
 	maps := loadTestMaps(t)
-	for _, mode := range []uint32{2, 5, 6, 13, 16, 19, 20, 101} {
+	for _, mode := range []uint32{2, 5, 6, 15, 16, 19, 20, 101} {
 		request := protocol.GameSetting{Mode: mode}
 		request.Strings16[1] = protocol.U16String("Random")
 		request.Strings16[3] = protocol.U16String("Random")
@@ -106,19 +106,96 @@ func TestHotBloodTeamBattlesUseTheCompetitivePool(t *testing.T) {
 	}
 }
 
-// The individual hot-blood battle (13) needs a rule the server does not have
-// yet -- an opponent test that spans both seats of a teamless round -- so it
-// stays closed.
-func TestHotBloodIndividualStaysClosed(t *testing.T) {
+// The individual hot-blood battle is open: it is the same competitive round with
+// no teams at all, so only admission and the map pool change on this side.
+func TestHotBloodIndividualOpens(t *testing.T) {
 	maps := loadTestMaps(t)
-	request := protocol.GameSetting{Mode: 13}
+	request := protocol.GameSetting{Mode: singlePvpModeID}
 	request.Strings16[1] = protocol.U16String("Random")
 	request.Strings16[3] = protocol.U16String("Random")
-	if _, err := normalizeGameSetting(request, maps); err == nil {
-		t.Error("mode 13 was accepted")
+	setting, err := normalizeGameSetting(request, maps)
+	if err != nil {
+		t.Fatalf("individual hot-blood room rejected: %v", err)
 	}
-	if got := maps.Candidates(13, "All"); len(got) != 0 {
-		t.Errorf("mode 13 got %d map candidates", len(got))
+	if setting.Values128[2] != 240000 || setting.Values128[0] != 20 {
+		t.Errorf("rules = %d/%d, want the map defaults 240000/20",
+			setting.Values128[2], setting.Values128[0])
+	}
+	if got := len(maps.Candidates(singlePvpModeID, "All")); got != 57 {
+		t.Errorf("candidates = %d, want 57", got)
+	}
+}
+
+// A teamless round has no sides: the zero team every seat carries must not read
+// as friendly, or the round would credit nobody.
+func TestTeamlessRoundCountsEverySeatAsAnOpponent(t *testing.T) {
+	life := NewBattleLife(nil, true)
+	if err := life.Bind(0, objectFor(0), 0); err != nil {
+		t.Fatalf("a teamless seat must bind with team zero: %v", err)
+	}
+	if err := life.Bind(1, objectFor(1), 0); err != nil {
+		t.Fatalf("second teamless seat bind: %v", err)
+	}
+	event := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+		DirectDeath:  true,
+	}
+	accepted, err := life.Apply(0, event, false)
+	if err != nil || !accepted {
+		t.Fatalf("teamless direct death rejected: accepted=%v err=%v", accepted, err)
+	}
+	if score, err := life.Score(1); err != nil || score.PangCount != 1 {
+		t.Errorf("attacker pangs = %v (err %v), want 1", score.PangCount, err)
+	}
+}
+
+// The team rule must not loosen for the modes that have sides.
+func TestTeamRoundStillRefusesAFriendlyKill(t *testing.T) {
+	life := NewBattleLife(nil, false)
+	for slot := uint8(0); slot < 2; slot++ {
+		if err := life.Bind(slot, objectFor(int(slot)), 1); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	event := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+		DirectDeath:  true,
+	}
+	accepted, err := life.Apply(0, event, false)
+	if err != nil {
+		t.Fatalf("friendly knock raised an error: %v", err)
+	}
+	if accepted {
+		t.Error("a friendly direct death was accepted")
+	}
+	if score, _ := life.Score(1); score.PangCount != 0 {
+		t.Errorf("teammate got %d pangs", score.PangCount)
+	}
+}
+
+// A teamless seat may respawn on either battle group; a seated one stays inside
+// its own group.
+func TestTeamlessSpawnMarkersSpanBothGroups(t *testing.T) {
+	teamless := NewBattleLife(nil, true)
+	for _, marker := range []uint32{11, 18, 21, 28} {
+		if !teamless.validMarker(0, marker) {
+			t.Errorf("teamless marker %d rejected", marker)
+		}
+	}
+	for _, marker := range []uint32{0, 9, 10, 31, 280} {
+		if teamless.validMarker(0, marker) {
+			t.Errorf("teamless marker %d accepted", marker)
+		}
+	}
+	team := NewBattleLife(nil, false)
+	if !team.validMarker(1, 11) || team.validMarker(1, 21) {
+		t.Error("a team-one seat left its own marker group")
 	}
 }
 
@@ -126,7 +203,7 @@ func TestHotBloodIndividualStaysClosed(t *testing.T) {
 // collapsed four identical no-item branches into one, so pin the counts.
 func TestMapPoolsPerAdmittedMode(t *testing.T) {
 	maps := loadTestMaps(t)
-	for _, mode := range []uint32{1, 8, 12, 14, 18} {
+	for _, mode := range []uint32{1, 8, 12, 13, 14, 18} {
 		if got := len(maps.Candidates(mode, "All")); got != 57 {
 			t.Errorf("mode %d candidates = %d, want 57", mode, got)
 		}

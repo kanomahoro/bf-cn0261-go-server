@@ -12,7 +12,7 @@ import (
 func (s *Server) bindLife(room *Room) error {
 	room.mu.Lock()
 	defer room.mu.Unlock()
-	life := NewBattleLife(nil)
+	life := NewBattleLife(nil, room.Setting.Game.Mode == singlePvpModeID)
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		if entry.session == nil {
@@ -45,6 +45,8 @@ func (s *Server) broadcastScores(room *Room) bool {
 	if limit == 0 {
 		limit = 20
 	}
+	teamless := room.Setting.Game.Mode == singlePvpModeID
+	limitReached := false
 	type update struct {
 		packet protocol.Packet
 	}
@@ -65,9 +67,16 @@ func (s *Server) broadcastScores(room *Room) bool {
 			teamIndex = 1
 		}
 		// A team outside the two battle teams (the zombie battle's team 14) keeps
-		// its personal score but adds nothing to a team total.
-		if teamIndex >= 0 {
+		// its personal score but adds nothing to a team total. A teamless round has
+		// no team total at all: the retail individual mode shows each seat's own
+		// count, so nothing is accumulated or published either.
+		if teamIndex >= 0 && !teamless {
 			teamScores[teamIndex] += uint32(score.PangCount)
+		}
+		// A teamless round has no team total to race: each seat reaches the limit
+		// on its own pang count, which is what ends the individual round.
+		if teamless && uint32(score.PangCount) >= limit {
+			limitReached = true
 		}
 		if score != room.published[slot] {
 			personal := uint32(score.BubbleCount)*s.prog.ResultAwards.ScoreWeights.Bubble +
@@ -79,7 +88,6 @@ func (s *Server) broadcastScores(room *Room) bool {
 			room.published[slot] = score
 		}
 	}
-	limitReached := false
 	for team := 0; team < 2; team++ {
 		clamped := teamScores[team]
 		if clamped > 200 {
@@ -91,7 +99,7 @@ func (s *Server) broadcastScores(room *Room) bool {
 				updates = append(updates, update{packet: reply})
 			}
 		}
-		if clamped >= limit {
+		if !teamless && clamped >= limit {
 			limitReached = true
 		}
 	}
@@ -315,7 +323,13 @@ func (s *Server) tryRespawn(room *Room, slot int) {
 		}
 		spawnIndex := room.NextSpawnIndex(slot, teamSpawnCount)
 		if spawnIndex == 0 {
+			// The fallback follows the seat's own marker group. A teamless seat has
+			// none, so it takes the first point of the red block instead of a
+			// group-zero marker that no map defines.
 			spawnIndex = uint32(room.Team(slot))*10 + 1
+			if spawnIndex < 11 {
+				spawnIndex = 11
+			}
 		}
 		objectID, err := current.OfferRespawn(uint8(slot), spawnIndex)
 		if err != nil {

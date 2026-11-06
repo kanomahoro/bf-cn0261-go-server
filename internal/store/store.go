@@ -1571,6 +1571,12 @@ func (db *DB) AccountNames() ([]string, error) {
 // screen keeps the real team, which is why this mapping lives here and not in
 // the caller.
 func StoredTeam(team uint8) uint8 {
+	// The schema checks team IN (1,2). A teamless round -- the individual
+	// hot-blood battle starts every seat with team zero -- is stored as the first
+	// team; nothing reads that column back as a team.
+	if team == 0 {
+		return 1
+	}
 	if team <= 2 {
 		return team
 	}

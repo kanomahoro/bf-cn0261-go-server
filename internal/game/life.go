@@ -62,14 +62,18 @@ type BattleLife struct {
 	mu      sync.RWMutex
 	players [maxRoomSlots]lifePlayer
 	now     func() time.Time
+	// teamless marks the individual hot-blood battle: every seat is its own
+	// side, so the team comparisons below must not treat a shared zero team as
+	// friendly, and no seat can rescue another.
+	teamless bool
 }
 
 // NewBattleLife builds the tracker.
-func NewBattleLife(now func() time.Time) *BattleLife {
+func NewBattleLife(now func() time.Time, teamless bool) *BattleLife {
 	if now == nil {
 		now = time.Now
 	}
-	return &BattleLife{now: now}
+	return &BattleLife{now: now, teamless: teamless}
 }
 
 // Bind associates a slot with its round object id and frozen team.
@@ -77,7 +81,7 @@ func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if slot >= maxRoomSlots || objectID < 1000000 || (objectID-1000000)/100000 != uint32(slot) ||
-		team < 1 || team > 2 {
+		team > 2 || (team < 1 && !(l.teamless && team == 0)) {
 		return fmt.Errorf("battle life requires a player object and frozen team")
 	}
 	player := &l.players[slot]
@@ -89,6 +93,20 @@ func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 	return nil
 }
 
+// validMarker reports whether a spawn marker sits in a seat's own group. A
+// teamless seat may use either battle group: in the individual hot-blood battle
+// the markers are just points on the map, not a side.
+func (l *BattleLife) validMarker(team uint8, spawnIndex uint32) bool {
+	if within := spawnIndex % 10; within < 1 || within > 8 {
+		return false
+	}
+	group := spawnIndex / 10
+	if l.teamless {
+		return group == 1 || group == 2
+	}
+	return group == uint32(team)
+}
+
 // AdoptSpawnIndex lets the client's own marker win, as long as it still belongs
 // to the team block. Anything outside the block is a protocol error.
 func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
@@ -98,7 +116,7 @@ func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
 		return fmt.Errorf("spawn adoption requires an initialized player")
 	}
 	player := &l.players[slot]
-	if spawnIndex/10 != uint32(player.team) || spawnIndex%10 < 1 || spawnIndex%10 > 8 {
+	if !l.validMarker(player.team, spawnIndex) {
 		return fmt.Errorf("respawn confirmation changed the selected spawn")
 	}
 	player.spawnIndex = spawnIndex
@@ -332,7 +350,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 
 	switch event.Kind {
 	case protocol.LifeStunned:
-		if (!selfDamage && victim.team == actor.team) || victim.state != stateActive {
+		if (!selfDamage && !l.opposes(victim.team, actor.team)) || victim.state != stateActive {
 			return false, nil
 		}
 		victim.state = stateStunned
@@ -345,7 +363,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		if victim.knockTick != nil {
 			elapsed = (tick - *victim.knockTick) & 0xFFFFFF
 		}
-		opponents := victim.team != actor.team
+		opponents := l.opposes(victim.team, actor.team)
 		if (!selfDamage && !opponents) || victim.state != stateActive ||
 			elapsed == 0 || elapsed >= 0x800000 {
 			return false, nil
@@ -366,18 +384,18 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		// attacker with the pang, which is also what puts the +1 on their team,
 		// because a team's score is the sum of its members' pang counts.
 		if event.DirectDeath {
-			if opponentTeam(victim.team, actor.team) && !selfDamage {
+			if l.opposes(victim.team, actor.team) && !selfDamage {
 				increment(&actor.score.PangCount)
 			}
 			return true, nil
 		}
-		if opponentTeam(victim.team, actor.team) {
+		if l.opposes(victim.team, actor.team) {
 			increment(&actor.score.BubbleCount)
 		}
 		return true, nil
 	}
 
-	if victim.team != actor.team {
+	if l.teamless || victim.team != actor.team {
 		return false, fmt.Errorf("rescue requires members of the same frozen team")
 	}
 
@@ -419,7 +437,9 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 	return false, nil
 }
 
-func opponentTeam(a, b uint8) bool { return a != b }
+// opposes reports whether two seats are enemies. A teamless round makes every
+// other seat an enemy, which is why the team comparison alone cannot decide it.
+func (l *BattleLife) opposes(a, b uint8) bool { return l.teamless || a != b }
 
 // ApplyKick processes one kick event.
 //
@@ -478,7 +498,7 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 		}
 		actor := &l.players[actorSlot]
 		victim := &l.players[victimSlot]
-		if actor.team == victim.team || victim.state != stateBubbled {
+		if !l.opposes(actor.team, victim.team) || victim.state != stateBubbled {
 			return false, nil
 		}
 		victimObject := event.Victim
@@ -508,7 +528,7 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 	}
 	victim := &l.players[victimSlot]
 	actor := &l.players[actorSlot]
-	if actor.team == victim.team {
+	if !l.opposes(actor.team, victim.team) {
 		return false, fmt.Errorf("kick requires opposing teams")
 	}
 	if victim.state != stateBubbled || actor.state != stateActive {
@@ -585,7 +605,7 @@ func (l *BattleLife) OfferRespawn(slot uint8, spawnIndex uint32) (uint32, error)
 		return 0, fmt.Errorf("respawn offer requires a waiting player")
 	}
 	player := &l.players[slot]
-	if spawnIndex/10 != uint32(player.team) || spawnIndex%10 < 1 || spawnIndex%10 > 8 {
+	if !l.validMarker(player.team, spawnIndex) {
 		return 0, fmt.Errorf("respawn offer is outside the team spawn group")
 	}
 	player.spawnIndex = spawnIndex

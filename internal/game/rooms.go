@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"fmt"
+	mathrand "math/rand"
 	"net"
 	"path/filepath"
 	"runtime"
@@ -77,6 +78,9 @@ type Room struct {
 	// respawnCount rotates the team spawn markers the way the reference does.
 	// It is reset at round start.
 	respawnCount [maxRoomSlots]uint32
+	// lastSpawn remembers the random marker a teamless seat took last, so the
+	// next respawn never lands on the same point.
+	lastSpawn [maxRoomSlots]uint32
 	// respawnAt records when each seat last came back, so the box the client
 	// places a few seconds after a respawn can be told from a knock-down box.
 	respawnAt [maxRoomSlots]time.Time
@@ -476,6 +480,22 @@ func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
 	defer r.mu.Unlock()
 	if slot < 0 || slot >= maxRoomSlots || teamSpawnCount == 0 {
 		return 0
+	}
+	// The individual hot-blood battle drops every seat at a random point of the
+	// map and never on the marker it used last: the retail mode moves the respawn
+	// point each time. Both battle groups are ordinary points there, not a side.
+	if r.Setting.Game.Mode == singlePvpModeID {
+		span := teamSpawnCount
+		if span > 8 {
+			span = 8
+		}
+		pick := uint32(mathrand.Intn(int(span) * 2))
+		index := (pick/span+1)*10 + pick%span + 1
+		if index == r.lastSpawn[slot] {
+			index = (pick/span+1)*10 + (pick%span+1)%span + 1
+		}
+		r.lastSpawn[slot] = index
+		return index
 	}
 	team := r.slots[slot].team
 	if team == 0 {
@@ -1179,9 +1199,9 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		return session.Send(protocol.CreateGameEntryReply(protocol.StartNotReady, nil, 2))
 	}
 	if teams[0] != teams[1] || teams[0]+teams[1] != occupied {
-		// The zombie battle starts every seat on the human team, so its teams are
-		// never balanced before play.
-		if settingNow.Game.Mode != zombieModeID {
+		// The zombie battle starts every seat on the human team, and the individual
+		// hot-blood battle has no teams at all, so neither is ever balanced.
+		if settingNow.Game.Mode != zombieModeID && settingNow.Game.Mode != singlePvpModeID {
 			return session.Send(protocol.CreateGameEntryReply(protocol.StartUnequal, nil, 2))
 		}
 	}
@@ -1227,6 +1247,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.characterReported = [maxRoomSlots]bool{}
 	room.seedsSent = false
 	room.respawnCount = [maxRoomSlots]uint32{}
+	room.lastSpawn = [maxRoomSlots]uint32{}
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	// A fresh round never inherits a decision from the previous one.
 	room.zombieWinner = 0
@@ -1494,8 +1515,10 @@ func (s *Server) roundAfterDeparture(room *Room) {
 	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
 	// The zombie battle has no team 2 (humans are 1, zombies 14) and decides its
 	// own round through zombieLeave, so the two-team test below must not read its
-	// empty team 2 as a missing side.
-	if mode == zombieModeID {
+	// empty team 2 as a missing side. The individual hot-blood battle has the same
+	// problem from the other side: one seat leaving must not hand the round to
+	// whatever team it happens to sit on.
+	if mode == zombieModeID || mode == singlePvpModeID {
 		return
 	}
 	winner := uint8(0)
