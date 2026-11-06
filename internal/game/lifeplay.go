@@ -198,8 +198,12 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 			}
 		}
 	}
+	victimSlot := uint8((event.Victim - 1000000) / 100000)
+	actorSlot := uint8((event.Actor - 1000000) / 100000)
 	s.log.Debug("peer kick", "slot", session.slot, "kind", event.Kind, "accepted", accepted,
-		"victim", event.Victim, "actor", event.Actor, "limit", room.SettingCopy().Game.Values128[0])
+		"victim", event.Victim, "actor", event.Actor,
+		"victimState", life.StateOf(victimSlot), "actorState", life.StateOf(actorSlot),
+		"succeeded", event.Succeeded, "room", room.ID)
 	if accepted {
 		if s.broadcastScores(room) {
 			s.log.Debug("score limit reached", "room", room.ID)
