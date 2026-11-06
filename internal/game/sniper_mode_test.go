@@ -129,7 +129,7 @@ func TestHotBloodIndividualOpens(t *testing.T) {
 // A teamless round has no sides: the zero team every seat carries must not read
 // as friendly, or the round would credit nobody.
 func TestTeamlessRoundCountsEverySeatAsAnOpponent(t *testing.T) {
-	life := NewBattleLife(nil, true)
+	life := NewBattleLife(nil, lifeRules{teamless: true, clientSpawn: true})
 	if err := life.Bind(0, objectFor(0), 0); err != nil {
 		t.Fatalf("a teamless seat must bind with team zero: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestTeamlessRoundCountsEverySeatAsAnOpponent(t *testing.T) {
 
 // The team rule must not loosen for the modes that have sides.
 func TestTeamRoundStillRefusesAFriendlyKill(t *testing.T) {
-	life := NewBattleLife(nil, false)
+	life := NewBattleLife(nil, lifeRules{})
 	for slot := uint8(0); slot < 2; slot++ {
 		if err := life.Bind(slot, objectFor(int(slot)), 1); err != nil {
 			t.Fatalf("bind %d: %v", slot, err)
@@ -182,7 +182,7 @@ func TestTeamRoundStillRefusesAFriendlyKill(t *testing.T) {
 // A teamless seat may respawn on either battle group; a seated one stays inside
 // its own group.
 func TestTeamlessSpawnMarkersSpanBothGroups(t *testing.T) {
-	teamless := NewBattleLife(nil, true)
+	teamless := NewBattleLife(nil, lifeRules{teamless: true, clientSpawn: true})
 	for _, marker := range []uint32{11, 18, 21, 28} {
 		if !teamless.validMarker(0, marker) {
 			t.Errorf("teamless marker %d rejected", marker)
@@ -193,7 +193,7 @@ func TestTeamlessSpawnMarkersSpanBothGroups(t *testing.T) {
 			t.Errorf("teamless marker %d accepted", marker)
 		}
 	}
-	team := NewBattleLife(nil, false)
+	team := NewBattleLife(nil, lifeRules{})
 	if !team.validMarker(1, 11) || team.validMarker(1, 21) {
 		t.Error("a team-one seat left its own marker group")
 	}
@@ -220,7 +220,7 @@ func TestMapPoolsPerAdmittedMode(t *testing.T) {
 // battle does, so the whole respawn walk has to accept the marker it reports. A
 // marker it cannot use would strand the seat in the offered state for the round.
 func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
-	life := NewBattleLife(nil, true)
+	life := NewBattleLife(nil, lifeRules{teamless: true, clientSpawn: true})
 	for slot := 0; slot < 2; slot++ {
 		if err := life.Bind(uint8(slot), objectFor(slot), 0); err != nil {
 			t.Fatalf("bind %d: %v", slot, err)
@@ -255,11 +255,30 @@ func TestTeamlessRoundTakesTheClientsSpawnPoint(t *testing.T) {
 	}
 
 	// A seated round keeps the group rule.
-	seated := NewBattleLife(nil, false)
+	seated := NewBattleLife(nil, lifeRules{})
 	if err := seated.Bind(0, objectFor(0), 1); err != nil {
 		t.Fatalf("bind: %v", err)
 	}
 	if err := seated.AdoptSpawnIndex(0, 27); err == nil {
 		t.Error("a team-one seat adopted the other block's marker")
+	}
+}
+
+// A hot-blood team battle reports its own point too, so its seat must be able to
+// confirm a marker outside its team block; the competitive round still refuses it.
+func TestHotBloodTeamBattleTakesTheClientsSpawnPoint(t *testing.T) {
+	life := NewBattleLife(nil, lifeRules{clientSpawn: true})
+	if err := life.Bind(0, objectFor(0), 1); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if err := life.AdoptSpawnIndex(0, 21); err != nil {
+		t.Errorf("hot-blood seat refused the client's marker: %v", err)
+	}
+	competitive := NewBattleLife(nil, lifeRules{})
+	if err := competitive.Bind(0, objectFor(0), 1); err != nil {
+		t.Fatalf("bind: %v", err)
+	}
+	if err := competitive.AdoptSpawnIndex(0, 21); err == nil {
+		t.Error("a competitive seat adopted the other block's marker")
 	}
 }
