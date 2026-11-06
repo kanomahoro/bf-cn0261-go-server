@@ -463,7 +463,9 @@ async function loadRooms() {
       <td>${modeName(r.mode)}</td>
       <td class="hide-sm">${r.map ? esc(r.map) : '<span class="hint">未选图</span>'}</td>
       <td>${r.occupied}/${r.capacity}</td>
-      <td>${r.master >= 0 ? "位 " + r.master : "-"}</td>
+      <td>${r.master >= 0
+        ? "位 " + r.master + (r.masterName ? " · " + esc(r.masterName) : "")
+        : "-"}</td>
       <td>${esc(r.phase)}</td>
       <td>${r.locked
         ? '<span class="tag bad" title="房主设了密码，加入时要输密码">有密码</span>'

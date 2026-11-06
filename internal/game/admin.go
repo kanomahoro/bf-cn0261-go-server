@@ -34,15 +34,18 @@ type AdminPlayer struct {
 
 // AdminRoom is one room as the console lists it.
 type AdminRoom struct {
-	ID       uint16 `json:"id"`
-	Title    string `json:"title"`
-	Mode     uint32 `json:"mode"`
-	Map      string `json:"map"`
-	Master   int    `json:"master"`
-	Occupied int    `json:"occupied"`
-	Capacity uint16 `json:"capacity"`
-	Phase    string `json:"phase"`
-	Locked   bool   `json:"locked"`
+	ID     uint16 `json:"id"`
+	Title  string `json:"title"`
+	Mode   uint32 `json:"mode"`
+	Map    string `json:"map"`
+	Master int    `json:"master"`
+	// MasterName is the seat's nickname, read from the live roster rather than
+	// from the setting string the room was created with (mastership moves).
+	MasterName string `json:"masterName"`
+	Occupied   int    `json:"occupied"`
+	Capacity   uint16 `json:"capacity"`
+	Phase      string `json:"phase"`
+	Locked     bool   `json:"locked"`
 }
 
 // Snapshot reports the live state the console shows.
@@ -132,15 +135,16 @@ func (s *Server) AdminRooms() []AdminRoom {
 	for _, room := range rooms {
 		setting := room.SettingCopy()
 		out = append(out, AdminRoom{
-			ID:       room.ID,
-			Title:    protocol.FromU16(setting.Title),
-			Mode:     setting.Game.Mode,
-			Map:      protocol.FromU16(setting.Game.Strings16[1]),
-			Master:   room.MasterSlot(),
-			Occupied: room.Occupied(),
-			Capacity: setting.Capacity,
-			Phase:    room.phaseName(),
-			Locked:   setting.PasswordRequired,
+			ID:         room.ID,
+			Title:      protocol.FromU16(setting.Title),
+			Mode:       setting.Game.Mode,
+			Map:        protocol.FromU16(setting.Game.Strings16[1]),
+			Master:     room.MasterSlot(),
+			MasterName: protocol.FromU16(room.masterNickname()),
+			Occupied:   room.Occupied(),
+			Capacity:   setting.Capacity,
+			Phase:      room.phaseName(),
+			Locked:     setting.PasswordRequired,
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
