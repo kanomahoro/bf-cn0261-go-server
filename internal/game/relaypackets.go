@@ -179,6 +179,18 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	if target == nil {
 		return
 	}
+	// A killed client drops both of its connections, and they are noticed by two
+	// different goroutines. When the game connection is handled first, Disconnect
+	// has already taken the seat and the account: this session is on its way out,
+	// and putting it back into the plaza would seat a character whose socket is
+	// closed. That seat has no owner left to remove it, so it stays in the plaza
+	// list for good. Clean up instead of returning the seat.
+	if !s.accountOnline(target) {
+		s.log.Debug("relay transport lost after the session ended", "room", roomID, "slot", slot,
+			"session", target.ID)
+		s.Disconnect(target)
+		return
+	}
 	s.log.Warn("relay transport lost; releasing the seat", "room", roomID, "slot", slot)
 	if err := s.leaveRoom(target); err != nil {
 		s.log.Debug("leave after relay loss failed", "session", target.ID, "error", err)
