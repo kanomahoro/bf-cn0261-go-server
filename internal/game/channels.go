@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
@@ -193,7 +194,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		resource = request.Strings16[3]
 	}
 	resourceName := protocol.FromU16(resource)
-	random := resourceName == "" || protocol.FromU16(request.Strings16[3]) == "Random" || resourceName == "Random"
+	// Every map entry the client does not name a map with is a Random-family
+	// marker: Random is the all-random entry, Random_Hot the popular pool and
+	// Random_Hot_DifN a difficulty pool. Reading the prefix keeps a mode's own
+	// marker (the pirate battle's Random_Hot_Dif1) from being taken for a map.
+	random := resourceName == "" || strings.HasPrefix(resourceName, "Random") ||
+		strings.HasPrefix(protocol.FromU16(request.Strings16[3]), "Random")
 	theme := protocol.FromU16(request.Strings16[2])
 	if theme == "" {
 		theme = "All"
@@ -206,7 +212,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		if len(candidates) == 0 {
 			return setting, fmt.Errorf("no map candidates for the requested theme")
 		}
-		if third := protocol.FromU16(request.Strings16[3]); third != "" && third != "Random" {
+		if third := protocol.FromU16(request.Strings16[3]); third != "" && !strings.HasPrefix(third, "Random") {
 			return setting, fmt.Errorf("random rooms cannot pin a resource")
 		}
 		chosen = candidates[0]
@@ -256,8 +262,15 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	setting.Flag5 = request.Flag5
 	setting.Flag444 = request.Flag444
 	if random {
+		// The marker the client sent is kept in the fourth slot: every round reads
+		// it to tell "never chosen" from a pinned name, while the display slot keeps
+		// the all-random entry the room card draws.
+		marker := protocol.FromU16(request.Strings16[3])
+		if !strings.HasPrefix(marker, "Random") {
+			marker = "Random"
+		}
 		setting.Strings16 = [4][]uint16{
-			protocol.U16String("Random"), {}, protocol.U16String(theme), protocol.U16String("Random"),
+			protocol.U16String("Random"), {}, protocol.U16String(theme), protocol.U16String(marker),
 		}
 	} else {
 		label := protocol.FromU16(request.Strings16[0])

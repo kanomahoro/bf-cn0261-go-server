@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
 )
 
 // roomSlot is the per-slot state owned by the room mutex.
@@ -1152,6 +1154,25 @@ func (s *Server) handlePartyChat(session *Session, packet protocol.Packet) error
 	return s.handleChat(session, packet)
 }
 
+// roundMap resolves the map one round runs. A room whose master never chose a map
+// draws a fresh one on every round, and the marker in the fourth setting string is
+// what says so: the second string only holds the name the round before pinned for
+// the client's relay report, so it cannot tell a choice from a leftover.
+func roundMap(maps world.Maps, setting protocol.SessionSetting) string {
+	if strings.HasPrefix(protocol.FromU16(setting.Game.Strings16[3]), "Random") {
+		if candidates := maps.Candidates(setting.Game.Mode, protocol.FromU16(setting.Game.Strings16[2])); len(candidates) > 0 {
+			return candidates[mathrand.Intn(len(candidates))].ResourceName
+		}
+		return maps.DefaultRulesMap
+	}
+	if name := protocol.FromU16(setting.Game.Strings16[1]); name != "" && name != "Random" {
+		if _, ok := maps.Find(name); ok {
+			return name
+		}
+	}
+	return maps.DefaultRulesMap
+}
+
 func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error {
 	room := session.room
 	if room == nil {
@@ -1206,14 +1227,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		}
 	}
 
-	mapName := s.maps.DefaultRulesMap
-	if name := protocol.FromU16(settingNow.Game.Strings16[1]); name != "" && name != "Random" {
-		if _, ok := s.maps.Find(name); ok {
-			mapName = name
-		}
-	} else if candidates := s.maps.Candidates(settingNow.Game.Mode, protocol.FromU16(settingNow.Game.Strings16[2])); len(candidates) > 0 {
-		mapName = candidates[0].ResourceName
-	}
+	mapName := roundMap(s.maps, settingNow)
 	gameMap, ok := s.maps.Find(mapName)
 	if !ok {
 		gameMap = s.maps.Maps[0]
@@ -1572,6 +1586,12 @@ func (s *Server) cancelRound(room *Room) {
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen
+	// A room whose map was never chosen shows the random entry again: the pinned
+	// name only existed for the round that just ended, and a room that did choose
+	// one keeps it.
+	if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
+		room.Setting.Game.Strings16[1] = nil
+	}
 	room.life = nil
 	room.pings = nil
 	room.supplies = nil

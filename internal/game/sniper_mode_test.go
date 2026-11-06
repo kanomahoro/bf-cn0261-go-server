@@ -292,3 +292,67 @@ func TestIndividualModeDrawsARandomSpawnPoint(t *testing.T) {
 		}
 	}
 }
+
+// The random map family: the create request may carry the all-random entry, the
+// popular pool or a difficulty pool, and none of them names a map.
+func TestRandomMapFamilyIsRecognised(t *testing.T) {
+	maps := loadTestMaps(t)
+	for _, marker := range []string{"Random", "Random_Hot", "Random_Hot_Dif1"} {
+		request := protocol.GameSetting{Mode: 1}
+		request.Strings16[1] = protocol.U16String(marker)
+		request.Strings16[3] = protocol.U16String(marker)
+		setting, err := normalizeGameSetting(request, maps)
+		if err != nil {
+			t.Fatalf("%s was refused as a room map: %v", marker, err)
+		}
+		if got := protocol.FromU16(setting.Strings16[3]); got != marker {
+			t.Errorf("marker %s was stored as %q", marker, got)
+		}
+		if got := protocol.FromU16(setting.Strings16[1]); got != "" {
+			t.Errorf("marker %s pinned a map (%q)", marker, got)
+		}
+	}
+
+	// A concrete map still goes through the ordinary path.
+	request := protocol.GameSetting{Mode: 1}
+	request.Strings16[1] = protocol.U16String("rel_Apex01_Diorama")
+	request.Strings16[3] = protocol.U16String("rel_Apex01_Diorama")
+	setting, err := normalizeGameSetting(request, maps)
+	if err != nil {
+		t.Fatalf("a concrete map was refused: %v", err)
+	}
+	if got := protocol.FromU16(setting.Strings16[3]); got != "rel_Apex01_Diorama" {
+		t.Errorf("concrete map stored as %q", got)
+	}
+}
+
+// A room whose map was never chosen draws a new map on every round; one that chose
+// a map keeps it.
+func TestRandomRoomDrawsANewMapEachRound(t *testing.T) {
+	maps := loadTestMaps(t)
+	random := protocol.SessionSetting{Game: protocol.GameSetting{Mode: 1}}
+	random.Game.Strings16[3] = protocol.U16String("Random_Hot")
+	seen := map[string]bool{}
+	for i := 0; i < 200; i++ {
+		seen[roundMap(maps, random)] = true
+	}
+	if len(seen) < 2 {
+		t.Errorf("200 draws produced %d maps: %v", len(seen), seen)
+	}
+
+	chosen := protocol.SessionSetting{Game: protocol.GameSetting{Mode: 1}}
+	chosen.Game.Strings16[1] = protocol.U16String("rel_Apex01_Diorama")
+	chosen.Game.Strings16[3] = protocol.U16String("rel_Apex01_Diorama")
+	for i := 0; i < 50; i++ {
+		if got := roundMap(maps, chosen); got != "rel_Apex01_Diorama" {
+			t.Fatalf("a chosen map was replaced by %q", got)
+		}
+	}
+
+	// A mode with no pool of its own falls back to the default rules map.
+	unpooled := protocol.SessionSetting{Game: protocol.GameSetting{Mode: 5}}
+	unpooled.Game.Strings16[3] = protocol.U16String("Random")
+	if got := roundMap(maps, unpooled); got != maps.DefaultRulesMap {
+		t.Errorf("unpooled random room resolved to %q", got)
+	}
+}
