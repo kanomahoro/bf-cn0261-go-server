@@ -316,7 +316,9 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		}
 		victim := &l.players[victimSlot]
 		if event.Kind == protocol.LifeDying {
-			if victim.state != stateBubbled {
+			// A direct death arrives without a bubble, and the seat it happens to may
+			// still be stunned from the effect that set it up.
+			if victim.state != stateBubbled && !hittable(victim.state) {
 				return false, nil
 			}
 			victim.state = stateDying
@@ -368,7 +370,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 			elapsed = (tick - *victim.knockTick) & 0xFFFFFF
 		}
 		opponents := l.opposes(victim.team, actor.team)
-		if (!selfDamage && !opponents) || victim.state != stateActive ||
+		if (!selfDamage && !opponents) || !hittable(victim.state) ||
 			elapsed == 0 || elapsed >= 0x800000 {
 			return false, nil
 		}
@@ -439,6 +441,14 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		return true, nil
 	}
 	return false, nil
+}
+
+// hittable reports whether a seat may take a knock. A stunned seat can: a grenade
+// or an item effect stuns first and the killing blow lands while the stun is still
+// on, so refusing that knock left the seat stunned instead of bubbled or dying --
+// and a kill that never lands is a point no team is ever credited for.
+func hittable(state lifeState) bool {
+	return state == stateActive || state == stateStunned || state == stateStunRecovering
 }
 
 // opposes reports whether two seats are enemies. A teamless round makes every

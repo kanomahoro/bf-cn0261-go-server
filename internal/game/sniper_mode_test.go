@@ -503,3 +503,60 @@ func TestSniperLoadoutReplacesOtherWeapons(t *testing.T) {
 		t.Error("the character item was dropped")
 	}
 }
+
+// A grenade or an item effect stuns before the killing blow lands. The knock has to
+// be accepted from the stunned state, or the seat stays stunned instead of bubbled
+// and the kill it leads to is never credited.
+func TestStunnedSeatStillTakesTheKillingBlow(t *testing.T) {
+	life := NewBattleLife(nil, false)
+	for slot := 0; slot < 2; slot++ {
+		if err := life.Bind(uint8(slot), objectFor(slot), uint8(slot+1)); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	stun := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeStunned,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+	}
+	if accepted, err := life.Apply(0, stun, false); err != nil || !accepted {
+		t.Fatalf("stun rejected: accepted=%v err=%v", accepted, err)
+	}
+
+	// The grenade's direct death arrives while the seat is stunned.
+	death := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+		DirectDeath:  true,
+	}
+	if accepted, err := life.Apply(0, death, false); err != nil || !accepted {
+		t.Fatalf("the killing blow was dropped while stunned: accepted=%v err=%v", accepted, err)
+	}
+	if score, _ := life.Score(1); score.PangCount != 1 {
+		t.Errorf("attacker pangs = %d, want 1", score.PangCount)
+	}
+
+	// The same for an ordinary knock, which has to leave the seat bubbled so a kick
+	// can credit the point.
+	other := NewBattleLife(nil, false)
+	for slot := 0; slot < 2; slot++ {
+		if err := other.Bind(uint8(slot), objectFor(slot), uint8(slot+1)); err != nil {
+			t.Fatalf("bind %d: %v", slot, err)
+		}
+	}
+	other.Apply(0, protocol.PeerLifeEvent{Kind: protocol.LifeStunned, VictimObject: objectFor(0), ActorObject: objectFor(1)}, false)
+	knock := protocol.PeerLifeEvent{
+		Kind:         protocol.LifeKnocked,
+		VictimObject: objectFor(0),
+		ActorObject:  objectFor(1),
+		Tick:         100,
+	}
+	if accepted, err := other.Apply(0, knock, false); err != nil || !accepted {
+		t.Fatalf("a knock on a stunned seat was dropped: accepted=%v err=%v", accepted, err)
+	}
+	if score, _ := other.Score(1); score.BubbleCount != 1 {
+		t.Errorf("attacker bubbles = %d, want 1", score.BubbleCount)
+	}
+}
