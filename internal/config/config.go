@@ -120,10 +120,6 @@ type Admin struct {
 var weakAdminTokens = map[string]bool{
 	"token": true, "secret": true, "adminadminadmin": true,
 	"0000000000000000": true, "1234567890123456": true, "aaaaaaaaaaaaaaaa": true,
-	// The value this repository used to ship in config/server.json. It sits in the
-	// public commit history, so anyone could have it: refuse it outright instead of
-	// letting a copied configuration come up with a credential the world knows.
-	"547566ff61272b15eadf0c5021b83e78": true,
 }
 
 // weakAdminFragments catch the same words with digits glued on, which is how

@@ -22,9 +22,6 @@
   不能是 `changeme` / `1234567890123456` 这类占位值，否则**服务端直接拒绝启动**
   （`admin.token must be at least 16 characters`）。仓里默认的 token 是空字符串，
   就是为了防止“开箱即开”地被扫到
-- 之前的版本仓库里带过一个固定的示例 token（`547566ff…`），它已经进了公开的提交历史，
-  **现在直接拉黑**：把它填进 `admin.token` 会得到
-  `admin.token is a placeholder; generate a random value`，服务端拒绝启动
 - 生成一个：`openssl rand -hex 32`（或用面板的随机密码器）
 - 连续 10 次 token 错误会使该地址被挡 1 分钟（HTTP 429）
 - **默认只绑 `127.0.0.1`**。要从别的机器访问，用 SSH 隧道：
