@@ -26,12 +26,6 @@ import (
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
 )
 
-// sampleToken is the value this repository used to ship in config/server.json.
-// It sits in the public commit history, so anyone who copied it into their own
-// configuration has a token the world already knows; the console warns when it
-// sees it. config/server.json now ships with the console disabled and no token.
-const sampleToken = "547566ff61272b15eadf0c5021b83e78"
-
 // Server is the management console.
 type Server struct {
 	cfg     config.Admin
@@ -114,10 +108,6 @@ func (s *Server) Serve(ctx context.Context) error {
 		defer cancel()
 		_ = httpServer.Shutdown(shutdown)
 	}()
-	if s.cfg.Token == sampleToken {
-		s.log.Warn("[Admin] admin.token is the sample value shipped in the repository; " +
-			"replace it before the console is reachable by anyone else")
-	}
 	s.log.Info("[Admin] listening", "address", listener.Addr().String())
 	s.printAddress(listener.Addr().String())
 	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
