@@ -128,6 +128,16 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 	if err != nil {
 		return err
 	}
+	if !accepted {
+		// Debug only: a dropped hit is invisible otherwise, and "the kill did not
+		// count" has to be told from "the kill was never accepted".
+		victimSlot := uint8((event.VictimObject - 1000000) / 100000)
+		actorSlot := uint8((event.ActorObject - 1000000) / 100000)
+		s.log.Debug("[Life] event dropped", "room", room.ID, "from", session.slot,
+			"kind", event.Kind, "victim", event.VictimObject, "actor", event.ActorObject,
+			"victimState", life.StateOf(victimSlot), "actorState", life.StateOf(actorSlot),
+			"direct", event.DirectDeath, "tick", event.Tick)
+	}
 	// Relay traffic is already forwarded to the other peers by the relay itself;
 	// echoing it again on the game connection makes the client show every combat
 	// message twice.

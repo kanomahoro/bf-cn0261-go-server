@@ -443,6 +443,39 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 	return false, nil
 }
 
+// StateOf names one seat's life state for the debug stream. It exists so a dropped
+// event can say what the tracker thought the seat was doing at the time.
+func (l *BattleLife) StateOf(slot uint8) string {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if slot >= maxRoomSlots {
+		return "?"
+	}
+	switch l.players[slot].state {
+	case stateActive:
+		return "active"
+	case stateBubbled:
+		return "bubbled"
+	case stateStunned:
+		return "stunned"
+	case stateStunRecovering:
+		return "stunRecovering"
+	case stateDying:
+		return "dying"
+	case stateDead:
+		return "dead"
+	case stateKicked:
+		return "kicked"
+	case stateRespawnWaiting:
+		return "respawnWaiting"
+	case stateRespawnOffered:
+		return "respawnOffered"
+	case stateRespawnConfirmed:
+		return "respawnConfirmed"
+	}
+	return "?"
+}
+
 // hittable reports whether a seat may take a knock. A stunned seat can: a grenade
 // or an item effect stuns first and the killing blow lands while the stun is still
 // on, so refusing that knock left the seat stunned instead of bubbled or dying --
