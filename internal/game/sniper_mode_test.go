@@ -18,7 +18,7 @@ func loadTestMaps(t *testing.T) world.Maps {
 
 // The sniper battle is the ordinary competitive round: it must resolve a map
 // from the no-item pool and keep the create request's clock and score limit.
-func TestSniperModeResolvesToTheCompetitivePool(t *testing.T) {
+func TestNewerModesResolveToTheCompetitivePool(t *testing.T) {
 	maps := loadTestMaps(t)
 
 	random := protocol.GameSetting{Mode: sniperModeID}
@@ -66,9 +66,9 @@ func TestSniperModeResolvesToTheCompetitivePool(t *testing.T) {
 
 // The mode still has to be a known one, and a sniper room must not fall through
 // to the modes the server refuses.
-func TestSniperModeDoesNotOpenOtherModes(t *testing.T) {
+func TestNewerModesDoNotOpenOtherModes(t *testing.T) {
 	maps := loadTestMaps(t)
-	for _, mode := range []uint32{2, 5, 6, 13, 16, 18, 19, 101} {
+	for _, mode := range []uint32{2, 5, 6, 13, 16, 19, 20, 101} {
 		request := protocol.GameSetting{Mode: mode}
 		request.Strings16[1] = protocol.U16String("Random")
 		request.Strings16[3] = protocol.U16String("Random")
@@ -78,5 +78,46 @@ func TestSniperModeDoesNotOpenOtherModes(t *testing.T) {
 		if got := maps.Candidates(mode, "All"); len(got) != 0 {
 			t.Errorf("mode %d got %d map candidates", mode, len(got))
 		}
+	}
+}
+
+// The hot-blood team battles are the competitive round without the bubble
+// stage, so they must resolve maps the same way and keep the create rules.
+func TestHotBloodTeamBattlesUseTheCompetitivePool(t *testing.T) {
+	maps := loadTestMaps(t)
+	for _, mode := range []uint32{teamSurvivalModeID, sniperTeamSurvivalModeID} {
+		random := protocol.GameSetting{Mode: mode}
+		random.Strings16[1] = protocol.U16String("Random")
+		random.Strings16[3] = protocol.U16String("Random")
+		setting, err := normalizeGameSetting(random, maps)
+		if err != nil {
+			t.Fatalf("mode %d random room rejected: %v", mode, err)
+		}
+		if setting.Mode != mode {
+			t.Errorf("mode %d came back as %d", mode, setting.Mode)
+		}
+		if setting.Values128[2] != 240000 || setting.Values128[0] != 20 {
+			t.Errorf("mode %d rules = %d/%d, want the map defaults 240000/20",
+				mode, setting.Values128[2], setting.Values128[0])
+		}
+		if got := len(maps.Candidates(mode, "All")); got != 57 {
+			t.Errorf("mode %d candidates = %d, want 57", mode, got)
+		}
+	}
+}
+
+// The individual hot-blood battle (13) needs a rule the server does not have
+// yet -- an opponent test that spans both seats of a teamless round -- so it
+// stays closed.
+func TestHotBloodIndividualStaysClosed(t *testing.T) {
+	maps := loadTestMaps(t)
+	request := protocol.GameSetting{Mode: 13}
+	request.Strings16[1] = protocol.U16String("Random")
+	request.Strings16[3] = protocol.U16String("Random")
+	if _, err := normalizeGameSetting(request, maps); err == nil {
+		t.Error("mode 13 was accepted")
+	}
+	if got := maps.Candidates(13, "All"); len(got) != 0 {
+		t.Errorf("mode 13 got %d map candidates", len(got))
 	}
 }

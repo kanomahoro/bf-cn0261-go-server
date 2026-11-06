@@ -55,7 +55,14 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 		// flag covers every competitive map, so its pool is the no-item one.
 		case mode == 12 && !entry.NormalMode:
 			continue
-		case mode != 1 && mode != 3 && mode != 8 && mode != 12:
+		// The hot-blood team battles (14 team survival, 18 sniper team survival)
+		// also play the competitive maps: the client's isNotemTeamModeMap and
+		// isSurvivalSniperModeMap flags cover them, neither offers boxes.
+		case mode == 14 && !entry.NormalMode:
+			continue
+		case mode == 18 && !entry.NormalMode:
+			continue
+		case mode != 1 && mode != 3 && mode != 8 && mode != 12 && mode != 14 && mode != 18:
 			continue
 		}
 		if theme != "" && theme != "All" && theme != entry.Theme {

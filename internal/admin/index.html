@@ -196,7 +196,7 @@
     <p class="sub">点任意一行（或「详情」）在右侧直接展开结算数据，不用再往下滚。</p>
     <div class="row">
       <select id="res-mode">
-        <option value="0">全部模式</option><option value="1">竞技</option><option value="3">道具</option><option value="8">僵尸</option><option value="12">狙击</option>
+        <option value="0">全部模式</option><option value="1">竞技</option><option value="3">道具</option><option value="8">僵尸</option><option value="12">狙击</option><option value="14">热血团队</option><option value="18">热血狙击</option>
       </select>
       <input id="res-limit" type="number" value="50" min="10" max="200" step="10" title="每页条数（最多 200）" style="width:90px">
       <button class="act" onclick="loadResults()">加载</button>
@@ -394,7 +394,7 @@ function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-const MODE = { 1: "竞技", 3: "道具", 5: "夺星", 6: "夺星", 8: "僵尸", 12: "狙击", 13: "热血", 16: "BOSS", 101: "海盗" };
+const MODE = { 1: "竞技", 3: "道具", 5: "夺星", 6: "夺星", 8: "僵尸", 12: "狙击", 13: "热血", 14: "热血团队", 16: "BOSS", 18: "热血狙击", 101: "海盗" };
 const modeName = (mode) => MODE[mode] || ("模式 " + mode);
 
 async function copyText(text) {

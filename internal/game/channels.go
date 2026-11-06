@@ -132,23 +132,38 @@ func (d *ChannelDirectory) Cancel(sessionID uint64, accountID uint32) {
 // server has no rule of its own for the mode.
 const sniperModeID = 12
 
+// The two hot-blood team battles: teamSurvivalModeID is wgtTeamSurvival and
+// sniperTeamSurvivalModeID is wgtSniperTeamSurvival. Both are the competitive
+// round with the bubble-and-rescue stage removed, so a hit that takes the last
+// life kills outright: the victim reports the knockdown with the direct-death
+// flag and BattleLife credits the attacker's pang from it (see
+// internal/game/life.go). That is the whole of the mode on the server; the
+// weapons and the respawn wait stay the client's.
+const (
+	teamSurvivalModeID       = 14
+	sniperTeamSurvivalModeID = 18
+)
+
 // normalizeGameSetting reproduces RoomDirectory::NormalizeGameSetting: it keeps
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
 //
-// The normal mode (1), the item battle (3), the sniper battle (12) and the
-// zombie battle (8) are accepted. The 2015 client owns the item mode's rules;
+// The normal mode (1), the item battle (3), the sniper battle (12), the two
+// hot-blood team battles (14, 18) and the zombie battle (8) are accepted. The 2015 client owns the item mode's rules;
 // the server owns the box kinds the build offers, the box ownership it reports
 // and the refresh of the host's map points (see internal/game/supplies.go). The
 // sniper battle is the ordinary competitive round with a different weapon set,
 // which the client restricts itself: nothing here changes for it beyond
-// admitting the mode. The zombie battle keeps no rules in the client at all: the
+// admitting the mode. The hot-blood team battles (14, 18) are the same round
+// without the bubble stage, counted from the direct-death knockdown report. The zombie battle keeps no rules in the client at all: the
 // server picks the king, converts the dead and decides the round (see
 // internal/game/zombie.go). world.Maps.Candidates already filters maps by their
 // itemMode/normalMode flags.
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
-	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID && request.Mode != zombieModeID {
+	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&
+		request.Mode != teamSurvivalModeID && request.Mode != sniperTeamSurvivalModeID &&
+		request.Mode != zombieModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {
