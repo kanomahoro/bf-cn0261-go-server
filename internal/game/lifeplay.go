@@ -12,11 +12,7 @@ import (
 func (s *Server) bindLife(room *Room) error {
 	room.mu.Lock()
 	defer room.mu.Unlock()
-	mode := room.Setting.Game.Mode
-	life := NewBattleLife(nil, lifeRules{
-		teamless:    mode == singlePvpModeID,
-		clientSpawn: hotBloodMode(mode),
-	})
+	life := NewBattleLife(nil, room.Setting.Game.Mode == singlePvpModeID)
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		if entry.session == nil {

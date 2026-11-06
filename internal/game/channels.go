@@ -150,13 +150,6 @@ const (
 // as a draw -- the retail client ranks the seats itself from the score rows.
 const singlePvpModeID = 13
 
-// hotBloodMode reports whether a mode belongs to the bubble-less hot-blood
-// family. Those modes drop every respawning seat at a random point of the map, so
-// the point the client reports is the round's, not a side marker.
-func hotBloodMode(mode uint32) bool {
-	return mode == singlePvpModeID || mode == teamSurvivalModeID || mode == sniperTeamSurvivalModeID
-}
-
 // normalizeGameSetting reproduces RoomDirectory::NormalizeGameSetting: it keeps
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
