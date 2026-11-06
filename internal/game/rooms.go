@@ -682,6 +682,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		Master:         0,
 		ChannelType:    session.channelType,
 		ChannelIndex:   session.channelIndex,
+		phase:          phaseOpen,
 		zombieKingSlot: -1,
 	}
 	room.SetPassword(request.Password)

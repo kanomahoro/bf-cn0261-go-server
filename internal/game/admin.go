@@ -152,7 +152,9 @@ func (r *Room) phaseName() string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	switch r.phase {
-	case phaseOpen:
+	case 0, phaseOpen:
+		// A room that was never started carries no phase yet; the console shows it
+		// as waiting rather than as an unknown state.
 		return "等待"
 	case phaseLoading:
 		return "加载"
