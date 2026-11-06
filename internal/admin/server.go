@@ -26,8 +26,10 @@ import (
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/store"
 )
 
-// sampleToken is the value config/server.json ships with: everyone who reads the
-// repository knows it, so it must never be treated as a secret.
+// sampleToken is the value this repository used to ship in config/server.json.
+// It sits in the public commit history, so anyone who copied it into their own
+// configuration has a token the world already knows; the console warns when it
+// sees it. config/server.json now ships with the console disabled and no token.
 const sampleToken = "547566ff61272b15eadf0c5021b83e78"
 
 // Server is the management console.

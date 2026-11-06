@@ -104,7 +104,8 @@ git checkout f80a083 -- internal/ && go test ./...
 
 字段级说明、日志级别约定与各段默认值：见 [`docs/configuration.md`](docs/configuration.md)
 
-管理后台（概览、在线玩家、房间、日志、战绩、公告、改钱包）：见 [`docs/admin.md`](docs/admin.md)。
+管理后台（概览、在线玩家、房间、日志、战绩、公告、改钱包）：**默认关闭**，
+开启方法与安全说明见 [`docs/admin.md`](docs/admin.md)。
 
 ## 命令行参数
 
