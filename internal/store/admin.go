@@ -23,14 +23,30 @@ type AdminCharacter struct {
 }
 
 // SearchCharacters finds players by account name, nickname, account id or
-// character id. The console calls it for both the search box and the detail view.
-func (db *DB) SearchCharacters(term string, limit int) ([]AdminCharacter, error) {
+// character id, one page at a time. The total is how many matched, so the console
+// can page through a broad nickname search instead of silently cutting it at 50.
+func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
 	if limit <= 0 || limit > 200 {
-		limit = 50
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
 	}
 	like := "%" + term + "%"
+	var total int
+	if err := db.sql.QueryRowContext(ctx,
+		`SELECT COUNT(*)
+		 FROM characters c
+		 JOIN accounts a ON a.id = c.account_id
+		 WHERE a.account_name LIKE ? OR c.nickname LIKE ? OR CAST(a.id AS CHAR) = ? OR CAST(c.id AS CHAR) = ?`,
+		like, like, term, term).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total > 0 && offset > total-1 {
+		offset = total - 1
+	}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT a.id, a.account_name, a.disabled,
 		        c.id, c.nickname, c.character_type,
@@ -41,22 +57,22 @@ func (db *DB) SearchCharacters(term string, limit int) ([]AdminCharacter, error)
 		 LEFT JOIN character_stats s ON s.character_id = c.id
 		 WHERE a.account_name LIKE ? OR c.nickname LIKE ? OR CAST(a.id AS CHAR) = ? OR CAST(c.id AS CHAR) = ?
 		 ORDER BY c.id
-		 LIMIT ?`, like, like, term, term, limit)
+		 LIMIT ? OFFSET ?`, like, like, term, term, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
-	var out []AdminCharacter
+	out := []AdminCharacter{}
 	for rows.Next() {
 		var entry AdminCharacter
 		if err := rows.Scan(&entry.AccountID, &entry.AccountName, &entry.Disabled,
 			&entry.CharacterID, &entry.Nickname, &entry.CharacterType,
 			&entry.Experience, &entry.Lucci, &entry.Cash, &entry.CreatedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, entry)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 // SetBalance writes a character's wallet. It is the console's only wallet write:
@@ -134,29 +150,44 @@ type AdminBan struct {
 	ChangedAt   time.Time `json:"changedAt"`
 }
 
-// ListBans returns every disabled account, most recently changed first.
-func (db *DB) ListBans() ([]AdminBan, error) {
+// ListBans returns one page of disabled accounts, most recently changed first.
+func (db *DB) ListBans(limit, offset int) ([]AdminBan, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
+	if limit <= 0 || limit > 200 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	var total int
+	if err := db.sql.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM accounts WHERE disabled = TRUE").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if total > 0 && offset > total-1 {
+		offset = total - 1
+	}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT a.id, a.account_name, COALESCE(c.nickname, ''), a.updated_at
 		 FROM accounts a
 		 LEFT JOIN characters c ON c.account_id = a.id
 		 WHERE a.disabled = TRUE
-		 ORDER BY a.updated_at DESC`)
+		 ORDER BY a.updated_at DESC
+		 LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 	out := []AdminBan{}
 	for rows.Next() {
 		var entry AdminBan
 		if err := rows.Scan(&entry.AccountID, &entry.AccountName, &entry.Nickname, &entry.ChangedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		out = append(out, entry)
 	}
-	return out, rows.Err()
+	return out, total, rows.Err()
 }
 
 // AdminResult is one finished match as the console lists it.
@@ -190,8 +221,13 @@ type AdminResultPlayer struct {
 func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 50
+	}
+	// Clamp a too-large page instead of falling back to the default: an operator who
+	// asks for 300 rows should get the biggest page the query allows, not 50.
+	if limit > 200 {
+		limit = 200
 	}
 	if offset < 0 {
 		offset = 0

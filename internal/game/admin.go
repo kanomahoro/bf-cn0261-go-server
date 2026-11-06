@@ -292,7 +292,8 @@ func (s *Server) AdminSetBan(accountID uint32, disabled bool) (bool, error) {
 	return kicked, nil
 }
 
-// AdminSearchCharacters finds players for the console's search box.
-func (s *Server) AdminSearchCharacters(term string, limit int) ([]store.AdminCharacter, error) {
-	return s.db.SearchCharacters(term, limit)
+// AdminSearchCharacters finds players for the console's search box, one page at a
+// time; the total is how many matched.
+func (s *Server) AdminSearchCharacters(term string, limit, offset int) ([]store.AdminCharacter, int, error) {
+	return s.db.SearchCharacters(term, limit, offset)
 }

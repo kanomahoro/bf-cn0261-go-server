@@ -282,22 +282,50 @@ func (s *Server) disband(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{"ok": true, "members": members})
 }
 
-func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+// paged is the shape every list endpoint answers when it supports a pager: the
+// total number of matches the filter found, the window the server actually used
+// (it clamps an offset past the end), and the rows.
+type paged struct {
+	Total  int `json:"total"`
+	Offset int `json:"offset"`
+	Limit  int `json:"limit"`
+	Items  any `json:"items"`
+}
+
+// pageArgs reads limit/offset from a request and clamps them to a sane window.
+func pageArgs(r *http.Request, defaultLimit int) (limit, offset int) {
+	limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {
-		limit = 300
+		limit = defaultLimit
 	}
-	entries := logging.Recent(limit, r.URL.Query().Get("q"))
-	writeJSON(w, entries)
+	if limit > maxPageSize {
+		limit = maxPageSize
+	}
+	offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+	if offset < 0 {
+		offset = 0
+	}
+	return limit, offset
+}
+
+// maxPageSize bounds one page of any list the console shows. The log pane asks for
+// 300 lines by default, so the bound has to sit above that.
+const maxPageSize = 500
+
+func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
+	limit, offset := pageArgs(r, 300)
+	items, total := logging.Recent(limit, offset, r.URL.Query().Get("q"))
+	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: items})
 }
 
 func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 	term := strings.TrimSpace(r.URL.Query().Get("q"))
 	if term == "" {
-		writeJSON(w, []store.AdminCharacter{})
+		writeJSON(w, paged{Items: []map[string]any{}})
 		return
 	}
-	found, err := s.game.AdminSearchCharacters(term, 50)
+	limit, offset := pageArgs(r, 20)
+	found, total, err := s.game.AdminSearchCharacters(term, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -318,28 +346,33 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 			"createdAt":     entry.CreatedAt,
 		})
 	}
-	writeJSON(w, out)
+	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: out})
 }
 
 func (s *Server) bans(w http.ResponseWriter, r *http.Request) {
-	bans, err := s.db.ListBans()
+	limit, offset := pageArgs(r, 20)
+	bans, total, err := s.db.ListBans(limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, bans)
+	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: bans})
 }
 
 func (s *Server) results(w http.ResponseWriter, r *http.Request) {
 	mode, _ := strconv.Atoi(r.URL.Query().Get("mode"))
-	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	limit, offset := pageArgs(r, 50)
+	// The results query keeps its own, smaller ceiling: a century of matches does
+	// not need to arrive in one page.
+	if limit > 200 {
+		limit = 200
+	}
 	rows, total, err := s.db.ListResults(uint32(mode), limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, map[string]any{"total": total, "items": rows})
+	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: rows})
 }
 
 func (s *Server) resultDetail(w http.ResponseWriter, r *http.Request) {

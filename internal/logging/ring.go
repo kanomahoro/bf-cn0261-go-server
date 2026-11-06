@@ -31,19 +31,27 @@ const ringSize = 5000
 
 var recent = &Ring{entries: make([]Entry, ringSize)}
 
-// Recent returns up to limit records, newest last. A non-empty contains keeps
-// only the records whose text holds it (case-insensitive), which is how the
+// Recent returns one page of captured records, newest last. A non-empty contains
+// keeps only the records whose text holds it (case-insensitive), which is how the
 // console filters by [Room] / [Relay] and friends.
-func Recent(limit int, contains string) []Entry {
+//
+// offset counts backwards from the newest record, so 0 is the live tail. The
+// second return value is how many records the filter matched in total, which is
+// what a pager needs; the offset is clamped to the last page when the ring shrank
+// between two requests.
+func Recent(limit, offset int, contains string) ([]Entry, int) {
 	recent.mu.Lock()
 	defer recent.mu.Unlock()
 	if limit <= 0 || limit > ringSize {
 		limit = ringSize
 	}
+	if offset < 0 {
+		offset = 0
+	}
 	ordered := recent.orderedLocked()
 	needle := strings.ToLower(contains)
 	if needle != "" {
-		filtered := ordered[:0]
+		filtered := make([]Entry, 0, len(ordered))
 		for _, entry := range ordered {
 			if strings.Contains(strings.ToLower(entry.Message), needle) {
 				filtered = append(filtered, entry)
@@ -51,10 +59,15 @@ func Recent(limit int, contains string) []Entry {
 		}
 		ordered = filtered
 	}
-	if len(ordered) > limit {
-		ordered = ordered[len(ordered)-limit:]
+	total := len(ordered)
+	if total <= limit {
+		return ordered, total
 	}
-	return ordered
+	if offset > total-limit {
+		offset = total - limit
+	}
+	end := total - offset
+	return ordered[end-limit : end], total
 }
 
 // orderedLocked returns the records oldest first.
