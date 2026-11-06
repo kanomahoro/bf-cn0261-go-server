@@ -146,7 +146,7 @@
     </p>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>#</th><th>标题</th><th>模式</th><th class="hide-sm">地图</th><th>人数</th><th>房主位</th><th>阶段</th><th>密码</th><th>操作</th></tr></thead>
+        <thead><tr><th>#</th><th>标题</th><th>模式</th><th class="hide-sm">地图</th><th>人数</th><th>房主</th><th>阶段</th><th>密码</th><th>操作</th></tr></thead>
         <tbody id="rooms-body"></tbody>
       </table>
     </div>
@@ -463,9 +463,9 @@ async function loadRooms() {
       <td>${modeName(r.mode)}</td>
       <td class="hide-sm">${r.map ? esc(r.map) : '<span class="hint">未选图</span>'}</td>
       <td>${r.occupied}/${r.capacity}</td>
-      <td>${r.master >= 0
-        ? "位 " + r.master + (r.masterName ? " · " + esc(r.masterName) : "")
-        : "-"}</td>
+      <td title="座位 ${r.master}">${r.masterName
+        ? esc(r.masterName)
+        : '<span class="hint" title="房主刚离开，正在移交给下一个座位">（移交中）</span>'}</td>
       <td>${esc(r.phase)}</td>
       <td>${r.locked
         ? '<span class="tag bad" title="房主设了密码，加入时要输密码">有密码</span>'
