@@ -2,6 +2,7 @@ package game
 
 import (
 	"testing"
+	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
@@ -392,5 +393,57 @@ func TestIndividualModeSpreadsSimultaneousRespawns(t *testing.T) {
 	// them rather than nothing.
 	if marker := room.NextSpawnIndex(0, 8); marker == 0 {
 		t.Error("an exhausted pool produced no marker")
+	}
+}
+
+// The hold table is what keeps two seats off one point, so pin both branches: a
+// single free marker is the only answer, and an exhausted pool answers with the
+// marker whose hold ends first.
+func TestIndividualModeHonoursTheHoldTable(t *testing.T) {
+	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	now := time.Now()
+	all := func() []uint32 {
+		markers := make([]uint32, 0, 16)
+		for _, base := range []uint32{10, 20} {
+			for within := uint32(1); within <= 8; within++ {
+				markers = append(markers, base+within)
+			}
+		}
+		return markers
+	}
+
+	// Everything held except 15.
+	for _, marker := range all() {
+		if marker != 15 {
+			room.spawnUsedAt[marker] = now.Add(time.Minute)
+		}
+	}
+	if got := room.NextSpawnIndex(0, 8); got != 15 {
+		t.Errorf("the only free marker was not taken: got %d", got)
+	}
+
+	// Everything held: the earliest expiry answers.
+	room2 := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	for _, marker := range all() {
+		room2.spawnUsedAt[marker] = now.Add(time.Minute)
+	}
+	room2.spawnUsedAt[24] = now.Add(10 * time.Second)
+	if got := room2.NextSpawnIndex(0, 8); got != 24 {
+		t.Errorf("an exhausted pool answered %d instead of the earliest release 24", got)
+	}
+
+	// A seat never repeats the point it took last, not even once the pool is
+	// exhausted and the fallback answers.
+	room3 := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	previous := uint32(0)
+	for i := 0; i < 40; i++ {
+		got := room3.NextSpawnIndex(0, 8)
+		if got == 0 {
+			t.Fatalf("pick %d returned no marker", i)
+		}
+		if got == previous {
+			t.Fatalf("pick %d repeated marker %d back to back", i, got)
+		}
+		previous = got
 	}
 }
