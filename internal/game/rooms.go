@@ -1555,9 +1555,11 @@ func (s *Server) roundAfterDeparture(room *Room) {
 	// Count the seats each battle team still has: a round whose opponent side is
 	// empty cannot be played to a result, however many players it still shows.
 	seats := map[uint8]int{}
+	survivorTeam := uint8(0)
 	for slot := range room.slots {
 		if room.slots[slot].session != nil {
 			seats[room.slots[slot].team]++
+			survivorTeam = room.slots[slot].team
 		}
 	}
 	room.mu.Unlock()
@@ -1568,10 +1570,25 @@ func (s *Server) roundAfterDeparture(room *Room) {
 	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
 	// The zombie battle has no team 2 (humans are 1, zombies 14) and decides its
 	// own round through zombieLeave, so the two-team test below must not read its
-	// empty team 2 as a missing side. The individual hot-blood battle has the same
-	// problem from the other side: one seat leaving must not hand the round to
-	// whatever team it happens to sit on.
-	if mode == zombieModeID || mode == singlePvpModeID {
+	// empty team 2 as a missing side.
+	if mode == zombieModeID {
+		return
+	}
+	// The individual battle has no sides to balance, so the two-team test cannot
+	// decide it: one seat leaving must not hand the round to whatever team it sat
+	// on. The last seat standing is the winner instead -- with nobody left to play
+	// against, the round would otherwise sit until the clock ran out.
+	if mode == singlePvpModeID {
+		if remaining > 1 {
+			return
+		}
+		if survivorTeam == 0 {
+			survivorTeam = 1
+		}
+		room.mu.Lock()
+		room.forfeitWinner = survivorTeam
+		room.mu.Unlock()
+		s.finishRound(room, false)
 		return
 	}
 	winner := uint8(0)
