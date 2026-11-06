@@ -622,6 +622,43 @@ func (s *Server) members(room *Room) []protocol.SessionMember {
 	return members
 }
 
+// The equipment slot the rifles, shotguns and sniper rifles share; the item id's
+// own segment says which kind it is.
+const primaryWeaponSlot = 18
+
+// starterSniperItemID is the practice sniper rifle, which every character owns.
+const starterSniperItemID = 204001
+
+// sniperItem reports whether an item id is a sniper rifle. The whole 204 segment is
+// sniper rifles -- eighteen items, every one of them named so -- and no other
+// segment carries one.
+func sniperItem(itemID uint32) bool { return itemID/1000 == 204 }
+
+// sniperLoadout returns the item list a seat brings into a sniper battle. The round
+// offers nothing but the sniper rifle, and the slot reply is what tells the client
+// which weapon a seat plays, so a seat that equipped something else is handed the
+// practice rifle instead. The previous item id comes back for the log; zero means
+// the seat already had a sniper.
+func sniperLoadout(items []protocol.InvItem) ([]protocol.InvItem, uint32) {
+	for index := range items {
+		if items[index].EquippedSlot != primaryWeaponSlot {
+			continue
+		}
+		if sniperItem(items[index].ItemID) {
+			return items, 0
+		}
+		previous := items[index].ItemID
+		out := make([]protocol.InvItem, len(items))
+		copy(out, items)
+		out[index] = protocol.InvItem{ItemID: starterSniperItemID, Quantity: 1, EquippedSlot: primaryWeaponSlot}
+		return out, previous
+	}
+	// No primary weapon at all: the round still hands one out.
+	out := make([]protocol.InvItem, len(items), len(items)+1)
+	copy(out, items)
+	return append(out, protocol.InvItem{ItemID: starterSniperItemID, Quantity: 1, EquippedSlot: primaryWeaponSlot}), 0
+}
+
 func (s *Server) handleMoveInto(session *Session, packet protocol.Packet) error {
 	request, err := protocol.ReadMoveIntoRequest(packet)
 	if err != nil {
@@ -1324,6 +1361,23 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		room.Broadcast(notice)
 	}
 	members := s.members(room)
+	// The sniper battles offer no other weapon, and the slot reply is what tells a
+	// client which weapon a seat plays. Substituting it here keeps the change inside
+	// the round: nothing is written to the account, and the next round rebuilds the
+	// list from the session's own inventory.
+	if settingNow.Game.Mode == sniperModeID || settingNow.Game.Mode == sniperTeamSurvivalModeID {
+		for slot := range members {
+			if members[slot].Character == nil {
+				continue
+			}
+			loadout, previous := sniperLoadout(members[slot].Items)
+			members[slot].Items = loadout
+			if previous != 0 {
+				s.log.Info("[Sniper] loadout forced", "room", room.ID, "slot", slot,
+					"from", previous, "to", starterSniperItemID)
+			}
+		}
+	}
 	for _, member := range room.View() {
 		if !member.Occupied {
 			continue

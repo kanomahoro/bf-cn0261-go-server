@@ -461,3 +461,45 @@ func TestIndividualModeKeepsToOneBlock(t *testing.T) {
 		seen[marker] = true
 	}
 }
+
+// A sniper battle hands every seat the practice rifle: the mode offers no other
+// weapon and the slot reply is what tells the client which gun a seat plays.
+func TestSniperLoadoutReplacesOtherWeapons(t *testing.T) {
+	loadout := []protocol.InvItem{
+		{ItemID: 300001, EquippedSlot: 63},              // character
+		{ItemID: 202001, Quantity: 1, EquippedSlot: 18}, // practice rifle
+		{ItemID: 201001, Quantity: 1, EquippedSlot: 19}, // sidearm
+	}
+	out, previous := sniperLoadout(loadout)
+	if previous != 202001 {
+		t.Errorf("previous weapon = %d, want the rifle 202001", previous)
+	}
+	if out[1].ItemID != starterSniperItemID || out[1].EquippedSlot != primaryWeaponSlot {
+		t.Errorf("slot 18 holds %d, want the practice sniper %d", out[1].ItemID, starterSniperItemID)
+	}
+	// The rest of the loadout is untouched: the character slot drives the appearance.
+	if out[0].ItemID != 300001 || out[2].ItemID != 201001 {
+		t.Errorf("the loadout was changed outside the weapon slot: %v", out)
+	}
+	// The caller's slice is not modified in place.
+	if loadout[1].ItemID != 202001 {
+		t.Error("the source list was modified")
+	}
+
+	// A seat that already carries a sniper keeps exactly what it has.
+	sniper := []protocol.InvItem{{ItemID: 204033, Quantity: 1, EquippedSlot: 18}}
+	kept, previous := sniperLoadout(sniper)
+	if previous != 0 || kept[0].ItemID != 204033 {
+		t.Errorf("a sniper rifle was replaced: previous=%d kept=%v", previous, kept)
+	}
+
+	// No primary weapon at all: one is added, everything else stays.
+	bare := []protocol.InvItem{{ItemID: 300001, EquippedSlot: 63}}
+	filled, _ := sniperLoadout(bare)
+	if len(filled) != 2 || filled[1].ItemID != starterSniperItemID {
+		t.Errorf("a seat without a weapon did not get one: %v", filled)
+	}
+	if filled[0].ItemID != 300001 {
+		t.Error("the character item was dropped")
+	}
+}
