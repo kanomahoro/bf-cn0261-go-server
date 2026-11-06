@@ -195,6 +195,13 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) page(w http.ResponseWriter, r *http.Request) {
+	// The mux sends every unmatched GET here, so anything but the console's own
+	// path (a browser's /favicon.ico probe, for one) answers 404 instead of the
+	// page with a 200.
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = w.Write(indexHTML)
 }

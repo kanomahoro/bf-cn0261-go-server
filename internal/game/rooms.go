@@ -153,6 +153,12 @@ const (
 	endAnnouncement    = 3 * time.Second
 	winnerAnnouncement = 6 * time.Second
 	resultDisplay      = 11 * time.Second
+
+	// game_results.end_reason: why the round stopped. The admin console renders the
+	// column, and the CHECK constraint on the table keeps the pair as the only
+	// legal values.
+	endReasonScore = 1
+	endReasonTime  = 2
 )
 
 // Room phases, matching the original state values.
@@ -1742,17 +1748,22 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 
 	result := store.Result{
-		RoomID:        room.ID,
-		TrackingID:    uint32(roomIDTracking(room)),
-		Mode:          setting.Game.Mode,
-		SubMode:       setting.Game.SubMode,
-		MapName:       protocol.FromU16(setting.Game.Strings16[1]),
-		EndReason:     1,
+		RoomID:     room.ID,
+		TrackingID: uint32(roomIDTracking(room)),
+		Mode:       setting.Game.Mode,
+		SubMode:    setting.Game.SubMode,
+		MapName:    protocol.FromU16(setting.Game.Strings16[1]),
+		// 1 = the scores decided it, 2 = the clock ran out. The console shows this
+		// column, so it has to be the round's own reason instead of a constant.
+		EndReason:     endReasonScore,
 		FirstScore:    teamScores[0],
 		SecondScore:   teamScores[1],
 		Winner:        winner,
 		PolicyVersion: s.prog.Version,
 		Players:       players,
+	}
+	if timeExpired {
+		result.EndReason = endReasonTime
 	}
 	if result.MapName == "" || result.MapName == "Random" {
 		result.MapName = s.maps.DefaultRulesMap

@@ -60,6 +60,11 @@ func Recent(limit int, contains string) []Entry {
 // orderedLocked returns the records oldest first.
 func (r *Ring) orderedLocked() []Entry {
 	if !r.filled {
+		if r.next == 0 {
+			// An empty ring must still answer an empty array: a nil slice encodes as
+			// null, and the console's log pane expects a list.
+			return []Entry{}
+		}
 		return append([]Entry(nil), r.entries[:r.next]...)
 	}
 	out := make([]Entry, 0, len(r.entries))

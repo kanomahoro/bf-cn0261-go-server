@@ -213,7 +213,9 @@ func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, e
 		return nil, 0, err
 	}
 	defer rows.Close()
-	var out []AdminResult
+	// A non-nil slice keeps the JSON body an empty array instead of null, so the
+	// console can render a fresh server without a list-apart guard on every page.
+	out := []AdminResult{}
 	for rows.Next() {
 		var entry AdminResult
 		if err := rows.Scan(&entry.ID, &entry.RoomID, &entry.Mode, &entry.MapName,
@@ -237,7 +239,7 @@ func (db *DB) ResultPlayers(id string) ([]AdminResultPlayer, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []AdminResultPlayer
+	out := []AdminResultPlayer{}
 	for rows.Next() {
 		var entry AdminResultPlayer
 		if err := rows.Scan(&entry.Slot, &entry.Nickname, &entry.Team, &entry.BubbleCount,

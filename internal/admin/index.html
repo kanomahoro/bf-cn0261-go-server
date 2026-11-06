@@ -282,6 +282,19 @@ function toast(text) {
   setTimeout(() => el.classList.remove("show"), 2600);
 }
 
+// Every click handler is an inline onclick, so a rejected promise has nobody to
+// catch it: without this, a failing request looks like a dead button.
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  toast("操作失败：" + ((reason && reason.message) || reason || "未知错误"));
+});
+
+// listOf keeps a null body (an empty server, a match with no saved seats) from
+// turning into "cannot read properties of null".
+function listOf(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function saveToken() {
   token = $("token").value.trim();
   localStorage.setItem(KEY, token);
@@ -333,7 +346,7 @@ async function loadOverview() {
   $("ov-uptime").textContent = fmtDur(data.overview.uptimeSeconds);
   $("ov-db").innerHTML = data.db.ok
     ? '<span class="tag ok">正常</span> <span class="hint">' + data.db.latencyMs + " ms</span>"
-    : '<span class="tag bad">异常</span>';
+    : '<span class="tag bad">异常</span> <span class="hint">' + esc(data.db.error || "") + "</span>";
   $("verLine").textContent = "v" + data.server.version + (data.server.commit ? " · " + data.server.commit.slice(0, 7) : "");
   $("foot-version").textContent = "v" + data.server.version;
   $("ov-server").innerHTML = [
@@ -348,7 +361,7 @@ async function loadOverview() {
 }
 
 async function loadPlayers() {
-  const players = await api("/api/players");
+  const players = listOf(await api("/api/players"));
   $("players-count").textContent = "共 " + players.length + " 人";
   $("players-body").innerHTML = players.map((p) => `
     <tr>
@@ -367,7 +380,7 @@ async function loadPlayers() {
 }
 
 async function loadRooms() {
-  const rooms = await api("/api/rooms");
+  const rooms = listOf(await api("/api/rooms"));
   $("rooms-body").innerHTML = rooms.map((r) => `
     <tr>
       <td>${r.id}</td>
@@ -386,7 +399,7 @@ async function loadRooms() {
 
 async function loadLogs() {
   const query = "/api/logs?limit=" + ($("log-limit").value || 300) + "&q=" + encodeURIComponent($("log-q").value || "");
-  const entries = await api(query);
+  const entries = listOf(await api(query));
   const box = $("logs");
   const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   box.innerHTML = entries.map((e) => `<div class="${e.level}">${esc(e.time.slice(11, 19))} ${e.level.padEnd(5)} ${esc(e.message)}</div>`).join("");
@@ -396,7 +409,7 @@ async function loadLogs() {
 async function doSearch() {
   const term = $("search-q").value.trim();
   if (!term) return;
-  const rows = await api("/api/search?q=" + encodeURIComponent(term));
+  const rows = listOf(await api("/api/search?q=" + encodeURIComponent(term)));
   searchCache = {};
   for (const row of rows) searchCache[row.characterId] = row;
   $("search-body").innerHTML = rows.map((p) => `
@@ -417,7 +430,7 @@ async function doSearch() {
 }
 
 async function loadBans() {
-  const bans = await api("/api/bans");
+  const bans = listOf(await api("/api/bans"));
   $("bans-body").innerHTML = bans.map((b) => `
     <tr>
       <td>${esc(b.accountName)} <span class="hint">#${b.accountId}</span></td>
@@ -485,9 +498,12 @@ async function verifyCharacter() {
 
 async function loadResults() {
   const mode = $("res-mode").value, limit = $("res-limit").value || 50;
-  const data = await api(`/api/results?mode=${mode}&limit=${limit}`);
-  $("res-total").textContent = "共 " + data.total + " 局";
-  $("res-body").innerHTML = data.items.map((r) => `
+  const data = (await api(`/api/results?mode=${mode}&limit=${limit}`)) || {};
+  const items = listOf(data.items);
+  const total = data.total || 0;
+  $("res-total").textContent = "共 " + total + " 局" +
+    (total > items.length ? "（本页显示最新 " + items.length + " 条，CSV 最多导出 200 条）" : "");
+  $("res-body").innerHTML = items.map((r) => `
     <tr class="pickable" onclick="showResult('${r.ID}', this)">
       <td>${esc(r.CompletedAt.replace("T", " ").slice(0, 19))}</td>
       <td>${modeName(r.Mode)}</td>
@@ -503,12 +519,14 @@ async function loadResults() {
 async function showResult(id, row) {
   document.querySelectorAll("#res-body tr.pickable").forEach((tr) => tr.classList.remove("sel"));
   if (row) row.classList.add("sel");
-  const data = await api("/api/results/detail?id=" + encodeURIComponent(id));
+  const data = (await api("/api/results/detail?id=" + encodeURIComponent(id))) || {};
+  const players = listOf(data.players);
   const panel = $("res-detail");
   panel.innerHTML =
-    '<h3>对局 ' + esc(id) + '</h3><p class="hint" style="margin-top:-4px">' + data.players.length + ' 名玩家</p>' +
+    '<h3>对局 ' + esc(id) + '</h3><p class="hint" style="margin-top:-4px">' + players.length + ' 名玩家</p>' +
     '<div class="table-wrap"><table><thead><tr><th>位</th><th>昵称</th><th>队</th><th>泡封</th><th>击爆</th><th>营救</th><th>经验</th><th>金币</th><th>等级</th></tr></thead><tbody>' +
-    data.players.map((p) => `<tr><td>${p.Slot}</td><td>${esc(p.Nickname)}</td><td>${p.Team}</td><td>${p.BubbleCount}</td><td>${p.PangCount}</td><td>${p.RescueCount}</td><td>+${p.ExperienceGain}</td><td>+${p.LucciGain}</td><td>${p.Level}</td></tr>`).join("") +
+    (players.map((p) => `<tr><td>${p.Slot}</td><td>${esc(p.Nickname)}</td><td>${p.Team}</td><td>${p.BubbleCount}</td><td>${p.PangCount}</td><td>${p.RescueCount}</td><td>+${p.ExperienceGain}</td><td>+${p.LucciGain}</td><td>${p.Level}</td></tr>`).join("") ||
+      '<tr><td colspan="9" class="hint">这局没有存下玩家数据</td></tr>') +
     "</tbody></table></div>";
   // On a narrow screen the split collapses and the panel sits under the table, so
   // bring it into view instead of leaving the operator at the bottom of a long list.
@@ -520,6 +538,10 @@ async function downloadCSV() {
   const response = await fetch("/api/results.csv?mode=" + mode, {
     headers: { "Authorization": "Bearer " + token },
   });
+  if (response.status === 401) {
+    $("gate").style.display = "flex";
+    return;
+  }
   if (!response.ok) {
     alert("导出失败：" + response.status);
     return;
@@ -561,8 +583,8 @@ async function disband(roomId) {
 let configFieldsCache = [];
 
 async function loadConfig() {
-  const data = await api("/api/config");
-  configFieldsCache = data.fields || [];
+  const data = (await api("/api/config")) || {};
+  configFieldsCache = listOf(data.fields);
   $("config-note").textContent = data.note || "";
   const groups = {};
   for (const field of configFieldsCache) {
@@ -654,8 +676,20 @@ $("bal-char").addEventListener("input", () => {
   }
 });
 
+// Enter in either search box runs the search; typing a term and having to reach
+// for the button is the sort of thing an operator does a hundred times a day.
+["search-q", "log-q"].forEach((id) => {
+  $(id).addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (id === "search-q") doSearch(); else loadLogs();
+  });
+});
+
 async function refreshLoops() {
   if (document.hidden) return;
+  // While the token gate is up the poll would only produce 401s.
+  if ($("gate").style.display === "flex") return;
   try {
     await loadOverview();
     if ($("tab-players").classList.contains("active")) await loadPlayers();
