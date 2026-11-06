@@ -283,7 +283,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 			s.noteRespawn(room, session.slot)
 			s.announceZombieConversion(room, session.slot)
 		}
-		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
+		s.log.Info("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 32925,
 			"adopted", offered != request.Value, "applied", completed)
 	case 704:
@@ -295,7 +295,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		if !confirmed {
 			// Clients echo C704 once more after the state is back to active; that
 			// repeat is expected, so it only belongs in the debug stream.
-			s.log.Debug("[Respawn] confirmation ignored", "room", room.ID, "slot", session.slot,
+			s.log.Info("[Respawn] confirmation ignored", "room", room.ID, "slot", session.slot,
 				"offered", offered, "confirmed", request.Value, "reason", "state")
 			return nil
 		}
@@ -307,7 +307,7 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 			s.noteRespawn(room, session.slot)
 			s.announceZombieConversion(room, session.slot)
 		}
-		s.log.Debug("[Respawn] completed", "room", room.ID, "slot", session.slot,
+		s.log.Info("[Respawn] completed", "room", room.ID, "slot", session.slot,
 			"spawn", request.Value, "offered", offered, "path", 704,
 			"adopted", offered != request.Value, "applied", completed)
 		s.noteRespawn(room, session.slot)
