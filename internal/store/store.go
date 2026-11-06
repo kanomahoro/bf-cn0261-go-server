@@ -39,15 +39,17 @@ const (
 
 // specialWeapons is every special-weapon item the catalogue keeps, in the order
 // they were added. The item id is always 200000 + the weapon definition, so 5003
-// is the hand grenade, 5004 the sticky grenade and 5005 the proximity mine.
-// A character wears one of them at a time: slot 21 is exclusive.
+// is the hand grenade, 5004 the sticky grenade and 5009 the proximity mine. The
+// ids are the build's own: its item table names 205004 "粘稠手雷 E01-S" and 205009
+// "液态地雷SF01", the sensing mine. A character wears one at a time: slot 21 is
+// exclusive.
 var specialWeapons = []struct {
 	ID   uint32
 	Name string
 }{
 	{GrenadeItemID, "手雷"},
 	{205004, "粘性手雷"},
-	{205005, "感应地雷"},
+	{205009, "感应地雷"},
 }
 
 // ErrDuplicate reports a unique-constraint violation.
@@ -536,6 +538,21 @@ func (db *DB) EnsureGrenadeItems() error {
 		return err
 	}
 	defer tx.Rollback()
+	// 205005 was seeded as the proximity mine before the build's own item table had
+	// been read: the build has no such item, its mine is 205009. A character that
+	// was created in between carries a bag entry the client cannot render, so the
+	// stale rows go before the catalogue is written again.
+	for _, stale := range []uint32{205005} {
+		for _, statement := range []string{
+			`DELETE FROM character_items WHERE item_id = ?`,
+			`DELETE FROM item_equipment_rules WHERE item_id = ?`,
+			`DELETE FROM item_definitions WHERE id = ?`,
+		} {
+			if _, err := tx.ExecContext(ctx, statement, stale); err != nil {
+				return mapError(err)
+			}
+		}
+	}
 	for _, weapon := range specialWeapons {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
