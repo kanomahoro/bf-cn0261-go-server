@@ -62,18 +62,27 @@ type BattleLife struct {
 	mu      sync.RWMutex
 	players [maxRoomSlots]lifePlayer
 	now     func() time.Time
-	// teamless marks the individual hot-blood battle: every seat is its own
-	// side, so the team comparisons below must not treat a shared zero team as
-	// friendly, and no seat can rescue another.
+	rules   lifeRules
+}
+
+// lifeRules carries the behaviour a mode adds to the tracker.
+type lifeRules struct {
+	// teamless marks the individual hot-blood battle: every seat is its own side,
+	// so the team comparisons must not read a shared zero team as friendly, and no
+	// seat can rescue another.
 	teamless bool
+	// instantRevive marks the hot-blood family. A seat the round kills is back on
+	// its feet at once, so the tracker never parks it dead and the client owns the
+	// respawn point -- the same shape the zombie battle already has.
+	instantRevive bool
 }
 
 // NewBattleLife builds the tracker.
-func NewBattleLife(now func() time.Time, teamless bool) *BattleLife {
+func NewBattleLife(now func() time.Time, rules lifeRules) *BattleLife {
 	if now == nil {
 		now = time.Now
 	}
-	return &BattleLife{now: now, teamless: teamless}
+	return &BattleLife{now: now, rules: rules}
 }
 
 // Bind associates a slot with its round object id and frozen team.
@@ -81,7 +90,7 @@ func (l *BattleLife) Bind(slot uint8, objectID uint32, team uint8) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if slot >= maxRoomSlots || objectID < 1000000 || (objectID-1000000)/100000 != uint32(slot) ||
-		team > 2 || (team < 1 && !(l.teamless && team == 0)) {
+		team > 2 || (team < 1 && !(l.rules.teamless && team == 0)) {
 		return fmt.Errorf("battle life requires a player object and frozen team")
 	}
 	player := &l.players[slot]
@@ -101,7 +110,7 @@ func (l *BattleLife) validMarker(team uint8, spawnIndex uint32) bool {
 		return false
 	}
 	group := spawnIndex / 10
-	if l.teamless {
+	if l.rules.teamless {
 		return group == 1 || group == 2
 	}
 	return group == uint32(team)
@@ -120,7 +129,7 @@ func (l *BattleLife) AdoptSpawnIndex(slot uint8, spawnIndex uint32) error {
 	// picks it locally the way the zombie battle does, so the marker it reports is
 	// taken as it is. In a seated round the marker names a side, which is why the
 	// group check stays there.
-	if !l.teamless && !l.validMarker(player.team, spawnIndex) {
+	if !l.rules.teamless && !l.validMarker(player.team, spawnIndex) {
 		return fmt.Errorf("respawn confirmation changed the selected spawn")
 	}
 	player.spawnIndex = spawnIndex
@@ -314,6 +323,11 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		if err := l.validateReporter(sourceSlot, event.VictimObject); err != nil {
 			return false, err
 		}
+		// The kill was counted by the knock that caused it and a hot-blood seat is
+		// already upright again, so the death report carries nothing for the round.
+		if l.rules.instantRevive {
+			return true, nil
+		}
 		victim := &l.players[victimSlot]
 		if event.Kind == protocol.LifeDying {
 			if victim.state != stateBubbled {
@@ -376,7 +390,11 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		victim.knockTick = &tickCopy
 		victim.deadReported = false
 		if event.DirectDeath {
-			victim.state = stateDying
+			// A hot-blood seat is back on its feet immediately: the kill is counted
+			// below, and holding the seat dead here would stop every later hit on it.
+			if !l.rules.instantRevive {
+				victim.state = stateDying
+			}
 		} else {
 			victim.state = stateBubbled
 		}
@@ -399,7 +417,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 		return true, nil
 	}
 
-	if l.teamless || victim.team != actor.team {
+	if l.rules.teamless || victim.team != actor.team {
 		return false, fmt.Errorf("rescue requires members of the same frozen team")
 	}
 
@@ -443,7 +461,7 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 
 // opposes reports whether two seats are enemies. A teamless round makes every
 // other seat an enemy, which is why the team comparison alone cannot decide it.
-func (l *BattleLife) opposes(a, b uint8) bool { return l.teamless || a != b }
+func (l *BattleLife) opposes(a, b uint8) bool { return l.rules.teamless || a != b }
 
 // ApplyKick processes one kick event.
 //
@@ -634,7 +652,7 @@ func (l *BattleLife) ConfirmRespawn(slot uint8, objectID, spawnIndex uint32) (bo
 		// that tells every observer the respawn finished, so adopt the marker and
 		// only reject one that cannot be a spawn point at all -- nothing, in a
 		// teamless round, where the client owns the point outright.
-		if !l.teamless && !l.validMarker(player.team, spawnIndex) {
+		if !l.rules.teamless && !l.validMarker(player.team, spawnIndex) {
 			return false, fmt.Errorf("respawn confirmation changed the selected spawn")
 		}
 		player.spawnIndex = spawnIndex
