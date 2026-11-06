@@ -538,21 +538,6 @@ func (db *DB) EnsureGrenadeItems() error {
 		return err
 	}
 	defer tx.Rollback()
-	// 205005 was seeded as the proximity mine before the build's own item table had
-	// been read: the build has no such item, its mine is 205009. A character that
-	// was created in between carries a bag entry the client cannot render, so the
-	// stale rows go before the catalogue is written again.
-	for _, stale := range []uint32{205005} {
-		for _, statement := range []string{
-			`DELETE FROM character_items WHERE item_id = ?`,
-			`DELETE FROM item_equipment_rules WHERE item_id = ?`,
-			`DELETE FROM item_definitions WHERE id = ?`,
-		} {
-			if _, err := tx.ExecContext(ctx, statement, stale); err != nil {
-				return mapError(err)
-			}
-		}
-	}
 	for _, weapon := range specialWeapons {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
