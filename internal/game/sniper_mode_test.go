@@ -447,3 +447,19 @@ func TestIndividualModeHonoursTheHoldTable(t *testing.T) {
 		previous = got
 	}
 }
+
+// The markers sit in two blocks, one on each team's side of the map, so taking
+// them in turn is what spreads a wipe across the map instead of one corner.
+func TestIndividualModeAlternatesSides(t *testing.T) {
+	room := &Room{Setting: protocol.SessionSetting{Game: protocol.GameSetting{Mode: singlePvpModeID}}}
+	groups := make([]uint32, 0, 6)
+	for slot := 0; slot < 6; slot++ {
+		marker := room.NextSpawnIndex(slot, 8)
+		groups = append(groups, marker/10)
+	}
+	for i := 1; i < len(groups); i++ {
+		if groups[i] == groups[i-1] {
+			t.Fatalf("two respawns in a row took the same side: %v", groups)
+		}
+	}
+}
