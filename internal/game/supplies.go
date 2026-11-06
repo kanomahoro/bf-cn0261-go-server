@@ -154,12 +154,25 @@ func (s *Server) itemMode(room *Room) bool {
 	return room.SettingCopy().Game.Mode == itemModeID
 }
 
+// ammoSupplyMode reports whether a mode places ammo boxes that the client itself
+// turns into ammunition: the zombie battle, the sniper battle and the two
+// hot-blood battles that carry boxes. The server only places and removes them --
+// what a box grants lives in the client, so a pickup is broadcast and the taker
+// is told the kind.
+func ammoSupplyMode(mode uint32) bool {
+	switch mode {
+	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID:
+		return true
+	}
+	return false
+}
+
 // supplyMode reports whether the round places map supply boxes. The item battle
-// keeps their kinds in its two item slots; the zombie battle only hands out ammo
-// to the humans, and either side may take a box (a zombie that takes one denies
-// it to the humans, which is part of the mode).
+// keeps their kinds in its two item slots; an ammo mode only hands out
+// ammunition, and in the zombie battle either side may take a box (a zombie that
+// takes one denies it to the humans, which is part of the mode).
 func (s *Server) supplyMode(room *Room) bool {
-	return s.itemMode(room) || room.ZombieRound()
+	return s.itemMode(room) || ammoSupplyMode(room.SettingCopy().Game.Mode)
 }
 
 // suppliesPlaying reports whether the room is in play, which is when the item
@@ -301,8 +314,8 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	seat := session.slot
-	if room.ZombieRound() {
-		s.takeZombieBox(room, session, objectID, kind)
+	if ammoSupplyMode(room.SettingCopy().Game.Mode) {
+		s.takeAmmoBox(room, session, objectID, kind)
 		return nil
 	}
 
@@ -453,11 +466,11 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	return nil
 }
 
-// takeZombieBox consumes one map box in the zombie battle. The box leaves the
-// map for every member and nothing is granted: the round's ammo lives in the
-// client, so a human's pickup only has to be shown to the others. A zombie may
-// take a box too, which is how the mode lets the zombies deny ammo to the humans.
-func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint32) {
+// takeAmmoBox consumes one map box in a mode that hands out ammunition. The box
+// leaves the map for every member and nothing is granted here: the round's ammo
+// lives in the client, so a pickup only has to be shown to the others and the
+// taker told which kind it took.
+func (s *Server) takeAmmoBox(room *Room, session *Session, objectID, kind uint32) {
 	seat := session.slot
 	room.mu.Lock()
 	state := supplyStateLocked(room)
@@ -493,7 +506,7 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 	}
 	room.mu.Unlock()
 	if !found {
-		s.log.Debug("zombie box pickup of an unknown box ignored",
+		s.log.Debug("ammo box pickup of an unknown box ignored",
 			"room", room.ID, "slot", seat, "object", objectID, "kind", kind)
 		return
 	}
@@ -503,7 +516,7 @@ func (s *Server) takeZombieBox(room *Room, session *Session, objectID, kind uint
 	// are), so that confirmation goes to that seat alone.
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
 	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
-	s.log.Debug("[Zombie] box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
+	s.log.Debug("[Supplies] ammo box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every

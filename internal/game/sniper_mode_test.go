@@ -356,3 +356,18 @@ func TestRandomRoomDrawsANewMapEachRound(t *testing.T) {
 		t.Errorf("unpooled random room resolved to %q", got)
 	}
 }
+
+// The modes that hand out ammunition accept a map supply report and a pickup;
+// the modes that do not must keep ignoring both.
+func TestAmmoSupplyModes(t *testing.T) {
+	for _, mode := range []uint32{zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID} {
+		if !ammoSupplyMode(mode) {
+			t.Errorf("mode %d should place ammo boxes", mode)
+		}
+	}
+	for _, mode := range []uint32{1, 3, teamSurvivalModeID, 101} {
+		if ammoSupplyMode(mode) {
+			t.Errorf("mode %d should not place ammo boxes", mode)
+		}
+	}
+}
