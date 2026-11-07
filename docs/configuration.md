@@ -101,6 +101,16 @@
 一行说清（下发的 `spawn`、客户端回传值、是否采纳、状态是否推进）；重复到达的确认包同样
 只在 DEBUG。
 
+消息里统一用 `[子系统]` 前缀，目前有：
+
+| 前缀 | 范围 |
+| --- | --- |
+| `[Application]` `[Network]` `[Login]` `[Authentication]` | 启动、连接、登录、认证端 |
+| `[Channel]` `[Plaza]` `[Room]` | 频道、广场、房间生命周期 |
+| `[Round]` `[Life]` `[Respawn]` | 对局、生命状态机、复活 |
+| `[Supplies]` `[Zombie]` `[Sniper]` `[Relay]` | 补给、僵尸模式、狙击装配、中继 |
+| `[Admin]` | 管理后台 |
+
 **一局竞技/道具局在 INFO 下通常只有 3 行**：`[Round] started`、`[Round] ended`、
 `[Round] cancelled`；出现夹断时再多一行 `[Round] settlement clamped`。
 

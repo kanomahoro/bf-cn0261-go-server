@@ -1373,7 +1373,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 			loadout, previous := sniperLoadout(members[slot].Items)
 			members[slot].Items = loadout
 			if previous != 0 {
-				s.log.Info("[Sniper] loadout forced", "room", room.ID, "slot", slot,
+				s.log.Debug("[Sniper] loadout forced", "room", room.ID, "slot", slot,
 					"from", previous, "to", starterSniperItemID)
 			}
 		}
