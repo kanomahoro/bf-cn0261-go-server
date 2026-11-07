@@ -89,6 +89,7 @@ git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
 | 26100 | 游戏/大厅 | 自定义 Lambda 加密封包 |
 | 26102 | 登录器认证 | TLS + 长度前缀 JSON |
 | 26104 | 对局中继 | 自定义 TCP + 预约 key |
+| 26110 | 管理后台（**可选，默认不监听**） | HTTP + Bearer token |
 
 三个端口都要对客户端可达；只开 26100/26102 能登录，但进对局会因中继连不上而失败。
 
@@ -110,6 +111,33 @@ git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
 
 管理后台（概览、在线玩家、房间、日志、战绩、公告、改钱包）：**默认关闭**，
 开启方法与安全说明见 [`docs/admin.md`](docs/admin.md)。
+
+## 管理后台（可选）
+
+仓库里的 `config/server.json` 带的是 `"enabled": false` 和**空 token**——**默认不监听任何端口**。
+这是刻意的：后台 token 一旦进了公开提交历史就等于泄露，不应该“开箱即开”地被扫到。
+
+开启四步：
+
+```bash
+# 1. 生成一个 token
+openssl rand -hex 32
+
+# 2. 编辑 config/server.json 的 admin 段：enabled 改 true，token 填上一步的值
+#    "admin": { "enabled": true, "listenAddress": "127.0.0.1", "listenPort": 26110, "token": "<刚才那串>" }
+
+# 3. 重启
+systemctl restart bfserver
+
+# 4. 本机访问（远程用 SSH 隧道，不要把 listenAddress 改成 0.0.0.0）
+ssh -L 26110:127.0.0.1:26110 你的用户@服务器
+# 然后浏览器开 http://127.0.0.1:26110/
+```
+
+- `enabled` 为 `true` 而 `token` 不合规（少于 16 字符 / 占位值）时，**服务端直接拒绝启动**
+- 连续 10 次 token 错误，该地址会被挡 1 分钟（HTTP 429）
+- 绑定成功时服务端会在日志和控制台打印 `Admin console : http://127.0.0.1:26110/`
+- 功能清单、接口与权限说明：见 [`docs/admin.md`](docs/admin.md)
 
 ## 日志
 
@@ -186,6 +214,7 @@ ZOMBIE.md          僵尸模式规则与真机验收记录
 | 金币到上限不再增加 | 正常：上限 `store.MaxLucci = 100,000,000`（1 亿） |
 | 打完一局没有结算界面 | 搜日志 `game result packet rejected`（WARN），多为角色数据异常 |
 | 对局里有人的位置不更新、但还能被打 | 他的中继连接没建立起来，搜 `registration timeout`；先确认 **26104** 对客户端可达 |
+| 管理后台打不开 | 默认就没有监听：先把 `admin.enabled` 改成 `true` 并自己填 `token`（至少 16 字符），否则服务端会拒绝启动 |
 
 ## 发布
 
