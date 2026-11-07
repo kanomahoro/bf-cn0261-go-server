@@ -77,7 +77,9 @@ sudo bash bfserver-install.sh
 - 安装目录 `/opt/bfserver`，服务名 `bfserver`，日志 `Logs/Server.log`，密码与邀请码在 `/root/.bfserver-secrets`
 - **云主机要放行 26100 / 26102 / 26104**，只放行 26100 会出现「能登录、进对局转圈」
 
-> 脚本锁定版本并校验 SHA256，所以 **Release 资产必须与脚本同时更新**，见 [`docs/release.md`](docs/release.md)。
+> 安装脚本只从**仓库**（main 或某个 tag）取，**不随 Release 发布**：Release 里只放二进制包和
+> `SHA256SUMS`。脚本里锁定版本与 sha256，所以从 main 拿到的始终是「当前发布版」的安装器。
+> 完整发布流程见 [`docs/release.md`](docs/release.md)。
 > 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可。
 
 手动安装、数据库准备与登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
@@ -236,6 +238,8 @@ ZOMBIE.md          僵尸模式规则与真机验收记录
 ## 发布
 
 打 tag、构建产物、回填 `BIN_SHA256`、上传 Release 资产的完整顺序：见 [`docs/release.md`](docs/release.md)。
+Release 资产只包含**二进制包**与 `SHA256SUMS`；安装脚本一直在仓库里（`tools/bfserver-install.sh`），
+通过 raw 链接获取，不跟着 Release 发。
 
 ## 许可证
 

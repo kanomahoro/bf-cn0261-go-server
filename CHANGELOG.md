@@ -7,6 +7,8 @@
   `listenAddress` 改成 `0.0.0.0`
 - README 新增「管理后台（可选）」章节（开启四步 + token 规则 + 拒绝启动的阈值），端口表补上
   `26110`，常见问题新增「管理后台打不开」
+- **发布规则变更：Release 不再上传 `bfserver-install.sh`**，只放五个二进制包 + `SHA256SUMS`；
+  脚本一律从仓库取（raw 的 `main` 或某个 tag），避免 Release 与仓库两份脚本不一致
 - README 的「一键安装」改成 GitHub 惯例的写法：`apt update && apt upgrade` → 装 `wget`/`curl` →
   从 **main 分支**取最新脚本 → 运行；并说明脚本里锁着版本与 sha256，所以从 main 拿到的仍是
   「当前发布版」的安装器，想装旧版本把 `main` 换成对应 tag
