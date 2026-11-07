@@ -184,7 +184,14 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 	// has already taken the seat and the account: this session is on its way out,
 	// and putting it back into the plaza would seat a character whose socket is
 	// closed. That seat has no owner left to remove it, so it stays in the plaza
-	// list for good. Clean up instead of returning the seat.
+	// list for good.
+	if target.closing.Load() {
+		s.log.Debug("relay transport lost while the session was closing", "room", roomID, "slot", slot,
+			"session", target.ID)
+		return
+	}
+	// Disconnect unregisters the account last, so accountOnline alone can still
+	// report a session that is already closing; the flag above covers that.
 	if !s.accountOnline(target) {
 		s.log.Debug("relay transport lost after the session ended", "room", roomID, "slot", slot,
 			"session", target.ID)

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/config"
@@ -121,6 +122,12 @@ type Session struct {
 	relayKey    protocol.RelayKey
 	relayActive bool
 	inPlaza     bool
+	// closing is set the moment Disconnect starts. Disconnect removes the seat
+	// and the plaza entry before it unregisters the account, so a concurrent
+	// path (the relay handler, the console) could still see the session as live
+	// and seat it again — a seat nobody would ever remove. Everything that can
+	// re-seat a session checks this flag.
+	closing atomic.Bool
 
 	// EnforceHandshake mirrors the original ClientConnection state machine; the
 	// net layer enables it so unit tests can drive handlers directly.
@@ -251,6 +258,8 @@ func (s *Server) Disconnect(session *Session) {
 	if session == nil {
 		return
 	}
+	// Set before any cleanup: from here on the session must not be seated again.
+	session.closing.Store(true)
 	// Unconditional: an entry that failed halfway may have left a seat with the flag
 	// still false, and a stale seat locks the player out of the plaza.
 	s.leavePlaza(session)

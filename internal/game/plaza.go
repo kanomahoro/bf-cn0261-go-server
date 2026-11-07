@@ -300,6 +300,14 @@ func (s *Server) enterPlaza(session *Session) error {
 	if session.Character.ID == 0 {
 		return nil
 	}
+	// A session that is being torn down must not take a plaza seat: its socket is
+	// already dead, so nothing would ever drop that seat again. Disconnect removes
+	// the plaza entry before it unregisters the account, which leaves a window
+	// where a concurrent caller still sees the session as live.
+	if session.closing.Load() {
+		s.log.Debug("[Plaza] refused a seat for a closing session", "session", session.ID)
+		return nil
+	}
 	if !ChannelContains(session.channelType, session.channelIndex) {
 		session.channelType = lobbyChannelType
 		session.channelIndex = 0
