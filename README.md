@@ -49,19 +49,36 @@
 
 ## 一键安装（Debian 12+）
 
+需要一台全新的 Debian 12（或更新）服务器，root 权限。三步：
+
 ```bash
-sudo bash bfserver-install.sh        # 脚本在仓库 tools/ 下，Release 页也提供
+# 1. 更新系统，装好下载工具
+sudo apt update && sudo apt -y upgrade
+sudo apt install -y wget curl
+
+# 2. 拉取 main 分支上最新的安装脚本
+wget -O bfserver-install.sh \
+  https://raw.githubusercontent.com/kanomahoro/bf-cn0261-go-server/main/tools/bfserver-install.sh
+
+# 3. 运行（交互式：会问你公网 IP 和注册邀请码，回车即用默认值）
+sudo bash bfserver-install.sh
 ```
+
+没有 `wget` 就用 `curl -fsSL -o bfserver-install.sh <同一个地址>`。
+脚本里写死了版本号和二进制的 sha256，所以从 `main` 拉脚本拿到的是**当前发布版**的安装器：
+它会去 Release 下载对应 `vX.Y.Z` 的资产并校验，不会因为 main 上多一个提交就装上未经发布的东西。
 
 八步全自动：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载发布版 → 跑完 14 份迁移 →
 生成配置与 26102 自签证书 → 注册 systemd 服务并启动 → 自检三个端口。
 
 - 公网 IP 自动探测（探到内网会提醒）、邀请码随机、数据库密码随机 24 位（不打印只落盘）
-- 其他用法：`--dry-run`（只看会做什么）、`--yes`（全自动）、`--uninstall`（卸载，库默认保留）
+- 装完会提示：三个端口要放行、以及**管理后台默认关闭**和怎么开启（见下文「管理后台（可选）」）
+- 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、`--uninstall`（卸载，库默认保留）
 - 安装目录 `/opt/bfserver`，服务名 `bfserver`，日志 `Logs/Server.log`，密码与邀请码在 `/root/.bfserver-secrets`
 - **云主机要放行 26100 / 26102 / 26104**，只放行 26100 会出现「能登录、进对局转圈」
 
 > 脚本锁定版本并校验 SHA256，所以 **Release 资产必须与脚本同时更新**，见 [`docs/release.md`](docs/release.md)。
+> 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可。
 
 手动安装、数据库准备与登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
 

@@ -1,5 +1,8 @@
 # 手动安装与登录器
 
+> 想省事就直接用一键脚本（Debian 12+，见 [README 的「一键安装」](../README.md#一键安装debian-12)）：
+> 它会把下面 1~3 步全做掉。本文留给你想自己掌控每一步、或者在别的发行版 / Windows 上部署时用。
+
 ## 1. 建库到初始化完成
 
 > 前置条件：MariaDB 10.11 已安装并在运行。Debian/Ubuntu 上 `sudo apt install -y
