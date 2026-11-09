@@ -73,7 +73,7 @@ S982 必须在客户端建好角色之后发：客户端读的是 per-seat 角�
 
 两局实测（`0.4.0-captain-test3` / `test4`）已确认：
 
-- 建房与进图正常，客户端模式号与 `subMode` 都在放行范围（`[Room] creation rejected` 未出现）
+- 建房与进图正常，客户端模式号与 `subMode` 都在放行范围（建房被拒时会打 `room creation rejected`）
 - 开局约 1 秒后点名，双方都能看到队长形态与 ULTRA 技能条
 - 队长阵亡后按规则转交给队友，转交后 HUD 正常
 - ULTRA 只对本人确认，效果正常（`kind=104` 成立）

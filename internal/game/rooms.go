@@ -774,7 +774,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		// A refused create tells the client nothing but "no", so the reason has to
 		// reach the log: an unsupported mode or sub mode is the first thing to look
 		// at when a room cannot be made at all.
-		s.log.Info("[Room] creation rejected", "reason", "setting", "mode", request.Setting.Game.Mode,
+		s.log.Debug("room creation rejected", "mode", request.Setting.Game.Mode,
 			"subMode", request.Setting.Game.SubMode, "error", err)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}

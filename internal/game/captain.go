@@ -82,7 +82,7 @@ func (s *Server) scheduleCaptainAppointment(room *Room, generation int) {
 		return
 	}
 	team1, team2 := room.teamSeats()
-	s.log.Info("[Captain] opening armed", "room", room.ID, "team1", team1, "team2", team2,
+	s.log.Debug("[Captain] opening armed", "room", room.ID, "team1", team1, "team2", team2,
 		"delayMs", captainAppointDelay.Milliseconds())
 	room.mu.Lock()
 	if room.captainTimer != nil {
@@ -215,7 +215,8 @@ func (s *Server) announceCaptain(room *Room, members []memberView, slot int) {
 			_ = member.Session.Send(reply)
 		}
 	}
-	s.log.Info("[Captain] announced", "room", room.ID, "slot", slot)
+	s.log.Info("[Captain] announced", "room", room.ID, "slot", slot,
+		"team", room.Team(slot))
 }
 
 // handleCaptainDrop answers the client's own death report (C2018). The report
@@ -244,14 +245,14 @@ func (s *Server) handleCaptainDrop(session *Session, packet protocol.Packet) err
 			"len", len(packet.Payload))
 	}
 	if int(seat) != session.slot {
-		s.log.Info("[Captain] drop report names another seat", "room", room.ID,
+		s.log.Debug("[Captain] drop report names another seat", "room", room.ID,
 			"reporter", session.slot, "seat", seat)
 		return nil
 	}
 	// A report about the seat that currently holds the Captaincy is the case the
 	// real-client test needs to see; every other death in the round is noise.
 	if current := room.CaptainSlot(room.Team(session.slot)); current == session.slot {
-		s.log.Info("[Captain] the Captain reported its own fall", "room", room.ID,
+		s.log.Debug("[Captain] the Captain reported its own fall", "room", room.ID,
 			"slot", session.slot)
 	}
 	s.captainsAfterChange(room)
@@ -288,11 +289,11 @@ func (s *Server) handleCaptainUltra(session *Session, packet protocol.Packet) bo
 	}
 	room.mu.RUnlock()
 	if !captain {
-		s.log.Info("[Captain] ultra request outside the Captain's round ignored",
+		s.log.Debug("[Captain] ultra request outside the Captain's round ignored",
 			"room", room.ID, "slot", session.slot)
 		return true
 	}
 	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(session.slot), captainUltraItemKind))
-	s.log.Info("[Captain] the Captain used its ultra", "room", room.ID, "slot", session.slot)
+	s.log.Debug("[Captain] the Captain used its ultra", "room", room.ID, "slot", session.slot)
 	return true
 }

@@ -42,14 +42,6 @@ type Zombie struct {
 	ZombiniTurnMs int `json:"zombiniTurnMs"`
 }
 
-// Captain is accepted only so a configuration written for the build that carried
-// captain.appointDelayMs still starts. The opening announcement is a fixed second
-// in the code now, and nothing reads this value; the block is unknown to older
-// builds, which is why a shipped configuration has to match its binary.
-type Captain struct {
-	AppointDelayMs int `json:"appointDelayMs"`
-}
-
 // Database holds the MariaDB connection settings.
 type Database struct {
 	Host                  string `json:"host"`
@@ -175,9 +167,7 @@ type Config struct {
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
 	Zombie             Zombie         `json:"zombie"`
-	// Deprecated: kept so a configuration with a captain block still loads.
-	Captain Captain `json:"captain"`
-	Admin   Admin   `json:"admin"`
+	Admin              Admin          `json:"admin"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.
