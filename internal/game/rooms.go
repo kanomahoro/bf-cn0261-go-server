@@ -111,6 +111,12 @@ type Room struct {
 	// zombiePendingNotice marks the seats whose conversion has not been announced
 	// yet: the notice waits for their respawn completion.
 	zombiePendingNotice [maxRoomSlots]bool
+
+	// The Captain battle's round state; every field is inert outside mode 20.
+	// captains holds one seat per battle team (index 1 and 2, -1 when a team has
+	// nobody left standing) and captainTimer arms the opening announcement.
+	captains     [3]int
+	captainTimer *time.Timer
 }
 
 // SetPassword stores the room password.
@@ -131,6 +137,12 @@ func (r *Room) PasswordCopy() []uint16 {
 func (r *Room) View() []memberView {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return r.membersLocked()
+}
+
+// membersLocked snapshots the roster for a caller that already holds mu, so a
+// decision taken under the lock can be announced after releasing it.
+func (r *Room) membersLocked() []memberView {
 	out := make([]memberView, 0, maxRoomSlots)
 	for slot := range r.slots {
 		entry := r.slots[slot]
@@ -759,7 +771,11 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	}
 	game, err := normalizeGameSetting(request.Setting.Game, s.maps)
 	if err != nil {
-		s.log.Debug("room creation rejected", "error", err)
+		// A refused create tells the client nothing but "no", so the reason has to
+		// reach the log: an unsupported mode or sub mode is the first thing to look
+		// at when a room cannot be made at all.
+		s.log.Info("[Room] creation rejected", "reason", "setting", "mode", request.Setting.Game.Mode,
+			"subMode", request.Setting.Game.SubMode, "error", err)
 		return session.Send(protocol.CreateRoomResult(true, 1))
 	}
 
@@ -787,6 +803,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		ChannelIndex:   session.channelIndex,
 		phase:          phaseOpen,
 		zombieKingSlot: -1,
+		captains:       [3]int{captainNone, captainNone, captainNone},
 	}
 	room.SetPassword(request.Password)
 	s.nextRoom++
@@ -1339,6 +1356,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	room.lastSpawn = [maxRoomSlots]uint32{}
 	room.spawnUsedAt = [29]time.Time{}
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
+	room.captains = [3]int{captainNone, captainNone, captainNone}
 	// A fresh round never inherits a decision from the previous one.
 	room.zombieWinner = 0
 	room.forfeitWinner = 0
@@ -1578,6 +1596,9 @@ func (s *Server) startRound(room *Room, tracking int) {
 	generation := room.generation
 	room.mu.RUnlock()
 	s.scheduleZombieOpening(room, generation)
+	// The Captain battle names its two Captains here too, a moment later: the
+	// client ignores an announcement for a seat whose character is not built yet.
+	s.scheduleCaptainAppointment(room, generation)
 
 	// The item mode's box refresh starts with play and stops with the round.
 	room.mu.Lock()
@@ -1619,6 +1640,9 @@ func (s *Server) roundAfterDeparture(room *Room) {
 		s.cancelRound(room)
 		return
 	}
+	// A Captain that left the room hands the Captaincy to a teammate before the
+	// round's sides are weighed below.
+	s.captainsAfterChange(room)
 	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
 	// The zombie battle has no team 2 (humans are 1, zombies 14) and decides its
 	// own round through zombieLeave, so the two-team test below must not read its
@@ -1686,6 +1710,11 @@ func (s *Server) cancelRound(room *Room) {
 	room.zombieWinner = 0
 	room.forfeitWinner = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
+	room.captains = [3]int{captainNone, captainNone, captainNone}
+	if room.captainTimer != nil {
+		room.captainTimer.Stop()
+		room.captainTimer = nil
+	}
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen

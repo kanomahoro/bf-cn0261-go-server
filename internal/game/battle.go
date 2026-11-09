@@ -313,6 +313,10 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		s.noteRespawn(room, session.slot)
 		room.Broadcast(protocol.CreateRespawnReply(objectID, request.Value))
 	}
+	// The Captain battle re-checks its appointments after any respawn: a team whose
+	// Captain seat was the last one standing and then went down hands the
+	// Captaincy out again here.
+	s.captainsAfterChange(room)
 	return nil
 }
 

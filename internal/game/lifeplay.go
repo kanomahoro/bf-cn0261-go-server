@@ -162,6 +162,9 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 			// killer's client reports the death it caused.
 			s.zombieDeathOfObject(room, event.VictimObject)
 		}
+		// A Captain that just went down hands the Captaincy on; the check ignores
+		// every event that left both appointments standing.
+		s.captainsAfterChange(room)
 		if s.broadcastScores(room) {
 			s.finishRound(room, false)
 			return nil
@@ -209,6 +212,9 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 			s.log.Debug("score limit reached", "room", room.ID)
 			s.finishRound(room, false)
 		}
+		// A kick can end a Captain's life too, and the report may arrive before the
+		// combat stream's death frame.
+		s.captainsAfterChange(room)
 	}
 	return nil
 }

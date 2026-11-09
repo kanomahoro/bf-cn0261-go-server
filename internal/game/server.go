@@ -412,9 +412,17 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	case 702: // ReqReportMapData superseded by the item mode's supply report
 		return s.handleMapReport(session, packet)
 	case 707: // EatItem: pick up a map box, or the zombie king's ultra request
-		if room := session.room; room != nil && room.ZombieRound() {
-			s.handleZombieItemRequest(session, packet)
-			return nil
+		if room := session.room; room != nil {
+			if room.ZombieRound() {
+				s.handleZombieItemRequest(session, packet)
+				return nil
+			}
+			// The Captain's ULTRA is the same request shape: no scene object and the
+			// Captain's item kind (see captain.go). Anything else stays an ordinary
+			// box pickup.
+			if room.CaptainRound() && s.handleCaptainUltra(session, packet) {
+				return nil
+			}
 		}
 		return s.handleEatItem(session, packet)
 	case 708: // UseItem: spend the held item
@@ -450,6 +458,8 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handleLifePoint(session, packet, false)
 	case 704, 713, 32904, 32925: // respawn
 		return s.handleRespawn(session, packet)
+	case 2018: // DropCaptain: the local character died
+		return s.handleCaptainDrop(session, packet)
 	}
 	if packet.ID == 32777 || packet.ID == 32776 || packet.ID == 32923 ||
 		packet.ID == 32900 || packet.ID == 32906 {

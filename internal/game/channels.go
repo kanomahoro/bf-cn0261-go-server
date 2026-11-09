@@ -133,6 +133,13 @@ func (d *ChannelDirectory) Cancel(sessionID uint64, accountID uint32) {
 // server has no rule of its own for the mode.
 const sniperModeID = 12
 
+// captainModeID is the client's Captain battle (wgtCaptain). The round is the
+// ordinary competitive one -- two teams, the create request's clock and score
+// limit -- and the server's only rules are the Captain appointment and the
+// Captain's ULTRA confirmation (see internal/game/captain.go). Everything else,
+// the Captain's extra health and its gauge included, is the client's.
+const captainModeID = 20
+
 // The two hot-blood team battles: teamSurvivalModeID is wgtTeamSurvival and
 // sniperTeamSurvivalModeID is wgtSniperTeamSurvival. Both are the competitive
 // round with the bubble-and-rescue stage removed, so a hit that takes the last
@@ -156,8 +163,8 @@ const singlePvpModeID = 13
 // and score limit.
 //
 // The normal mode (1), the item battle (3), the sniper battle (12), the two
-// hot-blood battles (13 individual, 14/18 team) and the zombie battle (8) are
-// accepted. The
+// hot-blood battles (13 individual, 14/18 team), the zombie battle (8) and the
+// Captain battle (20) are accepted. The
 // 2015 client owns the item mode's rules; the server owns the box kinds the
 // build offers, the box ownership it reports and the refresh of the host's map
 // points (see internal/game/supplies.go). The sniper battle is the ordinary
@@ -166,13 +173,16 @@ const singlePvpModeID = 13
 // team battles (14, 18) are the same round without the bubble stage, counted
 // from the direct-death knockdown report. The zombie battle keeps no rules in
 // the client at all: the server picks the king, converts the dead and decides
-// the round (see internal/game/zombie.go). world.Maps.Candidates already filters
-// maps by their itemMode/normalMode flags.
+// the round (see internal/game/zombie.go). The Captain battle is the ordinary
+// competitive round with a Captain per team, named by the server and handed on
+// when it dies (see internal/game/captain.go). world.Maps.Candidates already
+// filters maps by their itemMode/normalMode flags.
 func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protocol.GameSetting, error) {
 	var setting protocol.GameSetting
 	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&
 		request.Mode != singlePvpModeID && request.Mode != teamSurvivalModeID &&
-		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID {
+		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID &&
+		request.Mode != captainModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {

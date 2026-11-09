@@ -155,13 +155,18 @@ func (s *Server) itemMode(room *Room) bool {
 }
 
 // ammoSupplyMode reports whether a mode places ammo boxes that the client itself
-// turns into ammunition: the zombie battle, the sniper battle and the two
-// hot-blood battles that carry boxes. The server only places and removes them --
-// what a box grants lives in the client, so a pickup is broadcast and the taker
-// is told the kind.
+// turns into ammunition: the zombie battle, the sniper battle, the two
+// hot-blood battles that carry boxes and the Captain battle. The server only
+// places and removes them -- what a box grants lives in the client, so a pickup
+// is broadcast and the taker is told the kind.
+//
+// The Captain battle is listed with the other competitive kill modes because a
+// box only ever appears when the round master's own map report names supply
+// points: a client that asks for none gets none, so admitting the mode cannot
+// place a box the client did not report.
 func ammoSupplyMode(mode uint32) bool {
 	switch mode {
-	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID:
+	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID, captainModeID:
 		return true
 	}
 	return false

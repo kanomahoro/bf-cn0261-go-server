@@ -41,13 +41,14 @@ func (m Maps) Find(name string) (Map, bool) {
 func (m Maps) Candidates(mode uint32, theme string) []Map {
 	var out []Map
 	for _, entry := range m.Maps {
-		// Modes 1, 8, 12, 13, 14 and 18 play the no-item maps: the client's flags
+		// Modes 1, 8, 12, 13, 14, 18 and 20 play the no-item maps: the client's flags
 		// for them -- isNotemTeamModeMap, isZombieModeMap, isSniperModeMap,
-		// isSinglePvpModeMap and isSurvivalSniperModeMap -- all cover the same
-		// competitive set. The item
+		// isSinglePvpModeMap, isSurvivalSniperModeMap and isCaptainModeMap -- all
+		// cover the same competitive set: the Captain battle's isCaptainModeMap list
+		// in cn-717's MapMeta.xml is the isNotemTeamModeMap list itself. The item
 		// battle plays the item maps. Any other mode has no pool on this server.
 		switch mode {
-		case 1, 8, 12, 13, 14, 18:
+		case 1, 8, 12, 13, 14, 18, 20:
 			if !entry.NormalMode {
 				continue
 			}

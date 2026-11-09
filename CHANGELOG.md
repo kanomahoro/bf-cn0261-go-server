@@ -2,6 +2,12 @@
 
 ## 未发布
 
+- **队长战（`mode 20`）**：白名单与图池放行（图池就是无道具那批，客户端 `isCaptainModeMap` 与
+  `isNotemTeamModeMap` 同一集合）、开局每队点名一名队长（S982）、队长阵亡/离房后转交或清空并在复活后
+  重新下发、队长 ULTRA 用 C707（无对象 + kind 104）由 S715 只回本人。下发时机可配（`captain.appointDelayMs`，
+  默认 800ms）。规则与真机待验项见 `CAPTAIN.md`
+
+
 - **一键安装脚本补上管理后台提示**：装完的汇总里会说明后台默认关闭、怎么打开（`admin.enabled`
   与 `admin.token`）、面板地址是 `http://127.0.0.1:26110/`，以及远程请用 SSH 隧道而不是把
   `listenAddress` 改成 `0.0.0.0`

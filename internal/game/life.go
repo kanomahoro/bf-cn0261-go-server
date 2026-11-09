@@ -443,6 +443,24 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 	return false, nil
 }
 
+// Standing reports whether one seat is still on its feet: an active character, one
+// caught in a bubble that can still be rescued, or one briefly stunned by an item
+// effect (a stunned seat is hittable, so it is alive -- see hittable). A kicked,
+// dying, dead or respawning seat is not, and neither is one whose player left the
+// round. The Captain battle hands the Captaincy on to a standing teammate.
+func (l *BattleLife) Standing(slot uint8) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if int(slot) >= maxRoomSlots || l.players[slot].objectID == 0 || l.players[slot].gone {
+		return false
+	}
+	switch l.players[slot].state {
+	case stateActive, stateBubbled, stateStunned, stateStunRecovering:
+		return true
+	}
+	return false
+}
+
 // StateOf names one seat's life state for the debug stream. It exists so a dropped
 // event can say what the tracker thought the seat was doing at the time.
 func (l *BattleLife) StateOf(slot uint8) string {
