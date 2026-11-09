@@ -46,10 +46,6 @@ type bombSeries struct {
 	// position is the plant position. Only the plant writes it, and the client
 	// repeats it in every later report.
 	position [3]float32
-	// armSeq numbers every arming of the bomb. A bomb that is planted, cancelled
-	// and planted again in one sub-round must not be detonated by the watchdog of
-	// the first arming, so the watchdog only fires for the number it was armed on.
-	armSeq int
 }
 
 // attackingTeam returns the team attacking the current sub-round: the sides swap
@@ -173,7 +169,7 @@ func (s *Server) handleBombState(session *Session, packet protocol.Packet) error
 		return nil
 	}
 	reason := s.bombTransition(room, session.slot, report)
-	generation, roundIndex, armSeq := room.generation, series.roundIndex, series.armSeq
+	generation, roundIndex := room.generation, series.roundIndex
 	room.mu.Unlock()
 	if reason != "" {
 		s.log.Debug("[Bomb] report refused", "room", room.ID, "slot", session.slot,
@@ -182,7 +178,7 @@ func (s *Server) handleBombState(session *Session, packet protocol.Packet) error
 	}
 	room.Broadcast(protocol.CreateBombStateReply(report))
 	if report.State == protocol.BombStateCountdown {
-		s.watchBombDetonation(room, generation, roundIndex, armSeq)
+		s.watchBombDetonation(room, generation, roundIndex)
 	}
 	return nil
 }
@@ -195,12 +191,12 @@ const bombDetonationWatch = 70 * time.Second
 // watchBombDetonation ends a sub-round whose armed bomb nobody ever reported as
 // exploded. Without it a single lost report would hang the series until the room
 // emptied: the round clock deliberately ignores an armed bomb.
-func (s *Server) watchBombDetonation(room *Room, generation, roundIndex, armSeq int) {
+func (s *Server) watchBombDetonation(room *Room, generation, roundIndex int) {
 	time.AfterFunc(bombDetonationWatch, func() {
 		room.mu.Lock()
 		series := room.bomb
 		stale := room.generation != generation || series == nil || series.roundIndex != roundIndex ||
-			series.armSeq != armSeq || room.phase != phasePlaying || series.decided ||
+			room.phase != phasePlaying || series.decided ||
 			series.state != protocol.BombStateCountdown
 		if stale {
 			room.mu.Unlock()
@@ -262,10 +258,6 @@ func (s *Server) bombTransition(room *Room, slot int, report protocol.BombState)
 		if !s.bombCanOperate(room, slot, series.attackingTeam()) {
 			return "standing"
 		}
-		// A new arming starts a new countdown, and its own watchdog with it. The
-		// interrupted defuse returns to this state below without touching the
-		// number: its timer keeps running, so its watchdog stays valid.
-		series.armSeq++
 	case protocol.BombStateDefusing:
 		if series.state != protocol.BombStateCountdown {
 			return "state"
