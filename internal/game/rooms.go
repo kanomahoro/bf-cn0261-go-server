@@ -1676,9 +1676,16 @@ func (s *Server) roundClockExpired(room *Room) {
 	mode := room.Setting.Game.Mode
 	bomb := room.bomb
 	armed := bomb != nil && bomb.armed()
-	defending := uint8(0)
+	bombWinner := uint8(0)
 	if bomb != nil {
-		defending = bomb.defendingTeam()
+		bombWinner = bomb.defendingTeam()
+		if bomb.state == protocol.BombStateExploded {
+			// The bomb already went off; only the master's report is still on its way
+			// (the client plays its 2000 ms tail first). A sub-round whose bomb
+			// exploded belongs to the attacking team even when the clock runs out
+			// while the report travels.
+			bombWinner = bomb.attackingTeam()
+		}
 	}
 	room.mu.RUnlock()
 	if mode == bombModeID {
@@ -1687,9 +1694,9 @@ func (s *Server) roundClockExpired(room *Room) {
 				"room", room.ID)
 			return
 		}
-		s.log.Info("[Bomb] the round clock ran out; the defending team takes the sub-round",
-			"room", room.ID, "team", defending)
-		s.endBombSubRound(room, defending)
+		s.log.Info("[Bomb] the round clock ran out; the sub-round is awarded", "room", room.ID,
+			"team", bombWinner, "bomb_state", protocol.BombStateName(bombState(room)))
+		s.endBombSubRound(room, bombWinner)
 		return
 	}
 	s.finishRound(room, true)

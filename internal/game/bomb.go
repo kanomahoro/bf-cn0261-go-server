@@ -153,13 +153,16 @@ func (s *Server) bombCanOperate(room *Room, slot int, team uint8) bool {
 // against the state it claims to follow and, once accepted, broadcast to the room
 // exactly as it arrived.
 func (s *Server) handleBombState(session *Session, packet protocol.Packet) error {
+	// The mode is checked before the body is: 2012 belongs to this mission alone, and
+	// a room that does not run it must swallow the packet exactly as it did before
+	// the mode existed, instead of failing on a body shape it never promised.
+	room := session.room
+	if room == nil || !room.BombRound() {
+		return nil
+	}
 	report, err := protocol.ReadBombState(packet.Payload)
 	if err != nil {
 		return err
-	}
-	room := session.room
-	if room == nil {
-		return nil
 	}
 	room.mu.Lock()
 	series := room.bomb
@@ -315,13 +318,14 @@ func bombOwns(owner int, slot int, ownerRef, ref uint32) bool {
 // handleBombMissionOver accepts the master's sub-round result once the bomb state
 // or a wiped team agrees with it, and hands the sub-round over to the series.
 func (s *Server) handleBombMissionOver(session *Session, packet protocol.Packet) error {
+	// Same order as the state report: no bomb mission, no parsing.
+	room := session.room
+	if room == nil || !room.BombRound() {
+		return nil
+	}
 	report, err := protocol.ReadBombMissionOver(packet.Payload)
 	if err != nil {
 		return err
-	}
-	room := session.room
-	if room == nil {
-		return nil
 	}
 	room.mu.Lock()
 	series := room.bomb
@@ -667,4 +671,14 @@ func (s *Server) bombCancelDepartedOperator(room *Room) {
 	room.Broadcast(protocol.CreateBombStateReply(report))
 	s.log.Info("[Bomb] the operation owner left the round",
 		"room", room.ID, "slot", owner, "state", protocol.BombStateName(state))
+}
+
+// bombState reads the bomb's state word for the log.
+func bombState(room *Room) uint32 {
+	room.mu.RLock()
+	defer room.mu.RUnlock()
+	if room.bomb == nil {
+		return protocol.BombStateReset
+	}
+	return room.bomb.state
 }

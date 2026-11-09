@@ -414,3 +414,57 @@ func TestBombPinnedMapIsKept(t *testing.T) {
 		}
 	}
 }
+
+// TestBombTimeLimitAwardsAnExplodedBombToTheAttacker checks the clock running out
+// between the client's explosion and its report: the bomb already went off, so the
+// sub-round belongs to the attacking team, not to the defenders it beat.
+func TestBombTimeLimitAwardsAnExplodedBombToTheAttacker(t *testing.T) {
+	server, room := bombTestRoom()
+	defer func() {
+		room.mu.Lock()
+		if room.endTimer != nil {
+			room.endTimer.Stop()
+			room.endTimer = nil
+		}
+		room.mu.Unlock()
+	}()
+
+	room.mu.Lock()
+	room.bomb.state = protocol.BombStateExploded
+	room.mu.Unlock()
+
+	server.roundClockExpired(room)
+
+	room.mu.RLock()
+	wins, phase := room.bomb.wins, room.phase
+	room.mu.RUnlock()
+	if wins != [2]int{1, 0} {
+		t.Fatalf("an exploded bomb at the clock did not go to the attacker: %v", wins)
+	}
+	if phase != phaseSettling {
+		t.Fatalf("the sub-round did not end: phase %d", phase)
+	}
+}
+
+// TestBombTimeLimitAwardsAnUnplantedRoundToTheDefender checks the ordinary case:
+// the clock runs out on a bomb that never went off.
+func TestBombTimeLimitAwardsAnUnplantedRoundToTheDefender(t *testing.T) {
+	server, room := bombTestRoom()
+	defer func() {
+		room.mu.Lock()
+		if room.endTimer != nil {
+			room.endTimer.Stop()
+			room.endTimer = nil
+		}
+		room.mu.Unlock()
+	}()
+
+	server.roundClockExpired(room)
+
+	room.mu.RLock()
+	wins := room.bomb.wins
+	room.mu.RUnlock()
+	if wins != [2]int{0, 1} {
+		t.Fatalf("an unplanted round at the clock did not go to the defender: %v", wins)
+	}
+}
