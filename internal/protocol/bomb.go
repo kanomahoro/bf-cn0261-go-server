@@ -58,9 +58,8 @@ func ReadBombState(payload []byte) (BombState, error) {
 		}
 		position[index] = math.Float32frombits(bits)
 	}
-	if err := r.RequireEnd(); err != nil {
-		return out, err
-	}
+	// Trailing bytes are tolerated on purpose: a padded report must not cost the
+	// player its connection, and the fields the server needs are already read.
 	out.Operator, out.State = operator, state
 	out.X, out.Y, out.Z = position[0], position[1], position[2]
 	return out, nil
@@ -105,9 +104,8 @@ func ReadBombMissionOver(payload []byte) (BombMissionOver, error) {
 	if err != nil {
 		return out, err
 	}
-	if err := r.RequireEnd(); err != nil {
-		return out, err
-	}
+	// Same tolerance as the state report: the three words are what decides the
+	// sub-round, anything behind them is ignored.
 	out.WinningTeam, out.Planter, out.Defuser = team, planter, defuser
 	return out, nil
 }

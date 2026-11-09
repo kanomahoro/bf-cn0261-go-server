@@ -125,6 +125,9 @@ type Room struct {
 	bomb          *bombSeries
 	seriesWinner  uint8
 	bombOperators [maxRoomSlots]uint32
+	// bombObserved marks the seats the current sub-round already turned into
+	// observers, so a client that asks again is not re-announced to the room.
+	bombObserved [maxRoomSlots]bool
 }
 
 // SetPassword stores the room password.
@@ -1795,6 +1798,7 @@ func (s *Server) cancelRound(room *Room) {
 	room.bomb = nil
 	room.seriesWinner = 0
 	room.bombOperators = [maxRoomSlots]uint32{}
+	room.bombObserved = [maxRoomSlots]bool{}
 	if room.Setting.Game.Mode == bombModeID {
 		room.Setting.Game.Values148[6] &^= 1
 		room.Setting.Game.Values148[7] = 0

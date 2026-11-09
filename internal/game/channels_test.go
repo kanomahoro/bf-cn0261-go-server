@@ -52,3 +52,39 @@ func TestUnsupportedModeStillRefused(t *testing.T) {
 		t.Fatal("mode 24 must stay unsupported")
 	}
 }
+
+// TestBombRoomAcceptsItsOwnMaps checks that a bomb room can pin every map of its
+// pool: two of them carry neither the normal nor the item flag in MapMeta.
+func TestBombRoomAcceptsItsOwnMaps(t *testing.T) {
+	maps := world.Maps{}
+	for _, name := range []string{"rel_Sudden06_Tank", "rel_zombie_01_bomb", "rel_Village03_CityHall"} {
+		request := protocol.GameSetting{
+			Mode:      bombModeID,
+			Strings16: [4][]uint16{protocol.U16String("room"), protocol.U16String(name), protocol.U16String("All"), protocol.U16String(name)},
+			Values128: [5]uint32{20, 0, 240000, 0, 1},
+			Values148: [8]uint32{20, 0, 240000, 0, 1, 0xFFFFFFFF},
+		}
+		setting, err := normalizeGameSetting(request, maps)
+		if err != nil {
+			t.Fatalf("%s was refused: %v", name, err)
+		}
+		if protocol.FromU16(setting.Strings16[1]) != name {
+			t.Fatalf("%s was not pinned: %q", name, protocol.FromU16(setting.Strings16[1]))
+		}
+	}
+}
+
+// TestBombRoomRejectsACompetitiveOnlyMap checks that the bomb pool really is the
+// bound: a map outside it is still refused.
+func TestBombRoomRejectsACompetitiveOnlyMap(t *testing.T) {
+	maps := world.Maps{}
+	request := protocol.GameSetting{
+		Mode:      bombModeID,
+		Strings16: [4][]uint16{protocol.U16String("room"), protocol.U16String("rel_Apex01_Diorama"), protocol.U16String("All"), protocol.U16String("rel_Apex01_Diorama")},
+		Values128: [5]uint32{20, 0, 240000, 0, 1},
+		Values148: [8]uint32{20, 0, 240000, 0, 1, 0xFFFFFFFF},
+	}
+	if _, err := normalizeGameSetting(request, maps); err == nil {
+		t.Fatal("a map outside the bomb pool was accepted")
+	}
+}

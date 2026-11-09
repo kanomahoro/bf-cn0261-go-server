@@ -188,10 +188,10 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	switch request.SubMode {
 	case 0, 1, 3, 4:
 	default:
-		// The zombie battle carries no rules in the client, so a sub mode it sends
-		// there cannot change the round; it is echoed back instead of costing the
-		// room its create. Any other mode keeps the audited values only.
-		if request.Mode != zombieModeID || request.SubMode > 15 {
+		// The zombie and bomb battles carry no rules in the client, so a sub mode
+		// they send cannot change the round; it is echoed back instead of costing
+		// the room its create. Any other mode keeps the audited values only.
+		if (request.Mode != zombieModeID && request.Mode != bombModeID) || request.SubMode > 15 {
 			return setting, fmt.Errorf("unsupported room sub mode")
 		}
 	}
@@ -232,12 +232,19 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		if !ok {
 			return setting, fmt.Errorf("unknown map resource")
 		}
-		if request.Mode == itemModeID {
+		switch request.Mode {
+		case bombModeID:
+			// The bomb mission's own pool is the authority: two of its six maps
+			// carry neither the normal nor the item flag in MapMeta, and refusing
+			// them would leave a room that can only be built at random.
+		case itemModeID:
 			if !entry.ItemMode {
 				return setting, fmt.Errorf("map does not support the item mode")
 			}
-		} else if !entry.NormalMode {
-			return setting, fmt.Errorf("map does not support the normal mode")
+		default:
+			if !entry.NormalMode {
+				return setting, fmt.Errorf("map does not support the normal mode")
+			}
 		}
 		if first, third := protocol.FromU16(request.Strings16[1]), protocol.FromU16(request.Strings16[3]); first != "" && third != "" && first != third {
 			return setting, fmt.Errorf("map resource mismatch")

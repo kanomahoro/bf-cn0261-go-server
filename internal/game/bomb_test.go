@@ -271,3 +271,80 @@ func TestBombObserverReachesEveryMember(t *testing.T) {
 		}
 	}
 }
+
+// TestBombSeriesCountsWinsAndEndsTheMatch checks the two-win rule and that the
+// match winner, not the last sub-round's scores, decides the settlement.
+func TestBombSeriesCountsWinsAndEndsTheMatch(t *testing.T) {
+	server, room := bombTestRoom()
+	// The pause timers are not part of the assertions; stop them before they run.
+	defer func() {
+		room.mu.Lock()
+		if room.endTimer != nil {
+			room.endTimer.Stop()
+			room.endTimer = nil
+		}
+		room.mu.Unlock()
+	}()
+
+	server.endBombSubRound(room, 1)
+	room.mu.RLock()
+	wins, decided, winner, phase := room.bomb.wins, room.bomb.decided, room.seriesWinner, room.phase
+	room.mu.RUnlock()
+	if wins != [2]int{1, 0} || !decided || winner != 0 || phase != phaseSettling {
+		t.Fatalf("first sub-round recorded wrong: wins %v decided %v winner %d phase %d",
+			wins, decided, winner, phase)
+	}
+
+	// A repeated report for the sub-round that just ended must not award a second win.
+	server.endBombSubRound(room, 1)
+	room.mu.RLock()
+	wins = room.bomb.wins
+	room.mu.RUnlock()
+	if wins != [2]int{1, 0} {
+		t.Fatalf("a repeated decision counted twice: %v", wins)
+	}
+
+	// The next sub-round is a fresh decision.
+	room.mu.Lock()
+	room.bomb.resetBomb()
+	room.bomb.roundIndex = 1
+	room.phase = phasePlaying
+	room.mu.Unlock()
+
+	server.endBombSubRound(room, 1)
+	room.mu.RLock()
+	wins, winner, seriesWinner := room.bomb.wins, room.bomb.winner, room.seriesWinner
+	room.mu.RUnlock()
+	if wins != [2]int{2, 0} || winner != 1 || seriesWinner != 1 {
+		t.Fatalf("the match did not end after two wins: wins %v winner %d series %d",
+			wins, winner, seriesWinner)
+	}
+}
+
+// TestBombObserverIsAnnouncedOnce checks that a client asking for a respawn twice
+// does not re-announce the same observer to the room.
+func TestBombObserverIsAnnouncedOnce(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	recorders := []*captainRecorder{}
+	for slot := range room.slots {
+		if room.slots[slot].session != nil {
+			recorders = append(recorders, room.slots[slot].session.send.(*captainRecorder))
+		}
+	}
+	room.mu.Unlock()
+
+	server.bombObserve(room, 1)
+	server.bombObserve(room, 1)
+	for index, recorder := range recorders {
+		count := 0
+		for _, packet := range recorder.sent {
+			if packet.ID == 974 {
+				count++
+			}
+		}
+		if count != 1 {
+			t.Fatalf("member %d saw %d observer announcements, want 1", index, count)
+		}
+	}
+}

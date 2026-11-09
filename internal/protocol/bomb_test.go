@@ -29,8 +29,11 @@ func TestReadBombState(t *testing.T) {
 	if report.X != 1.5 || report.Y != -2.25 || report.Z != 0 {
 		t.Fatalf("position decoded wrong: %+v", report)
 	}
-	if _, err := ReadBombState(append(w.Payload(), 0)); err == nil {
-		t.Fatal("a report with a trailing byte was accepted")
+	// Trailing bytes are tolerated: losing the connection over a padded report
+	// would cost a whole match, and the fields are already read.
+	padded, err := ReadBombState(append(w.Payload(), 0, 0, 0, 0))
+	if err != nil || padded.State != BombStateDefusing || padded.Operator != 1234567 {
+		t.Fatalf("a padded report was not read: %+v %v", padded, err)
 	}
 	if _, err := ReadBombState(w.Payload()[:19]); err == nil {
 		t.Fatal("a truncated report was accepted")
@@ -71,6 +74,10 @@ func TestReadBombMissionOver(t *testing.T) {
 	}
 	if _, err := ReadBombMissionOver(w.Payload()[:8]); err == nil {
 		t.Fatal("a truncated report was accepted")
+	}
+	if padded, err := ReadBombMissionOver(append(w.Payload(), 0, 0, 0, 0)); err != nil ||
+		padded.WinningTeam != 2 || padded.Defuser != 900 {
+		t.Fatalf("a padded mission report was not read: %+v %v", padded, err)
 	}
 }
 

@@ -98,6 +98,7 @@ func (r *Room) beginBombSeries() {
 	}
 	r.seriesWinner = 0
 	r.bombOperators = [maxRoomSlots]uint32{}
+	r.bombObserved = [maxRoomSlots]bool{}
 	r.applyBombSeriesSettingLocked()
 }
 
@@ -134,7 +135,8 @@ func bombOperator(room *Room, slot int, ref uint32) bool {
 }
 
 // bombCanOperate reports whether a seat may act on the bomb for a team: it has to
-// be seated on that team and still be on its feet.
+// be seated on that team and free to act. A bubbled seat is not: the client blocks
+// its own actions there, so an operation that arrives from one is a forged report.
 func (s *Server) bombCanOperate(room *Room, slot int, team uint8) bool {
 	if slot < 0 || slot >= maxRoomSlots {
 		return false
@@ -144,7 +146,7 @@ func (s *Server) bombCanOperate(room *Room, slot int, team uint8) bool {
 		return false
 	}
 	life := room.life
-	return life != nil && life.Standing(uint8(slot))
+	return life != nil && life.Active(uint8(slot))
 }
 
 // handleBombState relaying one gcpBombState transition: the report is checked
@@ -167,6 +169,7 @@ func (s *Server) handleBombState(session *Session, packet protocol.Packet) error
 		return nil
 	}
 	reason := s.bombTransition(room, session.slot, report)
+	generation, roundIndex := room.generation, series.roundIndex
 	room.mu.Unlock()
 	if reason != "" {
 		s.log.Debug("[Bomb] report refused", "room", room.ID, "slot", session.slot,
@@ -174,7 +177,46 @@ func (s *Server) handleBombState(session *Session, packet protocol.Packet) error
 		return nil
 	}
 	room.Broadcast(protocol.CreateBombStateReply(report))
+	if report.State == protocol.BombStateCountdown {
+		s.watchBombDetonation(room, generation, roundIndex)
+	}
 	return nil
+}
+
+// bombDetonationWatch is how long an armed bomb may stay armed before the server
+// ends the sub-round itself: the client's own countdown is sixty seconds, so a
+// quiet round is a lost report, not a live bomb.
+const bombDetonationWatch = 70 * time.Second
+
+// watchBombDetonation ends a sub-round whose armed bomb nobody ever reported as
+// exploded. Without it a single lost report would hang the series until the room
+// emptied: the round clock deliberately ignores an armed bomb.
+func (s *Server) watchBombDetonation(room *Room, generation, roundIndex int) {
+	time.AfterFunc(bombDetonationWatch, func() {
+		room.mu.Lock()
+		series := room.bomb
+		stale := room.generation != generation || series == nil || series.roundIndex != roundIndex ||
+			room.phase != phasePlaying || series.decided || series.state != protocol.BombStateCountdown
+		if stale {
+			room.mu.Unlock()
+			return
+		}
+		report := protocol.BombState{
+			Operator: series.planterRef,
+			State:    protocol.BombStateExploded,
+			X:        series.position[0],
+			Y:        series.position[1],
+			Z:        series.position[2],
+		}
+		series.state = protocol.BombStateExploded
+		series.defuser, series.defuserRef = -1, 0
+		attacking := series.attackingTeam()
+		room.mu.Unlock()
+		s.log.Warn("[Bomb] the armed bomb was never reported; the server detonates it",
+			"room", room.ID, "round", roundIndex)
+		room.Broadcast(protocol.CreateBombStateReply(report))
+		s.endBombSubRound(room, attacking)
+	})
 }
 
 // bombTransition applies one transition to the series and returns the reason it
@@ -357,10 +399,14 @@ func (s *Server) bombObserve(room *Room, slot int) {
 	if slot < 0 || slot >= maxRoomSlots {
 		return
 	}
-	room.mu.RLock()
-	playing := room.Setting.Game.Mode == bombModeID && room.phase == phasePlaying
-	room.mu.RUnlock()
-	if !playing {
+	room.mu.Lock()
+	announce := room.Setting.Game.Mode == bombModeID && room.phase == phasePlaying &&
+		!room.bombObserved[slot]
+	if announce {
+		room.bombObserved[slot] = true
+	}
+	room.mu.Unlock()
+	if !announce {
 		return
 	}
 	actor := objectFor(slot)
@@ -431,20 +477,37 @@ func (s *Server) endBombSubRound(room *Room, winner uint8) {
 		}
 		_ = member.Session.Send(protocol.CreateGameOutcomeReply(member.Team == winner))
 	}
-	if matchOver {
-		// One settlement for the whole match, decided by the series record.
-		s.finishRound(room, false)
-		return
-	}
 	room.mu.Lock()
 	if room.phase != phaseSettling || room.generation != generation || room.bomb == nil {
 		room.mu.Unlock()
 		return
 	}
-	room.endTimer = time.AfterFunc(bombRoundPause, func() {
-		s.continueBombRound(room, generation)
-	})
+	// The banner plays first either way: the next stage load and the match result
+	// both arrive after it, never on top of it.
+	if matchOver {
+		room.endTimer = time.AfterFunc(bombRoundPause, func() {
+			s.finishBombMatch(room, generation)
+		})
+	} else {
+		room.endTimer = time.AfterFunc(bombRoundPause, func() {
+			s.continueBombRound(room, generation)
+		})
+	}
 	room.mu.Unlock()
+}
+
+// finishBombMatch settles the series once its last sub-round's banner played. The
+// settlement reads the series record, so the last sub-round's kill totals never
+// decide the match.
+func (s *Server) finishBombMatch(room *Room, generation int) {
+	room.mu.RLock()
+	stale := room.generation != generation || room.Setting.Game.Mode != bombModeID ||
+		room.bomb == nil || room.phase != phaseSettling || !room.Started || room.bomb.winner == 0
+	room.mu.RUnlock()
+	if stale {
+		return
+	}
+	s.finishRound(room, false)
 }
 
 // continueBombRound reloads the stage for the next sub-round: the sides swap, the
@@ -472,6 +535,7 @@ func (s *Server) continueBombRound(room *Room, generation int) {
 	room.lastSpawn = [maxRoomSlots]uint32{}
 	room.spawnUsedAt = [29]time.Time{}
 	room.bombOperators = [maxRoomSlots]uint32{}
+	room.bombObserved = [maxRoomSlots]bool{}
 	room.life = nil
 	room.published = [maxRoomSlots]protocol.BattleScore{}
 	room.teamScores = [2]uint16{}
@@ -510,6 +574,57 @@ func (s *Server) continueBombRound(room *Room, generation int) {
 		s.cancelRound(room)
 	})
 	room.mu.Unlock()
+	// Safety net: a client that reloads but never reports would strand the series
+	// on the loading gate. Rather than lose the match, run the countdown anyway --
+	// the entry packet already told every client to load, and a client that does
+	// report later is harmless because the gate has moved on.
+	armedGeneration := room.bombGeneration()
+	time.AfterFunc(bombLoadFallback, func() {
+		s.forceBombSubRoundStart(room, armedGeneration)
+	})
+}
+
+// bombLoadFallback is how long a series' next sub-round waits for load reports
+// before it starts without them.
+const bombLoadFallback = 15 * time.Second
+
+// forceBombSubRoundStart drives the countdown to a start when no client reported
+// its load for the sub-round.
+func (s *Server) forceBombSubRoundStart(room *Room, generation int) {
+	room.mu.Lock()
+	if room.generation != generation || room.Setting.Game.Mode != bombModeID || room.bomb == nil ||
+		room.phase != phaseLoading || !room.Started {
+		room.mu.Unlock()
+		return
+	}
+	room.phase = phaseCountdown
+	room.tracking++
+	tracking := room.tracking
+	if room.loadingTimer != nil {
+		room.loadingTimer.Stop()
+		room.loadingTimer = nil
+	}
+	room.mu.Unlock()
+	s.log.Warn("[Bomb] no load report for the next sub-round; counting down anyway",
+		"room", room.ID, "round", room.bombRoundIndex())
+	room.Broadcast(protocol.CreateEverybodyLoadedReply())
+	room.Broadcast(protocol.CreateGameCountdownReply(uint32(countdownLength / time.Millisecond)))
+	s.forceDefenseSeeds(room)
+	room.mu.Lock()
+	if room.endTimer != nil {
+		room.endTimer.Stop()
+	}
+	room.endTimer = time.AfterFunc(countdownLength, func() {
+		s.startRound(room, tracking)
+	})
+	room.mu.Unlock()
+}
+
+// bombGeneration reads the round generation the fallback fences itself with.
+func (r *Room) bombGeneration() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.generation
 }
 
 // bombCancelDepartedOperator cancels an unfinished plant or defuse whose owner
