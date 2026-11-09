@@ -163,7 +163,7 @@
       <label class="hint"><input type="checkbox" id="log-auto" checked> 自动刷新</label>
     </div>
     <div class="logs" id="logs"></div>
-    <div class="row pager" id="log-pager"></div>
+    <div class="row pager" id="logs-pager"></div>
   </section>
 
   <section id="tab-search">
@@ -211,7 +211,7 @@
             <tbody id="res-body"></tbody>
           </table>
         </div>
-        <div class="row pager" id="res-pager"></div>
+        <div class="row pager" id="results-pager"></div>
       </div>
       <div class="panel sticky" id="res-detail">
         <div class="empty">还没有选中对局<br>点左侧任意一行查看结算数据</div>
@@ -484,7 +484,7 @@ async function loadLogs() {
   }
   // The tail is live: an auto-refreshing pane always shows the newest page.
   if ($("log-auto").checked) state.offset = 0;
-  const query = "/api/logs?limit=" + state.limit + "&offset=" + state.offset +
+  const query = "/api/logs?limit=" + state.input + "&offset=" + state.offset +
     "&q=" + encodeURIComponent($("log-q").value || "");
   const data = (await api(query)) || {};
   const entries = applyPage("logs", data, data.items);

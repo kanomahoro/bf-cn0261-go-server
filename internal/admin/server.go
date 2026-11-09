@@ -431,10 +431,12 @@ func (s *Server) resultsCSV(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) balance(w http.ResponseWriter, r *http.Request) {
+	// The two amounts are read as signed so a negative number reaches a sentence an
+	// operator can act on, instead of failing the whole body's type check.
 	var body struct {
 		CharacterID uint32 `json:"characterId"`
-		Lucci       uint32 `json:"lucci"`
-		Cash        uint32 `json:"cash"`
+		Lucci       int64  `json:"lucci"`
+		Cash        int64  `json:"cash"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -443,15 +445,19 @@ func (s *Server) balance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "缺少角色 ID")
 		return
 	}
-	if body.Lucci > store.MaxLucci {
+	if body.Lucci < 0 || body.Cash < 0 {
+		writeError(w, http.StatusBadRequest, "金币和点券不能是负数")
+		return
+	}
+	if body.Lucci > int64(store.MaxLucci) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("金币上限 %d", store.MaxLucci))
 		return
 	}
-	if body.Cash > store.MaxCash {
+	if body.Cash > int64(store.MaxCash) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("点券上限 %d", store.MaxCash))
 		return
 	}
-	if err := s.game.AdminSetBalance(body.CharacterID, body.Lucci, body.Cash); err != nil {
+	if err := s.game.AdminSetBalance(body.CharacterID, uint32(body.Lucci), uint32(body.Cash)); err != nil {
 		writeError(w, http.StatusBadRequest, storeMessage(err, "角色不存在（没有余额记录）"))
 		return
 	}
