@@ -414,3 +414,49 @@ func TestBombPinnedMapIsKept(t *testing.T) {
 		}
 	}
 }
+
+// TestBombArmingSequenceNumbersEachPlant checks the watchdog's fence: a bomb that
+// is planted, cancelled and planted again in one sub-round is a different arming,
+// while an interrupted defuse continues the same one.
+func TestBombArmingSequenceNumbersEachPlant(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	plant := func() {
+		t.Helper()
+		if reason := server.bombTransition(room, 0, bombReport(700, protocol.BombStatePlanting)); reason != "" {
+			t.Fatalf("plant refused: %q", reason)
+		}
+	}
+	arm := func() {
+		t.Helper()
+		if reason := server.bombTransition(room, 0, bombReport(700, protocol.BombStateCountdown)); reason != "" {
+			t.Fatalf("arming refused: %q", reason)
+		}
+	}
+
+	plant()
+	arm()
+	if room.bomb.armSeq != 1 {
+		t.Fatalf("the first arming is not numbered 1: %d", room.bomb.armSeq)
+	}
+	// An interrupted defuse returns to the countdown the same arming started.
+	if reason := server.bombTransition(room, 1, bombReport(900, protocol.BombStateDefusing)); reason != "" {
+		t.Fatalf("defuse refused: %q", reason)
+	}
+	if reason := server.bombTransition(room, 1, bombReport(900, protocol.BombStateDefuseInterrupted)); reason != "" {
+		t.Fatalf("interrupt refused: %q", reason)
+	}
+	if room.bomb.armSeq != 1 {
+		t.Fatalf("an interrupted defuse renumbered the arming: %d", room.bomb.armSeq)
+	}
+
+	// A second plant in the same sub-round is a second arming.
+	room.bomb.resetBomb()
+	plant()
+	arm()
+	if room.bomb.armSeq != 2 {
+		t.Fatalf("the second arming is not numbered 2: %d", room.bomb.armSeq)
+	}
+}

@@ -44,11 +44,11 @@ func (m Maps) Find(name string) (Map, bool) {
 	return Map{}, false
 }
 
-// Candidates returns the maps that support a mode and theme.
 // bombModeID is the client's bomb mission. The mode plays its own MapMeta
 // isBombmode list, which Candidates serves from the bomb pool.
 const bombModeID = 19
 
+// Candidates returns the maps that support a mode and theme.
 func (m Maps) Candidates(mode uint32, theme string) []Map {
 	if mode == bombModeID {
 		var out []Map
@@ -80,9 +80,6 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 			if !entry.ItemMode {
 				continue
 			}
-		case bombModeID:
-			// The bomb mission draws from its own pool, below, not this catalog.
-			continue
 		default:
 			continue
 		}
