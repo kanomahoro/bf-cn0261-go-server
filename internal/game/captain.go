@@ -2,7 +2,6 @@ package game
 
 import (
 	"math/rand/v2"
-	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 )
@@ -38,20 +37,12 @@ const (
 	// captainNoObject is the object word that request carries: the client passes
 	// no scene object, so the whole word is set.
 	captainNoObject = 0xFFFFFFFF
-	// captainAppointDelay is the wait between the round start and the seat
-	// announcement. The client's handler reads the per-seat character table and
-	// does nothing for a seat that has no character yet, so the announcement has to
-	// follow the characters' creation. A second covers that with room to spare and
-	// is invisible in a round this long: measured on a real client, 800 ms and
-	// 1000 ms look the same, and the wait only ever applies to the opening -- every
-	// later hand-over is event driven and goes out immediately.
-	//
-	// The reference sends both announcements in the round-start operation itself,
-	// right after the start packet (BubbleFighter.Fantasy RoundFlow.cs), which
-	// assumes the clients build their characters before the round reaches playing.
-	// This server keeps the second as insurance for its own start order rather than
-	// risk losing the appointment for a whole round.
-	captainAppointDelay = 1000 * time.Millisecond
+	// The opening appointment goes out with the round start, like the reference
+	// (BubbleFighter.Fantasy RoundFlow.cs appoints inside the start operation,
+	// right after the start packet). The client marks the character that already
+	// exists at the announced seat and ignores one that has no character yet, so
+	// this relies on the clients having built their characters by the time the
+	// countdown ends -- they load the map and report before it starts.
 	// captainTeamCount is the number of battle teams that get a Captain: team 1
 	// and team 2.
 	captainTeamCount = 2
@@ -74,25 +65,14 @@ func (r *Room) CaptainSlot(team uint8) int {
 	return r.captains[team]
 }
 
-// scheduleCaptainAppointment arms the opening announcement for the round that
-// just started. A later round's generation and the room's shutdown both cancel
-// it, the same way the zombie battle's opening is fenced.
-func (s *Server) scheduleCaptainAppointment(room *Room, generation int) {
+// appointCaptainsAtStart names both teams' Captains as the round starts play. The
+// round's generation fences the call, so a round that already ended appoints
+// nobody.
+func (s *Server) appointCaptainsAtStart(room *Room, generation int) {
 	if !room.CaptainRound() {
 		return
 	}
-	team1, team2 := room.teamSeats()
-	s.log.Debug("[Captain] opening armed", "room", room.ID, "team1", team1, "team2", team2,
-		"delayMs", captainAppointDelay.Milliseconds())
-	room.mu.Lock()
-	if room.captainTimer != nil {
-		room.captainTimer.Stop()
-		room.captainTimer = nil
-	}
-	room.captainTimer = time.AfterFunc(captainAppointDelay, func() {
-		s.refreshCaptains(room, generation)
-	})
-	room.mu.Unlock()
+	s.refreshCaptains(room, generation)
 }
 
 // teamSeats counts the occupied seats of each battle team, for the round's own

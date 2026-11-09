@@ -114,9 +114,8 @@ type Room struct {
 
 	// The Captain battle's round state; every field is inert outside mode 20.
 	// captains holds one seat per battle team (index 1 and 2, -1 when a team has
-	// nobody left standing) and captainTimer arms the opening announcement.
-	captains     [3]int
-	captainTimer *time.Timer
+	// nobody left standing).
+	captains [3]int
 }
 
 // SetPassword stores the room password.
@@ -1596,9 +1595,8 @@ func (s *Server) startRound(room *Room, tracking int) {
 	generation := room.generation
 	room.mu.RUnlock()
 	s.scheduleZombieOpening(room, generation)
-	// The Captain battle names its two Captains here too, a moment later: the
-	// client ignores an announcement for a seat whose character is not built yet.
-	s.scheduleCaptainAppointment(room, generation)
+	// The Captain battle names its two Captains here too, with the round start.
+	s.appointCaptainsAtStart(room, generation)
 
 	// The item mode's box refresh starts with play and stops with the round.
 	room.mu.Lock()
@@ -1711,10 +1709,6 @@ func (s *Server) cancelRound(room *Room) {
 	room.forfeitWinner = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	room.captains = [3]int{captainNone, captainNone, captainNone}
-	if room.captainTimer != nil {
-		room.captainTimer.Stop()
-		room.captainTimer = nil
-	}
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen
