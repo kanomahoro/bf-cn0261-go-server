@@ -53,9 +53,6 @@
         "humanTurnMs": 12000,
         "zombiniTurnMs": 18000
     },
-    "captain": {
-        "appointDelayMs": 800
-    },
     "admin": {
         "enabled": false,
         "listenAddress": "127.0.0.1",

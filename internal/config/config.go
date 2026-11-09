@@ -42,16 +42,11 @@ type Zombie struct {
 	ZombiniTurnMs int `json:"zombiniTurnMs"`
 }
 
-// Captain holds the Captain battle's announcement timing. The mode's rules are
-// otherwise the ordinary competitive round: the client owns the Captain's form,
-// health and gauge, and the server only names the seat.
+// Captain is accepted only so a configuration written for the build that carried
+// captain.appointDelayMs still starts. The opening announcement is a fixed second
+// in the code now, and nothing reads this value; the block is unknown to older
+// builds, which is why a shipped configuration has to match its binary.
 type Captain struct {
-	// AppointDelayMs is the wait between the round start and the seat announcement.
-	// The client marks the character that already exists at the announced seat and
-	// ignores one that has no character yet, so the announcement must follow the
-	// characters' creation. 800 ms is the default measured choice; 1 ms is the
-	// closest a configuration can get to the reference's immediate send, and a
-	// larger value is worth trying if a real client ignores the first announcement.
 	AppointDelayMs int `json:"appointDelayMs"`
 }
 
@@ -180,8 +175,9 @@ type Config struct {
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
 	Zombie             Zombie         `json:"zombie"`
-	Captain            Captain        `json:"captain"`
-	Admin              Admin          `json:"admin"`
+	// Deprecated: kept so a configuration with a captain block still loads.
+	Captain Captain `json:"captain"`
+	Admin   Admin   `json:"admin"`
 }
 
 // AllowedDatabaseNames are the only database names the server accepts.
@@ -218,7 +214,6 @@ func Load(path string) (Config, error) {
 const (
 	defaultHumanTurnMs   = 12000
 	defaultZombiniTurnMs = 18000
-	defaultCaptainDelay  = 800
 )
 
 // applyDefaults fills the fields whose zero value means "not stated". A
@@ -230,11 +225,6 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Zombie.ZombiniTurnMs == 0 {
 		c.Zombie.ZombiniTurnMs = defaultZombiniTurnMs
-	}
-	// A configuration written before the Captain battle existed carries no captain
-	// block; the announcement still has to wait for the characters.
-	if c.Captain.AppointDelayMs == 0 {
-		c.Captain.AppointDelayMs = defaultCaptainDelay
 	}
 }
 
@@ -347,11 +337,6 @@ func (c Config) Validate() error {
 	}
 	if c.Zombie.ZombiniTurnMs < 500 || c.Zombie.ZombiniTurnMs > 60000 {
 		return fmt.Errorf("zombie.zombiniTurnMs must be between 500 and 60000")
-	}
-	// The Captain announcement is a one-off wait after the round start; a value
-	// outside this window is a typo rather than a preference.
-	if c.Captain.AppointDelayMs < 0 || c.Captain.AppointDelayMs > 5000 {
-		return fmt.Errorf("captain.appointDelayMs must be between 0 and 5000")
 	}
 	return nil
 }

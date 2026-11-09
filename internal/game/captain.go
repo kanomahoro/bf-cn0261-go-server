@@ -38,18 +38,20 @@ const (
 	// captainNoObject is the object word that request carries: the client passes
 	// no scene object, so the whole word is set.
 	captainNoObject = 0xFFFFFFFF
-	// captainAppointDelay is the fallback wait used when the configuration states
-	// none; config.Captain.AppointDelayMs overrides it. The wait exists because the
-	// client's announcement handler reads the per-seat character table and does
-	// nothing for a seat that has no character yet.
+	// captainAppointDelay is the wait between the round start and the seat
+	// announcement. The client's handler reads the per-seat character table and
+	// does nothing for a seat that has no character yet, so the announcement has to
+	// follow the characters' creation. A second covers that with room to spare and
+	// is invisible in a round this long: measured on a real client, 800 ms and
+	// 1000 ms look the same, and the wait only ever applies to the opening -- every
+	// later hand-over is event driven and goes out immediately.
 	//
 	// The reference sends both announcements in the round-start operation itself,
-	// right after the start packet (BubbleFighter.Fantasy RoundFlow.cs). This
-	// server keeps a short delay as insurance for its own start order: the round
-	// is long, and losing the appointment to a client that had not built the seat
-	// yet would leave the mode without a Captain for the whole round. The delay is
-	// the first dial to turn if a real client shows the Captain appearing late.
-	captainAppointDelay = 800 * time.Millisecond
+	// right after the start packet (BubbleFighter.Fantasy RoundFlow.cs), which
+	// assumes the clients build their characters before the round reaches playing.
+	// This server keeps the second as insurance for its own start order rather than
+	// risk losing the appointment for a whole round.
+	captainAppointDelay = 1000 * time.Millisecond
 	// captainTeamCount is the number of battle teams that get a Captain: team 1
 	// and team 2.
 	captainTeamCount = 2
@@ -79,19 +81,15 @@ func (s *Server) scheduleCaptainAppointment(room *Room, generation int) {
 	if !room.CaptainRound() {
 		return
 	}
-	delay := captainAppointDelay
-	if s.cfg.Captain.AppointDelayMs > 0 {
-		delay = time.Duration(s.cfg.Captain.AppointDelayMs) * time.Millisecond
-	}
 	team1, team2 := room.teamSeats()
 	s.log.Info("[Captain] opening armed", "room", room.ID, "team1", team1, "team2", team2,
-		"delayMs", delay.Milliseconds())
+		"delayMs", captainAppointDelay.Milliseconds())
 	room.mu.Lock()
 	if room.captainTimer != nil {
 		room.captainTimer.Stop()
 		room.captainTimer = nil
 	}
-	room.captainTimer = time.AfterFunc(delay, func() {
+	room.captainTimer = time.AfterFunc(captainAppointDelay, func() {
 		s.refreshCaptains(room, generation)
 	})
 	room.mu.Unlock()
