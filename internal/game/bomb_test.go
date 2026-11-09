@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
 )
 
 // bombTestRoom builds a bomb room with one seat per team, a bound life tracker
@@ -345,6 +346,71 @@ func TestBombObserverIsAnnouncedOnce(t *testing.T) {
 		}
 		if count != 1 {
 			t.Fatalf("member %d saw %d observer announcements, want 1", index, count)
+		}
+	}
+}
+
+// TestBombRandomRoomPicksFromItsOwnPool checks the "Random" entry the bomb widget
+// offers: a random bomb room must only ever roll one of its own six maps, never a
+// competitive map that happens to be in the catalog.
+func TestBombRandomRoomPicksFromItsOwnPool(t *testing.T) {
+	maps := world.Maps{Maps: []world.Map{
+		{ResourceName: "rel_Apex01_Diorama", Theme: "Military", NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
+		{ResourceName: "rel_Village01_Byway", Theme: "Village", NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
+	}, DefaultRulesMap: "rel_Village01_Byway"}
+	setting := protocol.SessionSetting{Game: protocol.GameSetting{
+		Mode: bombModeID,
+		Strings16: [4][]uint16{
+			protocol.U16String("Random"), {}, protocol.U16String("All"), protocol.U16String("Random"),
+		},
+	}}
+	pool := map[string]bool{}
+	for _, entry := range maps.BombMaps() {
+		pool[entry.ResourceName] = true
+	}
+	seen := map[string]bool{}
+	for attempt := 0; attempt < 200; attempt++ {
+		got := roundMap(maps, setting)
+		if !pool[got] {
+			t.Fatalf("a random bomb room picked %q, which is not in its pool", got)
+		}
+		seen[got] = true
+	}
+	if len(seen) < 2 {
+		t.Fatalf("a random bomb room never varied its pick in 200 tries: %v", seen)
+	}
+}
+
+// TestBombRandomRoomHonoursTheTheme checks that the bomb widget's theme filter
+// narrows its own pool.
+func TestBombRandomRoomHonoursTheTheme(t *testing.T) {
+	maps := world.Maps{}
+	setting := protocol.SessionSetting{Game: protocol.GameSetting{
+		Mode: bombModeID,
+		Strings16: [4][]uint16{
+			protocol.U16String("Random"), {}, protocol.U16String("Sudden"), protocol.U16String("Random"),
+		},
+	}}
+	for attempt := 0; attempt < 20; attempt++ {
+		if got := roundMap(maps, setting); got != "rel_Sudden06_Tank" {
+			t.Fatalf("the sudden theme rolled %q", got)
+		}
+	}
+}
+
+// TestBombPinnedMapIsKept checks the non-random entry: the map the room pinned
+// comes back unchanged, including the two maps only the bomb pool carries.
+func TestBombPinnedMapIsKept(t *testing.T) {
+	maps := world.Maps{}
+	for _, name := range []string{"rel_Sudden06_Tank", "rel_zombie_01_bomb", "rel_Village03_CityHall"} {
+		setting := protocol.SessionSetting{Game: protocol.GameSetting{
+			Mode: bombModeID,
+			Strings16: [4][]uint16{
+				protocol.U16String(name), protocol.U16String(name), protocol.U16String("All"), protocol.U16String(name),
+			},
+		}}
+		if got := roundMap(maps, setting); got != name {
+			t.Fatalf("pinned %q came back as %q", name, got)
 		}
 	}
 }
