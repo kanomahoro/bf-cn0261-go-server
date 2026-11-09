@@ -2,18 +2,19 @@
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.4.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.5.0-blue?style=flat-square)
 
 泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.4.0**：竞技（1）+ 道具战（3）+ 僵尸（8）+ 狙击（12）+ 热血个人（13）+ 热血团队（14）+ 热血狙击（18），
-已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+当前版本 **v0.5.0**：竞技（1）+ 道具战（3）+ 僵尸（8）+ 狙击（12）+ 热血个人（13）+ 热血团队（14）+ 热血狙击（18）
++ 队长战（20），已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
 
-- **未发布** 队长战（20）：点队长（S982）、队长阵亡/离房转移、队长 ULTRA（C707 无对象 + kind 104 → S715）已接线，
-  待真机验收；规则见 [`CAPTAIN.md`](CAPTAIN.md)
+- **v0.5.0** 队长战（20）真机验收通过：开局点名（S982）、阵亡转交（泡封队友不接任）、
+  队长 ULTRA（C707 无对象 + kind 104 → S715）；Relay 注册窗口放宽到 60 秒；
+  管理后台修复日志/对局记录翻页与钱包负数提示。规则见 [`CAPTAIN.md`](CAPTAIN.md)
 - **v0.4.0** 狙击 / 热血个人 / 热血团队 / 热血狙击四种模式、管理后台完善（翻页、钱包核实、战绩布局）、
   弹药箱扩到狙击与热血、复活点轮换、感应地雷 id 修正、广场幽灵座位修复
 - **v0.3.2** 管理控制台、房间密码、重复登录接管、广场幽灵座位与退房并发修复
@@ -30,7 +31,7 @@
 | 登录与角色 | 票据登录、建角、昵称校验、角色外观 |
 | 大厅 | 广场（每实例 16 人）、房间列表、建房/进房/换队/准备/踢人/聊天 |
 | 对局 | 加载门控、防御种子表、倒计时、生命状态机、复活、比分、结算 |
-| 模式 | 竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、队长战（20，待真机验收） |
+| 模式 | 竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、队长战（20） |
 | 结算 | 每局写 `game_results` / `game_result_players` / `game_result_awards`，经验与 Lucci 落库 |
 | 商店与背包 | 目录、购买（Lucci/点卷）、装备、武器预设、期限道具过期清理 |
 | 认证端 | 登录器自助注册（邀请码 + 按 IP 限流）、一次性登录票据 |
@@ -92,9 +93,9 @@ sudo bash bfserver-install.sh
 go build -o bin/bfserver ./cmd/bfserver
 
 # 发布构建
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.4.0" -o bfserver ./cmd/bfserver
+CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.5.0" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v0.4.0  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.5.0  By:rurudoo
 ```
 
 发布树里不带单元测试（`go build` 也不会把它们编进二进制）。需要回归测试时从历史取回：
@@ -209,12 +210,12 @@ docs/              细节文档（手动安装、配置、数据库、管理后�
 launcher/          登录器（Python）
 tools/             一键安装脚本
 ZOMBIE.md          僵尸模式规则与真机验收记录
+CAPTAIN.md         队长战（mode 20）规则、协议证据与真机验收记录
 ```
 
 ## 已知限制
 
 - 模式白名单只有竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、队长战（20），其余房间创建会被拒
-- 队长战尚未真机验收：点队长与转移的时机、ULTRA 的 kind 104、客户端房规取值都只在单元测试与客户端证据上核对过
 - 道具战与僵尸的规则由客户端保有（与 2015 原版一致），服务端只做状态与结算
 - 单大厅频道，无跨频道分流
 - 战斗判定依赖客户端上报，无服务端反作弊
