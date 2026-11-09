@@ -25,9 +25,6 @@ type Map struct {
 type Maps struct {
 	DefaultRulesMap string `json:"defaultRulesMap"`
 	Maps            []Map  `json:"maps"`
-	// BombPool optionally overrides the built-in bomb mission pool (see
-	// bombmaps.go). It is never read from the competitive catalog file.
-	BombPool []Map `json:"-"`
 }
 
 // Find returns the map with the given resource name.

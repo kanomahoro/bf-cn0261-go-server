@@ -29,9 +29,4 @@ var bombMapPool = []Map{
 }
 
 // BombMaps returns the bomb mission's map pool, in the client's own order.
-func (m Maps) BombMaps() []Map {
-	if len(m.BombPool) > 0 {
-		return m.BombPool
-	}
-	return bombMapPool
-}
+func (Maps) BombMaps() []Map { return bombMapPool }

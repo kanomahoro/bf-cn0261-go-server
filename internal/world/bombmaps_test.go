@@ -66,12 +66,3 @@ func TestCompetitivePoolIgnoresTheBombPool(t *testing.T) {
 		}
 	}
 }
-
-// TestBombPoolOverride checks that an explicit pool replaces the built-in one.
-func TestBombPoolOverride(t *testing.T) {
-	maps := Maps{BombPool: []Map{{ResourceName: "rel_Test_Bomb", TeamSpawnCount: 8}}}
-	got := maps.Candidates(bombModeID, "All")
-	if len(got) != 1 || got[0].ResourceName != "rel_Test_Bomb" {
-		t.Fatalf("the override was not used: %+v", got)
-	}
-}
