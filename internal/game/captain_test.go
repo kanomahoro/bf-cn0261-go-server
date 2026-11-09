@@ -87,26 +87,71 @@ func TestPickCaptainStaysOnItsTeam(t *testing.T) {
 	}
 }
 
-// A dying seat and a departed seat are never named; when the team has nobody
-// left the pick fails instead of naming a dead character.
+// A dying seat, a bubbled seat and a departed seat are never named; when the team
+// has nobody free to act the pick fails instead of naming a character the client
+// would not promote.
 func TestPickCaptainSkipsTheFallen(t *testing.T) {
 	room := captainTestRoom([maxRoomSlots]uint8{1, 1})
 	life := room.Life()
-	// The first seat is caught in a bubble (still standing), the second is dying.
+	// The first seat is caught in a bubble, the second is dying: nobody can take
+	// the Captaincy over, because the client skips a bubbled seat as well.
 	life.players[0].state = stateBubbled
 	life.players[1].state = stateDying
-	pick, ok := pickCaptain(room, life, 1, captainNone)
-	if !ok || pick != 0 {
-		t.Fatalf("pick = %d, %v; want the bubbled seat 0", pick, ok)
+	if pick, ok := pickCaptain(room, life, 1, captainNone); ok {
+		t.Fatalf("pick = %d; a bubbled teammate must not be promoted", pick)
+	}
+	// Bubble resolved: the same seat is eligible again.
+	life.players[0].state = stateActive
+	if pick, ok := pickCaptain(room, life, 1, captainNone); !ok || pick != 0 {
+		t.Fatalf("pick = %d, %v; want seat 0 once it is free to act", pick, ok)
 	}
 	life.players[0].state = stateDead
 	if _, ok := pickCaptain(room, life, 1, captainNone); ok {
-		t.Fatal("a team with nobody standing must not be given a Captain")
+		t.Fatal("a dead seat must not be named")
 	}
 	life.players[0].state = stateActive
 	life.Drop(0)
 	if _, ok := pickCaptain(room, life, 1, captainNone); ok {
 		t.Fatal("a departed seat must not be named")
+	}
+}
+
+// The reported bug: the Captain dies while the only teammate is caught in a
+// bubble. The team must stay without a Captain -- announcing the bubbled seat put
+// two Captain marks on it -- and the teammate receives the Captaincy once the
+// bubble is gone.
+func TestRefreshCaptainsWaitsForABubbledTeammate(t *testing.T) {
+	room, recorders := captainTestRoomWithRecorders([maxRoomSlots]uint8{1, 1})
+	room.generation = 3
+	server := captainTestServer()
+	server.refreshCaptains(room, 3)
+	captain := room.CaptainSlot(1)
+	if captain == captainNone {
+		t.Fatal("team 1 has no Captain")
+	}
+	teammate := 1 - captain
+	announcements := func() int { return recorders[0].captainAnnouncements() }
+	before := announcements()
+
+	// The Captain falls; the teammate is bubbled at that moment.
+	room.life.players[captain].state = stateDead
+	room.life.players[teammate].state = stateBubbled
+	server.refreshCaptains(room, 3)
+	if got := room.CaptainSlot(1); got != captainNone {
+		t.Fatalf("the bubbled teammate was promoted (slot %d); the team must wait", got)
+	}
+	if after := announcements(); after != before {
+		t.Fatalf("an announcement went out for a team that cannot take one (%d -> %d)", before, after)
+	}
+
+	// The bubble resolves: the teammate now takes the Captaincy over.
+	room.life.players[teammate].state = stateActive
+	server.refreshCaptains(room, 3)
+	if got := room.CaptainSlot(1); got != teammate {
+		t.Fatalf("captain = %d, want the freed teammate %d", got, teammate)
+	}
+	if after := announcements(); after != before+1 {
+		t.Fatalf("the freed teammate was announced %d times, want once", after-before)
 	}
 }
 

@@ -172,15 +172,17 @@ func (s *Server) refreshCaptains(room *Room, generation int) {
 	}
 }
 
-// pickCaptain chooses a standing seat of one team, preferring anybody but the
-// seat that just lost the Captaincy. The room lock is held by the caller.
+// pickCaptain chooses a teammate able to take the Captaincy over, preferring
+// anybody but the seat that just lost it. A seat caught in a bubble is skipped:
+// the client's own succession does not promote one either, and announcing it puts
+// a second Captain mark on the team. The room lock is held by the caller.
 func pickCaptain(room *Room, life *BattleLife, team uint8, exclude int) (int, bool) {
 	candidates := make([]int, 0, maxRoomSlots)
 	for slot := range room.slots {
 		if room.slots[slot].session == nil || room.slots[slot].team != team {
 			continue
 		}
-		if !life.Standing(uint8(slot)) {
+		if !life.Active(uint8(slot)) {
 			continue
 		}
 		candidates = append(candidates, slot)

@@ -447,18 +447,48 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 // caught in a bubble that can still be rescued, or one briefly stunned by an item
 // effect (a stunned seat is hittable, so it is alive -- see hittable). A kicked,
 // dying, dead or respawning seat is not, and neither is one whose player left the
-// round. The Captain battle hands the Captaincy on to a standing teammate.
+// round. A Captain keeps its team's appointment while it stands, bubble included.
 func (l *BattleLife) Standing(slot uint8) bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	if int(slot) >= maxRoomSlots || l.players[slot].objectID == 0 || l.players[slot].gone {
+	if !l.playable(slot) {
 		return false
 	}
-	switch l.players[slot].state {
+	switch l.playerState(slot) {
 	case stateActive, stateBubbled, stateStunned, stateStunRecovering:
 		return true
 	}
 	return false
+}
+
+// Active reports whether one seat could take the Captaincy over: alive and free to
+// act, which is what the client demands before it marks a successor. A seat caught
+// in a bubble is deliberately not eligible -- the client's own succession skips it,
+// so announcing one would leave both the old Captain and the bubbled seat marked.
+func (l *BattleLife) Active(slot uint8) bool {
+	if !l.playable(slot) {
+		return false
+	}
+	switch l.playerState(slot) {
+	case stateActive, stateStunned, stateStunRecovering:
+		return true
+	}
+	return false
+}
+
+// playable reports whether a seat is bound to this round and still in it.
+func (l *BattleLife) playable(slot uint8) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return int(slot) < maxRoomSlots && l.players[slot].objectID != 0 && !l.players[slot].gone
+}
+
+// playerState reads one seat's life state.
+func (l *BattleLife) playerState(slot uint8) lifeState {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if int(slot) >= maxRoomSlots {
+		return stateDead
+	}
+	return l.players[slot].state
 }
 
 // StateOf names one seat's life state for the debug stream. It exists so a dropped
