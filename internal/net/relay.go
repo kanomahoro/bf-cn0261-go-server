@@ -29,13 +29,12 @@ type relayReservation struct {
 // relayRegistrationTimeout bounds how long a relay connection may stay open
 // before it identifies itself.
 //
-// The reference server drops an unidentified connection after five seconds,
-// but a real client only sends ReqJoinRelaySession once its scene finished
-// loading. Machines that are busy with several clients, or a slow disk, easily
-// need longer than five seconds, and the match then runs without a relay for
-// that member: peers see it frozen in place for the rest of the round. Thirty
-// seconds still bounds the accept budget without punishing slow loaders.
-const relayRegistrationTimeout = 30 * time.Second
+// A real client only sends ReqJoinRelaySession once its scene finished loading,
+// and the original server's window is a minute (2026-11-09, measured against the
+// retail behaviour). Machines that are busy with several clients, or a slow disk,
+// need that long: a member whose registration is dropped mid-load plays the round
+// without a relay, and its peers see it frozen in place.
+const relayRegistrationTimeout = 60 * time.Second
 
 // relayConn is one client connected to the relay port.
 type relayConn struct {
@@ -319,7 +318,7 @@ func (r *Relay) handle(conn net.Conn) {
 	}
 	go client.writeLoop(r.log)
 	// A connection that never identifies itself would sit in the accept budget
-	// until the idle timeout; the reference server drops it after five seconds.
+	// until the idle timeout; the timer bounds it to the registration window.
 	timeout := r.registrationTimeout
 	if timeout <= 0 {
 		timeout = relayRegistrationTimeout
