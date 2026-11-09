@@ -116,6 +116,15 @@ type Room struct {
 	// captains holds one seat per battle team (index 1 and 2, -1 when a team has
 	// nobody left standing).
 	captains [3]int
+
+	// The bomb mission's match state; every field is inert outside mode 19.
+	// bomb carries the sub-round, the bomb and the series (see bomb.go),
+	// seriesWinner is the side that took the match and is read once by
+	// finishRound, and bombOperators remembers the operator reference each
+	// seat's client reports.
+	bomb          *bombSeries
+	seriesWinner  uint8
+	bombOperators [maxRoomSlots]uint32
 }
 
 // SetPassword stores the room password.
@@ -1337,6 +1346,8 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	// binds its teams and before the start's seat records are built, so both carry
 	// team 1; the notices themselves go out with the start.
 	zombieNotices := room.beginZombieRound()
+	// The bomb mission opens its match here too: sub-round zero, team 1 attacking.
+	room.beginBombSeries()
 	// Without a bound life tracker every peer life/kick event would be dropped
 	// and no score would ever be published.
 	if err := s.bindLife(room); err != nil {
@@ -1371,10 +1382,53 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 
 	// Original order: room setting, every slot, the signature (game mode), then
 	// S510 with state 3, then the peer/relay handoff.
-	if setting, err := protocol.CreateRoomSettingReply(room.SettingCopy()); err == nil {
+	s.broadcastRoundEntry(room, roundEntry{
+		setting:    room.SettingCopy(),
+		mapName:    mapName,
+		notices:    zombieNotices,
+		freshRelay: true,
+	})
+	s.prepareDefenseSeeds(room)
+
+	// Loading must complete within the same timeout the original uses, otherwise
+	// the room would stay locked forever.
+	room.mu.Lock()
+	if room.loadingTimer != nil {
+		room.loadingTimer.Stop()
+	}
+	room.loadingTimer = time.AfterFunc(loadingTimeout, func() {
+		s.log.Warn("loading timed out", "room", room.ID)
+		s.cancelRound(room)
+	})
+	room.mu.Unlock()
+	return nil
+}
+
+// roundEntry carries what the stage-load packets differ by between a fresh round
+// and a bomb series' next sub-round.
+type roundEntry struct {
+	// setting is the room setting the entry is announced with.
+	setting protocol.SessionSetting
+	// mapName is the pinned map the entry names.
+	mapName string
+	// notices are announcements that go out with the setting (the zombie battle's
+	// conversions).
+	notices []protocol.Packet
+	// series is the bomb series' sub-round data, nil outside the bomb mission.
+	series *protocol.RoundSeries
+	// freshRelay hands every member a new relay key. A series' sub-round keeps the
+	// keys the match already handed out, so its relay sockets stay valid.
+	freshRelay bool
+}
+
+// broadcastRoundEntry sends the packets that take every member into a stage load,
+// in the original order: room setting, every slot, the mode signature, S510, then
+// the peer/relay handoff.
+func (s *Server) broadcastRoundEntry(room *Room, entry roundEntry) {
+	if setting, err := protocol.CreateRoomSettingReply(entry.setting); err == nil {
 		room.Broadcast(setting)
 	}
-	for _, notice := range zombieNotices {
+	for _, notice := range entry.notices {
 		room.Broadcast(notice)
 	}
 	members := s.members(room)
@@ -1382,7 +1436,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	// client which weapon a seat plays. Substituting it here keeps the change inside
 	// the round: nothing is written to the account, and the next round rebuilds the
 	// list from the session's own inventory.
-	if settingNow.Game.Mode == sniperModeID || settingNow.Game.Mode == sniperTeamSurvivalModeID {
+	if entry.setting.Game.Mode == sniperModeID || entry.setting.Game.Mode == sniperTeamSurvivalModeID {
 		for slot := range members {
 			if members[slot].Character == nil {
 				continue
@@ -1403,10 +1457,15 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 			room.Broadcast(slotReply)
 		}
 	}
-	if signature, err := protocol.CreateSessionSignatureReply(settingNow.Game.Mode); err == nil {
+	if signature, err := protocol.CreateSessionSignatureReply(entry.setting.Game.Mode); err == nil {
 		room.Broadcast(signature)
 	}
-	room.Broadcast(protocol.CreateGameEntryReply(protocol.StartSuccess, protocol.U16String(mapName), phaseLoading))
+	mapName := protocol.U16String(entry.mapName)
+	if entry.series != nil {
+		room.Broadcast(protocol.CreateGameEntrySeriesReply(protocol.StartSuccess, mapName, phaseLoading, *entry.series))
+	} else {
+		room.Broadcast(protocol.CreateGameEntryReply(protocol.StartSuccess, mapName, phaseLoading))
+	}
 
 	view := room.View()
 	relayAddress, relayPort := s.relayAddress()
@@ -1427,30 +1486,19 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		if !s.cfg.Relay.Enabled || relayPort == 0 {
 			continue
 		}
-		key := newRelayKey()
-		if s.relay != nil {
-			s.relay.Register(key, room.ID, uint8(member.Slot), member.Session.peerAddress)
+		key := member.Session.relayKey
+		if entry.freshRelay || key == (protocol.RelayKey{}) {
+			key = newRelayKey()
+			if s.relay != nil {
+				s.relay.Register(key, room.ID, uint8(member.Slot), member.Session.peerAddress)
+			}
+			member.Session.relayKey = key
 		}
-		member.Session.relayKey = key
 		member.Session.relayActive = true
 		if endpoint, err := protocol.CreateRelayEndpointReply(relayAddress, relayPort, key); err == nil {
 			_ = member.Session.Send(endpoint)
 		}
 	}
-	s.prepareDefenseSeeds(room)
-
-	// Loading must complete within the same timeout the original uses, otherwise
-	// the room would stay locked forever.
-	room.mu.Lock()
-	if room.loadingTimer != nil {
-		room.loadingTimer.Stop()
-	}
-	room.loadingTimer = time.AfterFunc(loadingTimeout, func() {
-		s.log.Warn("loading timed out", "room", room.ID)
-		s.cancelRound(room)
-	})
-	room.mu.Unlock()
-	return nil
 }
 
 // relayAddress resolves the advertised relay endpoint.
@@ -1611,9 +1659,37 @@ func (s *Server) startRound(room *Room, tracking int) {
 		room.endTimer.Stop()
 	}
 	room.endTimer = time.AfterFunc(time.Duration(duration)*time.Millisecond, func() {
-		s.finishRound(room, true)
+		s.roundClockExpired(room)
 	})
 	room.mu.Unlock()
+}
+
+// roundClockExpired ends the round the clock ran out on. The bomb mission decides
+// its sub-round for the defending team instead of settling the match: an unplanted
+// bomb is the defenders' round, and an armed one keeps running on its own
+// countdown (kr-812 sub_4245B0).
+func (s *Server) roundClockExpired(room *Room) {
+	room.mu.RLock()
+	mode := room.Setting.Game.Mode
+	bomb := room.bomb
+	armed := bomb != nil && bomb.armed()
+	defending := uint8(0)
+	if bomb != nil {
+		defending = bomb.defendingTeam()
+	}
+	room.mu.RUnlock()
+	if mode == bombModeID {
+		if armed {
+			s.log.Info("[Bomb] the round clock ran out with an armed bomb; the bomb decides",
+				"room", room.ID)
+			return
+		}
+		s.log.Info("[Bomb] the round clock ran out; the defending team takes the sub-round",
+			"room", room.ID, "team", defending)
+		s.endBombSubRound(room, defending)
+		return
+	}
+	s.finishRound(room, true)
 }
 
 // roundAfterDeparture keeps a round that is already being played alive after one
@@ -1641,6 +1717,12 @@ func (s *Server) roundAfterDeparture(room *Room) {
 	// A Captain that left the room hands the Captaincy to a teammate before the
 	// round's sides are weighed below.
 	s.captainsAfterChange(room)
+	// A bomb's operation owner leaving cancels the plant or the defuse it held, and
+	// the room has to hear about it: every client holds that operation until the
+	// cancellation arrives.
+	if mode == bombModeID {
+		s.bombCancelDepartedOperator(room)
+	}
 	s.log.Info("[Round] a seat left mid-round", "room", room.ID, "remaining", remaining)
 	// The zombie battle has no team 2 (humans are 1, zombies 14) and decides its
 	// own round through zombieLeave, so the two-team test below must not read its
@@ -1709,6 +1791,14 @@ func (s *Server) cancelRound(room *Room) {
 	room.forfeitWinner = 0
 	room.zombiePendingNotice = [maxRoomSlots]bool{}
 	room.captains = [3]int{captainNone, captainNone, captainNone}
+	// The bomb mission keeps no state between matches.
+	room.bomb = nil
+	room.seriesWinner = 0
+	room.bombOperators = [maxRoomSlots]uint32{}
+	if room.Setting.Game.Mode == bombModeID {
+		room.Setting.Game.Values148[6] &^= 1
+		room.Setting.Game.Values148[7] = 0
+	}
 	room.Started = false
 	room.phase = phaseOpen
 	room.Setting.State = phaseOpen
@@ -1786,6 +1876,12 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	teamScores := room.teamScores
 	decided := room.zombieWinner
+	if decided == 0 {
+		// The bomb series decides its match by sub-round wins, not by the scores of
+		// the sub-round that just ended.
+		decided = room.seriesWinner
+		room.seriesWinner = 0
+	}
 	if decided == 0 {
 		decided = room.forfeitWinner
 	}

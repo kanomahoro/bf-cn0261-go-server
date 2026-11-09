@@ -182,7 +182,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&
 		request.Mode != singlePvpModeID && request.Mode != teamSurvivalModeID &&
 		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID &&
-		request.Mode != captainModeID {
+		request.Mode != captainModeID && request.Mode != bombModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {

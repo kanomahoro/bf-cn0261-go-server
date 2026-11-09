@@ -460,6 +460,10 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handleRespawn(session, packet)
 	case 2018: // DropCaptain: the local character died
 		return s.handleCaptainDrop(session, packet)
+	case 2012: // gcpBombState: a bomb transition the acting client reports
+		return s.handleBombState(session, packet)
+	case 2011: // gcpBombMissionOver: the room master's sub-round result
+		return s.handleBombMissionOver(session, packet)
 	}
 	if packet.ID == 32777 || packet.ID == 32776 || packet.ID == 32923 ||
 		packet.ID == 32900 || packet.ID == 32906 {

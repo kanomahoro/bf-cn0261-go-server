@@ -165,7 +165,9 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 		// A Captain that just went down hands the Captaincy on; the check ignores
 		// every event that left both appointments standing.
 		s.captainsAfterChange(room)
-		if s.broadcastScores(room) {
+		// The bomb mission is decided by the objective, never by a kill total: its
+		// score limit must not end a sub-round, the series decides the match.
+		if s.broadcastScores(room) && !room.BombRound() {
 			s.finishRound(room, false)
 			return nil
 		}
@@ -208,7 +210,7 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 		"victimState", life.StateOf(victimSlot), "actorState", life.StateOf(actorSlot),
 		"succeeded", event.Succeeded, "room", room.ID)
 	if accepted {
-		if s.broadcastScores(room) {
+		if s.broadcastScores(room) && !room.BombRound() {
 			s.log.Debug("score limit reached", "room", room.ID)
 			s.finishRound(room, false)
 		}

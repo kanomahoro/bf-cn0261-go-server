@@ -25,6 +25,9 @@ type Map struct {
 type Maps struct {
 	DefaultRulesMap string `json:"defaultRulesMap"`
 	Maps            []Map  `json:"maps"`
+	// BombPool optionally overrides the built-in bomb mission pool (see
+	// bombmaps.go). It is never read from the competitive catalog file.
+	BombPool []Map `json:"-"`
 }
 
 // Find returns the map with the given resource name.
@@ -34,11 +37,35 @@ func (m Maps) Find(name string) (Map, bool) {
 			return entry, true
 		}
 	}
+	// The bomb mission's pool carries maps the competitive catalog does not
+	// (rel_zombie_01_bomb, rel_Sudden06_Tank), so a bomb room resolves them here.
+	for _, entry := range m.BombMaps() {
+		if entry.ResourceName == name {
+			return entry, true
+		}
+	}
 	return Map{}, false
 }
 
 // Candidates returns the maps that support a mode and theme.
+// bombModeID is the client's bomb mission. The mode plays its own MapMeta
+// isBombmode list, which Candidates serves from the bomb pool.
+const bombModeID = 19
+
 func (m Maps) Candidates(mode uint32, theme string) []Map {
+	if mode == bombModeID {
+		var out []Map
+		for _, entry := range m.BombMaps() {
+			if theme != "" && theme != "All" && theme != entry.Theme {
+				continue
+			}
+			if entry.TeamSpawnCount == 0 {
+				continue
+			}
+			out = append(out, entry)
+		}
+		return out
+	}
 	var out []Map
 	for _, entry := range m.Maps {
 		// Modes 1, 8, 12, 13, 14, 18 and 20 play the no-item maps: the client's flags
@@ -56,6 +83,9 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 			if !entry.ItemMode {
 				continue
 			}
+		case bombModeID:
+			// The bomb mission draws from its own pool, below, not this catalog.
+			continue
 		default:
 			continue
 		}
