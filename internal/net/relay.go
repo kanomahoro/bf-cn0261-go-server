@@ -36,6 +36,12 @@ type relayReservation struct {
 // without a relay, and its peers see it frozen in place.
 const relayRegistrationTimeout = 60 * time.Second
 
+// relayReservationTTL bounds how long a handed-out key stays usable. A bomb
+// series is three sub-rounds of up to 240 s with a reload between each, so two
+// minutes expired mid-series and the next sub-round's registration was refused
+// as an unknown key (2026-11-10). Every entry also refreshes it.
+const relayReservationTTL = 10 * time.Minute
+
 // relayConn is one client connected to the relay port.
 type relayConn struct {
 	conn   net.Conn
@@ -186,8 +192,35 @@ func (r *Relay) Register(key protocol.RelayKey, roomID uint16, slot uint8, peerA
 		roomID:    roomID,
 		slot:      slot,
 		peerAddr:  hostOnly(peerAddress),
-		expiresAt: time.Now().Add(2 * time.Minute),
+		expiresAt: time.Now().Add(relayReservationTTL),
 	}
+}
+
+// HasSlot reports whether a registered relay connection currently serves a room
+// slot. A member whose relay transport is being re-established has none, which is
+// what the bomb mission's grace window checks before it releases the seat.
+func (r *Relay) HasSlot(roomID uint16, slot uint8) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for _, conn := range r.rooms[roomID] {
+		if conn.joined && conn.slot == slot {
+			return true
+		}
+	}
+	return false
+}
+
+// Refresh extends a live reservation without touching its binding, so a key that
+// belongs to a running series never expires between its sub-rounds.
+func (r *Relay) Refresh(key protocol.RelayKey) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	reservation, ok := r.reservations[key]
+	if !ok {
+		return
+	}
+	reservation.expiresAt = time.Now().Add(relayReservationTTL)
+	r.reservations[key] = reservation
 }
 
 // Active reports how many relay connections the process currently holds.
@@ -447,18 +480,11 @@ func (r *Relay) join(client *relayConn, registration protocol.RelayRegistration)
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.expire(time.Now())
 	reservation, ok := r.reservations[registration.Key]
 	if !ok || reservation.slot != registration.Slot {
+		r.mu.Unlock()
 		r.log.Debug("[Relay] unknown relay key", "slot", registration.Slot)
-		return false
-	}
-	// One reservation, one connection: a client that re-registers with the same
-	// key must not end up with two transports, or every SendToSlot doubles.
-	if reservation.bound {
-		r.log.Warn("[Relay] duplicate registration rejected",
-			"room", reservation.roomID, "slot", reservation.slot)
 		return false
 	}
 	// The relay connection has to come from the same client that owns the game
@@ -468,6 +494,7 @@ func (r *Relay) join(client *relayConn, registration protocol.RelayRegistration)
 	// still the same client.
 	if reservation.peerAddr != "" && remote != "" &&
 		!isLoopbackHost(reservation.peerAddr) && !sameHost(reservation.peerAddr, remote) {
+		r.mu.Unlock()
 		r.log.Warn("[Relay] registration from unexpected address",
 			"room", reservation.roomID, "slot", reservation.slot,
 			"want", reservation.peerAddr, "got", remote)
@@ -477,9 +504,35 @@ func (r *Relay) join(client *relayConn, registration protocol.RelayRegistration)
 		if reservation.peerID == 0 {
 			reservation.peerID = registration.PeerID
 		} else if reservation.peerID != registration.PeerID {
+			r.mu.Unlock()
 			r.log.Warn("[Relay] registration with a different peer id",
 				"room", reservation.roomID, "slot", reservation.slot)
 			return false
+		}
+	}
+	// A client rebuilding its scene re-dials the relay and registers the same key
+	// again -- the bomb mission does that every sub-round. Take the reservation
+	// over: drop the connection it replaces (marked released, so its teardown is
+	// not read as a peer disappearing) and bind this one, so a slot never ends up
+	// with two transports.
+	var replaced []*relayConn
+	if reservation.bound {
+		members := r.rooms[reservation.roomID][:0]
+		for _, existing := range r.rooms[reservation.roomID] {
+			if existing != client && existing.joined && existing.slot == reservation.slot {
+				existing.mu.Lock()
+				existing.released = true
+				existing.closed = true
+				existing.mu.Unlock()
+				replaced = append(replaced, existing)
+				continue
+			}
+			members = append(members, existing)
+		}
+		if len(members) == 0 {
+			delete(r.rooms, reservation.roomID)
+		} else {
+			r.rooms[reservation.roomID] = members
 		}
 	}
 	reservation.bound = true
@@ -489,6 +542,14 @@ func (r *Relay) join(client *relayConn, registration protocol.RelayRegistration)
 	client.slot = reservation.slot
 	client.joined = true
 	r.rooms[reservation.roomID] = append(r.rooms[reservation.roomID], client)
+	r.mu.Unlock()
+	for _, old := range replaced {
+		_ = old.conn.Close()
+	}
+	if len(replaced) > 0 {
+		r.log.Info("[Relay] registration took over a rebuilt transport",
+			"room", reservation.roomID, "slot", reservation.slot, "replaced", len(replaced))
+	}
 	r.log.Debug("[Relay] registered", "room", reservation.roomID, "slot", reservation.slot)
 	return true
 }

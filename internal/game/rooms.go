@@ -125,6 +125,10 @@ type Room struct {
 	bomb          *bombSeries
 	seriesWinner  uint8
 	bombOperators [maxRoomSlots]uint32
+	// bombRevives counts the respawns each seat already spent in the current
+	// sub-round; the bomb mission allows bombRevivesPerSubRound of them and the
+	// next sub-round resets the budget.
+	bombRevives [maxRoomSlots]uint8
 	// bombObserved marks the seats the current sub-round already turned into
 	// observers, so a client that asks again is not re-announced to the room.
 	bombObserved [maxRoomSlots]bool
@@ -1331,10 +1335,21 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	}
 
 	mapName := roundMap(s.maps, settingNow)
+	// The bomb mission only runs its own six maps: a competitive map would be
+	// loaded by a mode that has no round rules for it, which crashes the client.
+	// Refusing the start keeps the room open so the host can pick another map.
+	if settingNow.Game.Mode == bombModeID && !s.maps.IsBombMap(mapName) {
+		s.log.Warn("[Bomb] the room's map is not part of the mission; refusing the start",
+			"room", room.ID, "map", mapName)
+		return session.Send(protocol.CreateGameEntryReply(protocol.StartUnavailable, nil, 2))
+	}
 	gameMap, ok := s.maps.Find(mapName)
 	if !ok {
 		gameMap = s.maps.Maps[0]
 		mapName = gameMap.ResourceName
+	}
+	if settingNow.Game.Mode == bombModeID {
+		s.log.Info("[Bomb] the round starts", "room", room.ID, "map", mapName)
 	}
 
 	// Pin the resolved map into the setting: the client reports it back with its
@@ -1351,6 +1366,10 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 	zombieNotices := room.beginZombieRound()
 	// The bomb mission opens its match here too: sub-round zero, team 1 attacking.
 	room.beginBombSeries()
+	if room.BombRound() {
+		s.log.Info("[Bomb] series started", "room", room.ID, "map", mapName,
+			"revives_per_sub_round", bombRevivesPerSubRound)
+	}
 	// Without a bound life tracker every peer life/kick event would be dropped
 	// and no score would ever be published.
 	if err := s.bindLife(room); err != nil {
@@ -1496,6 +1515,11 @@ func (s *Server) broadcastRoundEntry(room *Room, entry roundEntry) {
 				s.relay.Register(key, room.ID, uint8(member.Slot), member.Session.peerAddress)
 			}
 			member.Session.relayKey = key
+		} else if s.relay != nil {
+			// A series keeps its keys, so refresh the reservation with every entry:
+			// otherwise it expires mid-series and the next sub-round's registration
+			// is refused as an unknown key (2026-11-10).
+			s.relay.Refresh(key)
 		}
 		member.Session.relayActive = true
 		if endpoint, err := protocol.CreateRelayEndpointReply(relayAddress, relayPort, key); err == nil {
@@ -1720,7 +1744,20 @@ func (s *Server) roundAfterDeparture(room *Room) {
 		}
 	}
 	room.mu.Unlock()
-	if remaining == 0 || phase != phasePlaying {
+	if remaining == 0 {
+		s.cancelRound(room)
+		return
+	}
+	// A decided bomb series still settles when a seat vanishes while its banner
+	// plays: cancelling here threw the match result away and sent the survivors
+	// back to the waiting room (seen 2026-11-10, when the attacking client
+	// crashed right after its second loss). The settlement timer finishes it.
+	if room.BombSeriesDecided() {
+		s.log.Info("[Bomb] a seat left with the series decided; the match still settles",
+			"room", room.ID, "remaining", remaining)
+		return
+	}
+	if phase != phasePlaying {
 		s.cancelRound(room)
 		return
 	}
@@ -1760,6 +1797,14 @@ func (s *Server) roundAfterDeparture(room *Room) {
 		winner = 1
 	}
 	if winner != 0 {
+		// A bomb series cannot continue with an empty side, but settling it here sent
+		// the survivor a full result screen in the middle of a series, which crashed
+		// this client (2026-11-10). The round is cancelled instead: the remaining
+		// seats return to the room's waiting state.
+		if mode == bombModeID {
+			s.cancelRound(room)
+			return
+		}
 		// One side left the two-team round. Settle now and credit the side that
 		// stayed, instead of running the clock down with nothing to fight.
 		room.mu.Lock()
@@ -1806,6 +1851,7 @@ func (s *Server) cancelRound(room *Room) {
 	room.seriesWinner = 0
 	room.bombOperators = [maxRoomSlots]uint32{}
 	room.bombObserved = [maxRoomSlots]bool{}
+	room.bombRevives = [maxRoomSlots]uint8{}
 	if room.Setting.Game.Mode == bombModeID {
 		room.Setting.Game.Values148[6] &^= 1
 		room.Setting.Game.Values148[7] = 0

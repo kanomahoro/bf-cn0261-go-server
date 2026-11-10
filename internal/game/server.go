@@ -29,6 +29,13 @@ type RelayRegistry interface {
 	// SendToSlot pushes a packet to one member's relay connection. Defense seed
 	// tables travel this way, exactly like the reference implementation.
 	SendToSlot(roomID uint16, slot uint8, packet protocol.Packet) bool
+	// Refresh extends a member's relay reservation without changing its binding,
+	// so a key handed out for a series survives its sub-rounds.
+	Refresh(key protocol.RelayKey)
+	// HasSlot reports whether a member's relay connection is currently attached.
+	// The bomb mission uses it to tell a transport that is coming back from one
+	// that is gone for good.
+	HasSlot(roomID uint16, slot uint8) bool
 	// Active reports how many relay connections the process holds, for the admin
 	// console's overview.
 	Active() int
@@ -336,10 +343,23 @@ func (s *Server) handleInitialInfo(session *Session, packet protocol.Packet) err
 	return session.Send(mainMenu)
 }
 
+// lastCrashReportID is C19, the crash report the client sends before FirstConnect
+// after a session that ended badly. The retail server logs it and answers nothing.
+const lastCrashReportID = 19
+
 // Handle dispatches one client packet.
 func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	if session.EnforceHandshake {
 		if !session.handshake {
+			// gcpReportLastCrash (19) is sent ahead of FirstConnect when the previous
+			// session died: cn-717 sub_89B820 builds it and the retail server logs it
+			// without answering. Dropping the connection over it is what showed the
+			// player "server disconnected" after a crashed match (2026-11-10).
+			if packet.ID == lastCrashReportID {
+				s.log.Info("[Session] the client reported its last crash", "session", session.ID,
+					"bytes", len(packet.Payload))
+				return nil
+			}
 			// Response is {u16 count}{count bytes}. Only a description short
 			// enough to fit in 255 bytes may be sent.
 			if packet.ID != 1 && packet.ID != 14 {

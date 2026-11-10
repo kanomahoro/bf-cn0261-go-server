@@ -28,7 +28,7 @@ import (
 // build time without editing the source:
 //
 //	go build -ldflags "-X main.Version=0.2.0" ./cmd/bfserver
-var Version = "0.6.0"
+var Version = "0.8.3"
 
 // Author is the signature printed with the version.
 const Author = "rurudoo"

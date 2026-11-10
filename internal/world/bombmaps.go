@@ -30,3 +30,16 @@ var bombMapPool = []Map{
 
 // BombMaps returns the bomb mission's map pool, in the client's own order.
 func (Maps) BombMaps() []Map { return bombMapPool }
+
+// IsBombMap reports whether a resource name belongs to the bomb mission's own
+// pool. The client's create dialog starts on the startup map (an ordinary
+// competitive one), so a bomb room has to tell its pool apart from the rest of
+// the catalog before it starts a round on a map the mode cannot run.
+func (Maps) IsBombMap(name string) bool {
+	for _, entry := range bombMapPool {
+		if entry.ResourceName == name {
+			return true
+		}
+	}
+	return false
+}

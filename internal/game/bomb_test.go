@@ -200,21 +200,19 @@ func TestBombMissionOverMatching(t *testing.T) {
 
 // TestBombSeriesAlternatesSides checks the series counters and the side swap: two
 // sub-round wins take the match, and every sub-round swaps the attacking team.
-func TestBombSeriesAlternatesSides(t *testing.T) {
+func TestBombSeriesNeverSwapsSides(t *testing.T) {
 	_, room := bombTestRoom()
 	room.mu.Lock()
 	defer room.mu.Unlock()
 
-	if got := room.bomb.attackingTeam(); got != 1 {
-		t.Fatalf("sub-round zero does not start with team 1 attacking: %d", got)
-	}
-	room.bomb.roundIndex = 1
-	if got := room.bomb.attackingTeam(); got != 2 {
-		t.Fatalf("sub-round one does not swap the sides: %d", got)
-	}
-	room.bomb.roundIndex = 2
-	if got := room.bomb.attackingTeam(); got != 1 {
-		t.Fatalf("sub-round two does not swap back: %d", got)
+	for round := 0; round <= 2; round++ {
+		room.bomb.roundIndex = round
+		if got := room.bomb.attackingTeam(); got != 1 {
+			t.Fatalf("sub-round %d attacks with team %d; this client never swaps sides", round, got)
+		}
+		if got := room.bomb.defendingTeam(); got != 2 {
+			t.Fatalf("sub-round %d defends with team %d, want 2", round, got)
+		}
 	}
 }
 
@@ -466,5 +464,136 @@ func TestBombTimeLimitAwardsAnUnplantedRoundToTheDefender(t *testing.T) {
 	room.mu.RUnlock()
 	if wins != [2]int{0, 1} {
 		t.Fatalf("an unplanted round at the clock did not go to the defender: %v", wins)
+	}
+}
+
+// TestBombReviveBudgetIsPerSubRound pins the rule master confirmed on 2026-11-10:
+// each seat may respawn bombRevivesPerSubRound times inside a sub-round, and the
+// next sub-round hands the budget back.
+func TestBombReviveBudgetIsPerSubRound(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	room.phase = phasePlaying
+	room.mu.Unlock()
+
+	for i := 1; i <= bombRevivesPerSubRound; i++ {
+		if !server.bombReviveAllowed(room, 1) {
+			t.Fatalf("revive %d of %d was refused", i, bombRevivesPerSubRound)
+		}
+	}
+	if server.bombReviveAllowed(room, 1) {
+		t.Fatalf("a seat over its %d-revive budget still respawned", bombRevivesPerSubRound)
+	}
+	// The seat's own counter is what the next sub-round clears.
+	room.mu.Lock()
+	room.bombRevives = [maxRoomSlots]uint8{}
+	room.mu.Unlock()
+	if !server.bombReviveAllowed(room, 1) {
+		t.Fatal("the next sub-round did not hand the revive budget back")
+	}
+}
+
+// TestBombReviveIsRefusedOutsideTheRound checks the budget only applies while a
+// sub-round is actually being played.
+func TestBombReviveIsRefusedOutsideTheRound(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	room.phase = phaseLoading
+	room.mu.Unlock()
+	if server.bombReviveAllowed(room, 1) {
+		t.Fatal("a seat respawned outside a playing sub-round")
+	}
+}
+
+// TestBombSeriesKeepsItsSeatWhenTheRelayDrops checks the grace decision the series
+// transition depends on: the series is active, so a relay teardown is a reload.
+func TestBombSeriesKeepsItsSeatWhenTheRelayDrops(t *testing.T) {
+	_, room := bombTestRoom()
+	if !room.BombSeriesActive() {
+		t.Fatal("a fresh sub-round does not report an active series")
+	}
+	room.mu.Lock()
+	room.bomb.decided = true
+	room.mu.Unlock()
+	if room.BombSeriesActive() {
+		t.Fatal("a decided sub-round still reports an active series")
+	}
+}
+
+// TestBombSubRoundsSendTheOrdinaryRoundEnd checks the round-end notice: the bomb
+// mission broadcasts the same packet an ordinary round sends instead of per-seat
+// outcome words (this client reads 2 as "time over", which one side printed for a
+// sub-round that simply ended). No scoreboard is published between sub-rounds
+// either, because any S729 stops the bomb banner from showing.
+func TestBombSubRoundsSendTheOrdinaryRoundEnd(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	room.phase = phasePlaying
+	var recorders []*captainRecorder
+	for slot := range room.slots {
+		if room.slots[slot].session != nil {
+			recorders = append(recorders, room.slots[slot].session.send.(*captainRecorder))
+		}
+	}
+	room.mu.Unlock()
+
+	server.endBombSubRound(room, 1)
+
+	for index, recorder := range recorders {
+		sawEnd := false
+		var tally *protocol.Packet
+		for i := range recorder.sent {
+			if recorder.sent[i].ID == 732 {
+				tally = &recorder.sent[i]
+			}
+		}
+		for _, packet := range recorder.sent {
+			switch packet.ID {
+			case 705:
+				sawEnd = true
+				if len(packet.Payload) != 8 {
+					t.Fatalf("member %d read a %d-byte round end", index, len(packet.Payload))
+				}
+				// word 2 is the time-over flag in this client; a sub-round that ends
+				// on its objective must not claim it.
+				word := uint32(packet.Payload[4]) | uint32(packet.Payload[5])<<8 |
+					uint32(packet.Payload[6])<<16 | uint32(packet.Payload[7])<<24
+				if word != 1 {
+					t.Fatalf("member %d read round-end word %d, want 1", index, word)
+				}
+			case 729:
+				t.Fatalf("member %d received a scoreboard (id %d) for a sub-round", index, packet.ID)
+			}
+		}
+		if !sawEnd {
+			t.Fatalf("member %d saw no round end", index)
+		}
+		if tally != nil {
+			t.Fatalf("member %d received a tally between sub-rounds: %v", index, tally.Payload)
+		}
+	}
+}
+
+// TestBombDecidedSeriesSurvivesADeparture checks a seat vanishing during the
+// deciding banner: the series is already settled in the record, so the round must
+// keep its settling phase instead of being cancelled and dropping everyone back
+// to the waiting room.
+func TestBombDecidedSeriesSurvivesADeparture(t *testing.T) {
+	server, room := bombTestRoom()
+	room.mu.Lock()
+	room.phase = phaseSettling
+	room.bomb.winner = 1
+	room.mu.Unlock()
+
+	server.roundAfterDeparture(room)
+
+	room.mu.RLock()
+	phase := room.phase
+	room.mu.RUnlock()
+	if phase != phaseSettling {
+		t.Fatalf("a departure cancelled the decided series: phase %d", phase)
+	}
+	if !room.BombSeriesDecided() {
+		t.Fatal("the series record lost its winner")
 	}
 }

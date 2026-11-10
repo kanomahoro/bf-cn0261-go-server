@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 )
@@ -198,7 +199,42 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 		s.Disconnect(target)
 		return
 	}
-	s.log.Warn("relay transport lost; releasing the seat", "room", roomID, "slot", slot)
+	// The bomb mission keeps a series alive across sub-rounds, and a client drops
+	// its relay transport when it reloads the stage for the next one. That teardown
+	// is not a member leaving: hold the seat for a grace window so the client's
+	// re-registration -- the key is reserved for the whole series -- can re-attach.
+	if room.BombSeriesActive() {
+		s.log.Info("[Bomb] relay transport dropped during the series; holding the seat",
+			"room", roomID, "slot", slot, "session", target.ID)
+		go s.bombRelayGrace(room, slot, target)
+		return
+	}
+	s.releaseSeatAfterRelayLoss(room, slot, target)
+}
+
+// bombRelayGraceWait is how long a bomb seat survives without a relay transport.
+// A client that reloads the next sub-round reconnects well inside it, and one that
+// does not is gone for good.
+const bombRelayGraceWait = 20 * time.Second
+
+// bombRelayGrace releases a bomb seat whose relay transport never came back.
+func (s *Server) bombRelayGrace(room *Room, slot uint8, target *Session) {
+	time.Sleep(bombRelayGraceWait)
+	if s.relay != nil && s.relay.HasSlot(room.ID, slot) {
+		s.log.Debug("[Bomb] relay transport came back", "room", room.ID, "slot", slot)
+		return
+	}
+	if target.closing.Load() || !s.accountOnline(target) || !room.BombSeriesActive() {
+		return
+	}
+	s.log.Warn("[Bomb] the relay transport did not come back; releasing the seat",
+		"room", room.ID, "slot", slot, "session", target.ID)
+	s.releaseSeatAfterRelayLoss(room, slot, target)
+}
+
+// releaseSeatAfterRelayLoss drops a seat whose relay transport is gone for good.
+func (s *Server) releaseSeatAfterRelayLoss(room *Room, slot uint8, target *Session) {
+	s.log.Warn("relay transport lost; releasing the seat", "room", room.ID, "slot", slot)
 	if err := s.leaveRoom(target); err != nil {
 		s.log.Debug("leave after relay loss failed", "session", target.ID, "error", err)
 		return

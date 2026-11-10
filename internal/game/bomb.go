@@ -18,8 +18,10 @@ const bombRoundsToWin = 2
 
 // bombRoundPause is how long a decided sub-round keeps its result banner before
 // the next stage load starts. The reference waits out its result delay before
-// reloading the series.
-const bombRoundPause = 5 * time.Second
+// reloading the series. 2026-11-10: the client plays "round over" first and needs
+// the room to stay put before its own sub-round banner can appear, which five
+// seconds did not leave room for, so the pause is longer while that is measured.
+const bombRoundPause = 8 * time.Second
 
 // bombSeries is the mode's whole state: the sub-round being played, the sides it
 // is played between, the bomb itself and the wins counted so far.
@@ -48,14 +50,11 @@ type bombSeries struct {
 	position [3]float32
 }
 
-// attackingTeam returns the team attacking the current sub-round: the sides swap
-// every sub-round from round zero (attacking = round % 2 + 1).
-func (b *bombSeries) attackingTeam() uint8 {
-	if b.roundIndex%2 == 0 {
-		return 1
-	}
-	return 2
-}
+// attackingTeam returns the team attacking the current sub-round. This client's
+// mission never swaps the sides: team 1 attacks and team 2 defends for all three
+// sub-rounds, and the sub-round index only counts the series (master, 2026-11-10,
+// from the retail client: swapping arrived in a later build).
+func (b *bombSeries) attackingTeam() uint8 { return 1 }
 
 // defendingTeam returns the other side.
 func (b *bombSeries) defendingTeam() uint8 { return 3 - b.attackingTeam() }
@@ -82,6 +81,50 @@ func (r *Room) BombRound() bool {
 	return r.Setting.Game.Mode == bombModeID
 }
 
+// BombSeriesActive reports whether a bomb series is still being played. A client
+// that drops its relay transport inside one is reloading the next sub-round, not
+// leaving the match, so the seat is held for a grace window instead of released.
+func (r *Room) BombSeriesActive() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Setting.Game.Mode == bombModeID && r.bomb != nil && !r.bomb.decided && r.Started
+}
+
+// BombSeriesDecided reports whether this room's bomb series already has its
+// winner. A departure during the banner that follows must not cancel it.
+func (r *Room) BombSeriesDecided() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Setting.Game.Mode == bombModeID && r.bomb != nil && r.bomb.winner != 0
+}
+
+// bombRevivesPerSubRound is how many times one seat may respawn inside a single
+// sub-round (master, 2026-11-10: the limit is per sub-round, not per match).
+const bombRevivesPerSubRound = 2
+
+// bombReviveAllowed spends one revive of the seat's current sub-round budget. It
+// reports false once the budget is gone, which is when the seat observes instead.
+func (s *Server) bombReviveAllowed(room *Room, slot int) bool {
+	if slot < 0 || slot >= maxRoomSlots {
+		return false
+	}
+	room.mu.Lock()
+	if room.Setting.Game.Mode != bombModeID || room.phase != phasePlaying {
+		room.mu.Unlock()
+		return false
+	}
+	if room.bombRevives[slot] >= bombRevivesPerSubRound {
+		room.mu.Unlock()
+		return false
+	}
+	room.bombRevives[slot]++
+	used := room.bombRevives[slot]
+	room.mu.Unlock()
+	s.log.Info("[Bomb] revive used", "room", room.ID, "slot", slot,
+		"used", used, "limit", bombRevivesPerSubRound)
+	return true
+}
+
 // beginBombSeries starts a fresh match at sub-round zero. Outside the bomb
 // mission it does nothing, so every other mode keeps no series state at all.
 func (r *Room) beginBombSeries() {
@@ -99,6 +142,7 @@ func (r *Room) beginBombSeries() {
 	r.seriesWinner = 0
 	r.bombOperators = [maxRoomSlots]uint32{}
 	r.bombObserved = [maxRoomSlots]bool{}
+	r.bombRevives = [maxRoomSlots]uint8{}
 	r.applyBombSeriesSettingLocked()
 }
 
@@ -469,19 +513,20 @@ func (s *Server) endBombSubRound(room *Room, winner uint8) {
 	}
 	// Nothing may start or decide anything while the banner shows.
 	room.phase = phaseSettling
-	members := room.membersLocked()
 	room.mu.Unlock()
 
 	s.log.Info("[Bomb] sub-round decided", "room", room.ID, "round", roundIndex,
 		"winner", winner, "wins", wins, "match_over", matchOver, "armed", armed)
-	// The client draws the sub-round banner from its own outcome word, the same
-	// packet the zombie battle uses for a result the team totals cannot express.
-	for _, member := range members {
-		if !member.Occupied || member.Session == nil {
-			continue
-		}
-		_ = member.Session.Send(protocol.CreateGameOutcomeReply(member.Team == winner))
-	}
+	// The round-end notice is the ordinary one, broadcast to the whole room like every
+	// other mode: this client reads the per-seat words as 3 = won and 2 = time over,
+	// so one side printed "time over" for a bomb sub-round that simply ended
+	// (reported 2026-11-10). The client renders the bomb banner from its own state.
+	room.Broadcast(protocol.CreateGameEndReply(false))
+	// No score update is published between sub-rounds either: sending the series score
+	// through gspUpdateScoreData (S986) broke the sub-round flow as well, so the
+	// mission runs with the round-end notice alone until the HUD path is settled.
+	s.log.Info("[Bomb] sub-round results sent", "room", room.ID, "round", roundIndex,
+		"sent", "S705 round end", "wins", wins, "match_over", matchOver)
 	room.mu.Lock()
 	if room.phase != phaseSettling || room.generation != generation || room.bomb == nil {
 		room.mu.Unlock()
@@ -506,12 +551,26 @@ func (s *Server) endBombSubRound(room *Room, winner uint8) {
 // decide the match.
 func (s *Server) finishBombMatch(room *Room, generation int) {
 	room.mu.RLock()
-	stale := room.generation != generation || room.Setting.Game.Mode != bombModeID ||
-		room.bomb == nil || room.phase != phaseSettling || !room.Started || room.bomb.winner == 0
+	roomGeneration := room.generation
+	mode := room.Setting.Game.Mode
+	phase := room.phase
+	started := room.Started
+	winner := 0
+	if room.bomb != nil {
+		winner = int(room.bomb.winner)
+	}
+	stale := roomGeneration != generation || mode != bombModeID ||
+		room.bomb == nil || phase != phaseSettling || !started || winner == 0
 	room.mu.RUnlock()
 	if stale {
+		// Diagnostic: the series is decided but its settlement did not run, which
+		// is what left the surviving seats in the waiting room on 2026-11-10.
+		s.log.Warn("[Bomb] the match settlement was dropped", "room", room.ID,
+			"generation", generation, "room_generation", roomGeneration, "mode", mode,
+			"phase", phase, "started", started, "series_winner", winner)
 		return
 	}
+	s.log.Info("[Bomb] settling the decided match", "room", room.ID, "winner", winner)
 	s.finishRound(room, false)
 }
 
@@ -541,6 +600,7 @@ func (s *Server) continueBombRound(room *Room, generation int) {
 	room.spawnUsedAt = [29]time.Time{}
 	room.bombOperators = [maxRoomSlots]uint32{}
 	room.bombObserved = [maxRoomSlots]bool{}
+	room.bombRevives = [maxRoomSlots]uint8{}
 	room.life = nil
 	room.published = [maxRoomSlots]protocol.BattleScore{}
 	room.teamScores = [2]uint16{}
@@ -561,7 +621,8 @@ func (s *Server) continueBombRound(room *Room, generation int) {
 		return
 	}
 	s.log.Info("[Bomb] next sub-round", "room", room.ID, "round", roundIndex,
-		"attacking", attacking, "defending", 3-attacking)
+		"attacking", attacking, "defending", 3-attacking,
+		"map", protocol.FromU16(setting.Game.Strings16[1]))
 	s.broadcastRoundEntry(room, roundEntry{
 		setting: setting,
 		mapName: protocol.FromU16(setting.Game.Strings16[1]),

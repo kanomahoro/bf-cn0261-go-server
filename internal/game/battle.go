@@ -254,13 +254,15 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	if request.ObjectID != objectID {
 		return fmt.Errorf("%w: respawn object mismatch", protocol.ErrInvalidPacket)
 	}
-	// The bomb mission has no respawn: a dead seat stays down for the rest of the
-	// sub-round, and its client is told to observe instead of asking again. The
-	// answer goes to every member, because the seat stops being a character for all
-	// of them (kr-812 sub_52A640).
-	if room.BombRound() {
-		s.bombObserve(room, session.slot)
-		return nil
+	// The bomb mission allows each seat bombRevivesPerSubRound respawns per
+	// sub-round (master, 2026-11-10): the budget is spent by the respawn request
+	// itself, so a seat that has none left observes instead of coming back. The
+	// budget resets when the next sub-round starts.
+	if room.BombRound() && (packet.ID == 713 || packet.ID == 32904) {
+		if !s.bombReviveAllowed(room, session.slot) {
+			s.bombObserve(room, session.slot)
+			return nil
+		}
 	}
 	// A zombie round logs its respawn traffic at info level: whether the client
 	// asks for its respawn (and so shows the bar the mode has) is exactly what the

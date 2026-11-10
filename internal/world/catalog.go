@@ -41,12 +41,61 @@ func (m Maps) Find(name string) (Map, bool) {
 			return entry, true
 		}
 	}
+	// A few maps belong to exactly one mode and carry neither competitive flag:
+	// the client lists them only in that mode's own widget.
+	for _, entries := range modeExtraMaps {
+		for _, entry := range entries {
+			if entry.ResourceName == name {
+				return entry, true
+			}
+		}
+	}
 	return Map{}, false
 }
 
 // bombModeID is the client's bomb mission. The mode plays its own MapMeta
 // isBombmode list, which Candidates serves from the bomb pool.
 const bombModeID = 19
+
+// Mode ids the pools below are keyed by. The game package keeps its own copies;
+// these exist so a map pool can be expressed here.
+const (
+	zombieModeID    = 8
+	sniperModeID    = 12
+	singlePvpModeID = 13
+)
+
+// modeExtraMaps are the maps a single mode lists although they carry neither the
+// no-item nor the item competitive flag. cn-717's MapMeta gives mode 8 (zombie)
+// and mode 13 (individual hot blood) 58 maps and mode 12 (sniper) 58, while the
+// competitive set the catalog carries is 57: the extra rows are
+// rel_Stadium03_StardustArena (isZombieModeMap, isSinglePvpModeMap) and
+// rel_pirate02_frontal (isSniperModeMap). Both ship their own map .ini, so they
+// are playable once the mode's pool admits them.
+var modeExtraMaps = map[uint32][]Map{
+	zombieModeID: {{
+		ResourceName: "rel_Stadium03_StardustArena", Theme: "Stadium", Difficulty: 4,
+		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+	}},
+	sniperModeID: {{
+		ResourceName: "rel_pirate02_frontal", Theme: "Pirate", Difficulty: 3,
+		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+	}},
+	singlePvpModeID: {{
+		ResourceName: "rel_Stadium03_StardustArena", Theme: "Stadium", Difficulty: 4,
+		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+	}},
+}
+
+// HasModeMap reports whether a resource name is one of a mode's own extra maps.
+func (Maps) HasModeMap(mode uint32, name string) bool {
+	for _, entry := range modeExtraMaps[mode] {
+		if entry.ResourceName == name {
+			return true
+		}
+	}
+	return false
+}
 
 // Candidates returns the maps that support a mode and theme.
 func (m Maps) Candidates(mode uint32, theme string) []Map {
@@ -87,6 +136,14 @@ func (m Maps) Candidates(mode uint32, theme string) []Map {
 			continue
 		}
 		if entry.TeamSpawnCount == 0 {
+			continue
+		}
+		out = append(out, entry)
+	}
+	// The mode's own extra maps join its pool, so a random room can roll them
+	// exactly like the client's widget offers them.
+	for _, entry := range modeExtraMaps[mode] {
+		if theme != "" && theme != "All" && theme != entry.Theme {
 			continue
 		}
 		out = append(out, entry)

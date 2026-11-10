@@ -34,3 +34,49 @@ func TestCaptainModeUsesTheNormalPool(t *testing.T) {
 		}
 	}
 }
+
+// TestModePoolsCarryTheirOwnExtraMaps pins the map counts the client's own mode
+// widgets show (cn-717 MapMeta.xml, release-only): modes 8/12/13 list 58 maps
+// while the competitive catalog carries 57, because each of them adds one map
+// that carries neither the no-item nor the item flag.
+func TestModePoolsCarryTheirOwnExtraMaps(t *testing.T) {
+	maps, err := LoadMaps("../../config/game_maps.json")
+	if err != nil {
+		t.Fatalf("the shipped map catalog does not load: %v", err)
+	}
+	cases := []struct {
+		mode uint32
+		want int
+		only string
+	}{
+		{1, 57, ""},
+		{8, 58, "rel_Stadium03_StardustArena"},
+		{12, 58, "rel_pirate02_frontal"},
+		{13, 58, "rel_Stadium03_StardustArena"},
+		{20, 57, ""},
+	}
+	for _, c := range cases {
+		got := maps.Candidates(c.mode, "All")
+		if len(got) != c.want {
+			t.Fatalf("mode %d offers %d maps, want %d", c.mode, len(got), c.want)
+		}
+		if c.only == "" {
+			continue
+		}
+		found := false
+		for _, entry := range got {
+			if entry.ResourceName == c.only {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("mode %d does not offer %s", c.mode, c.only)
+		}
+	}
+	// The competitive pools must not inherit the mode-only rows.
+	for _, entry := range maps.Candidates(1, "All") {
+		if entry.ResourceName == "rel_Stadium03_StardustArena" || entry.ResourceName == "rel_pirate02_frontal" {
+			t.Fatalf("the competitive pool picked up %s", entry.ResourceName)
+		}
+	}
+}

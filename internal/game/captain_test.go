@@ -274,3 +274,27 @@ func TestRefreshCaptainsVacatesAndAnnouncesAgain(t *testing.T) {
 		}
 	}
 }
+
+// TestCrashReportBeforeHandshakeKeepsTheConnection checks C19: a client that died
+// mid-match sends gcpReportLastCrash ahead of FirstConnect, and the retail server
+// logs it without answering. Refusing it dropped the connection and the player saw
+// "server disconnected" until the next attempt (2026-11-10).
+func TestCrashReportBeforeHandshakeKeepsTheConnection(t *testing.T) {
+	server := captainTestServer()
+	recorder := &captainRecorder{}
+	session := &Session{ID: 1, slot: 0, send: recorder, EnforceHandshake: true}
+
+	if err := server.Handle(session, protocol.Packet{ID: lastCrashReportID, Payload: make([]byte, 32)}); err != nil {
+		t.Fatalf("the crash report ended the connection: %v", err)
+	}
+	if session.handshake {
+		t.Fatal("the crash report counted as a handshake")
+	}
+	if len(recorder.sent) != 0 {
+		t.Fatalf("the crash report was answered with %d packet(s)", len(recorder.sent))
+	}
+	// The real handshake still has to be accepted afterwards.
+	if err := server.Handle(session, protocol.Packet{ID: 3, Payload: []byte{0}}); err == nil {
+		t.Fatal("login was accepted without FirstConnect")
+	}
+}

@@ -235,14 +235,27 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		switch request.Mode {
 		case bombModeID:
 			// The bomb mission's own pool is the authority: two of its six maps
-			// carry neither the normal nor the item flag in MapMeta, and refusing
-			// them would leave a room that can only be built at random.
+			// carry neither the normal nor the item flag in MapMeta. The client's
+			// create dialog starts on the startup map, which is an ordinary
+			// competitive one, so a map outside the pool is replaced with one the
+			// mode can actually run instead of refusing the room outright.
+			if !maps.IsBombMap(entry.ResourceName) {
+				candidates := maps.Candidates(bombModeID, theme)
+				if len(candidates) == 0 {
+					return setting, fmt.Errorf("no bomb map candidates for the requested theme")
+				}
+				entry = candidates[0]
+			}
 		case itemModeID:
 			if !entry.ItemMode {
 				return setting, fmt.Errorf("map does not support the item mode")
 			}
 		default:
-			if !entry.NormalMode {
+			// Modes 8/12/13 also list one map that carries neither competitive flag
+			// (the client's isZombieModeMap / isSniperModeMap / isSinglePvpModeMap
+			// tables are 58 against the catalog's 57), so the ordinary-map test is
+			// relaxed for exactly those rows.
+			if !entry.NormalMode && !maps.HasModeMap(request.Mode, entry.ResourceName) {
 				return setting, fmt.Errorf("map does not support the normal mode")
 			}
 		}
@@ -294,10 +307,18 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		if label == "" {
 			label = chosen.ResourceName
 		}
+		// The theme slot is what the client's map dialog opens on. The bomb mission
+		// keeps the requested theme (normally "All") instead of the chosen map's own:
+		// rewriting it to, say, Village left the dialog on that tab and the host saw
+		// three maps until the "all" tab refreshed the six.
+		themeSlot := chosen.Theme
+		if request.Mode == bombModeID {
+			themeSlot = theme
+		}
 		setting.Strings16 = [4][]uint16{
 			protocol.U16String(label),
 			protocol.U16String(chosen.ResourceName),
-			protocol.U16String(chosen.Theme),
+			protocol.U16String(themeSlot),
 			protocol.U16String(chosen.ResourceName),
 		}
 	}
