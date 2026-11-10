@@ -1515,11 +1515,17 @@ func (s *Server) broadcastRoundEntry(room *Room, entry roundEntry) {
 				s.relay.Register(key, room.ID, uint8(member.Slot), member.Session.peerAddress)
 			}
 			member.Session.relayKey = key
-		} else if s.relay != nil {
-			// A series keeps its keys, so refresh the reservation with every entry:
-			// otherwise it expires mid-series and the next sub-round's registration
-			// is refused as an unknown key (2026-11-10).
-			s.relay.Refresh(key)
+			if entry.setting.Game.Mode == bombModeID && s.relay != nil {
+				// The bomb client rebuilds this transport at every sub-round, so the
+				// key may be registered again while it is still bound.
+				s.relay.MarkReusable(key)
+				s.relay.Extend(key, bombRelayReservationTTL)
+			}
+		} else if s.relay != nil && entry.setting.Game.Mode == bombModeID {
+			// A bomb series keeps its keys across sub-rounds, so the reservation is
+			// pushed out with every entry; every other mode keeps the original
+			// two-minute window.
+			s.relay.Extend(key, bombRelayReservationTTL)
 		}
 		member.Session.relayActive = true
 		if endpoint, err := protocol.CreateRelayEndpointReply(relayAddress, relayPort, key); err == nil {

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.8.5（2026-11-11，relay 改动收敛到爆破）
+
+复查「对远程 main 老模式的影响」后，把两条共享的 relay 改动收窄成只在爆破生效：
+
+- **预留存活期回到 2 分钟**（所有模式保持 v0.5.0 的行为）；只有爆破通过 `Extend` 把它推到 10 分钟，
+  并且只在小局入场时推
+- **同 key 重复注册的「接管」只对标记过 reusable 的 key 生效**（只有爆破标记）；
+  其它模式仍然是「一条预留只能一个连接」，重复注册照旧被拒绝
+- 接口相应改为 `MarkReusable(key)` + `Extend(key, ttl)`（原来的 `Refresh` 去掉）
+- 用例：`TestRelayRegistrationTakesOverARebuiltTransport`（reusable 才接管）、
+  `TestRelayExtendKeepsTheReservationUsable`、`TestRelayDuplicateRegistrationStaysRejected`（普通 key 仍拒绝）
+
 ## v0.8.4（未采用，已撤回）
 
 试过用 `gspUpdateScoreData`（S2C 986）在小局之间播系列胜场，真机反馈**这套也有问题**（master：好像之前试过），

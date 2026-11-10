@@ -29,9 +29,10 @@ type RelayRegistry interface {
 	// SendToSlot pushes a packet to one member's relay connection. Defense seed
 	// tables travel this way, exactly like the reference implementation.
 	SendToSlot(roomID uint16, slot uint8, packet protocol.Packet) bool
-	// Refresh extends a member's relay reservation without changing its binding,
-	// so a key handed out for a series survives its sub-rounds.
-	Refresh(key protocol.RelayKey)
+	// MarkReusable lets a key be registered again while it is still bound.
+	MarkReusable(key protocol.RelayKey)
+	// Extend pushes a reservation's expiry out without changing its binding.
+	Extend(key protocol.RelayKey, ttl time.Duration)
 	// HasSlot reports whether a member's relay connection is currently attached.
 	// The bomb mission uses it to tell a transport that is coming back from one
 	// that is gone for good.

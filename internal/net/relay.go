@@ -18,11 +18,15 @@ import (
 // leaked key cannot be used from somewhere else, and allows exactly one
 // connection per reservation.
 type relayReservation struct {
-	roomID    uint16
-	slot      uint8
-	peerAddr  string // host part of the game connection's remote address
-	peerID    uint32 // 0 until the first registration reports it
-	bound     bool
+	roomID   uint16
+	slot     uint8
+	peerAddr string // host part of the game connection's remote address
+	peerID   uint32 // 0 until the first registration reports it
+	bound    bool
+	// reusable marks a key a client may register again while it is still bound.
+	// The bomb series needs that: its client rebuilds the relay transport at every
+	// sub-round. Everything else keeps the original one-connection rule.
+	reusable  bool
 	expiresAt time.Time
 }
 
@@ -36,11 +40,10 @@ type relayReservation struct {
 // without a relay, and its peers see it frozen in place.
 const relayRegistrationTimeout = 60 * time.Second
 
-// relayReservationTTL bounds how long a handed-out key stays usable. A bomb
-// series is three sub-rounds of up to 240 s with a reload between each, so two
-// minutes expired mid-series and the next sub-round's registration was refused
-// as an unknown key (2026-11-10). Every entry also refreshes it.
-const relayReservationTTL = 10 * time.Minute
+// relayReservationTTL is how long a handed-out key stays usable. Every mode keeps
+// the original two minutes; only a key a caller marked reusable (the bomb series,
+// which reloads its stage between sub-rounds) is extended explicitly.
+const relayReservationTTL = 2 * time.Minute
 
 // relayConn is one client connected to the relay port.
 type relayConn struct {
@@ -210,16 +213,28 @@ func (r *Relay) HasSlot(roomID uint16, slot uint8) bool {
 	return false
 }
 
-// Refresh extends a live reservation without touching its binding, so a key that
-// belongs to a running series never expires between its sub-rounds.
-func (r *Relay) Refresh(key protocol.RelayKey) {
+// MarkReusable lets a key be re-registered while it is still bound, which is what
+// a mode whose client rebuilds its relay transport needs.
+func (r *Relay) MarkReusable(key protocol.RelayKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	reservation, ok := r.reservations[key]
 	if !ok {
 		return
 	}
-	reservation.expiresAt = time.Now().Add(relayReservationTTL)
+	reservation.reusable = true
+	r.reservations[key] = reservation
+}
+
+// Extend pushes a reservation's expiry out without touching its binding.
+func (r *Relay) Extend(key protocol.RelayKey, ttl time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	reservation, ok := r.reservations[key]
+	if !ok {
+		return
+	}
+	reservation.expiresAt = time.Now().Add(ttl)
 	r.reservations[key] = reservation
 }
 
@@ -510,11 +525,18 @@ func (r *Relay) join(client *relayConn, registration protocol.RelayRegistration)
 			return false
 		}
 	}
-	// A client rebuilding its scene re-dials the relay and registers the same key
-	// again -- the bomb mission does that every sub-round. Take the reservation
-	// over: drop the connection it replaces (marked released, so its teardown is
-	// not read as a peer disappearing) and bind this one, so a slot never ends up
-	// with two transports.
+	// One reservation, one connection: a client that re-registers with the same
+	// key must not end up with two transports, or every SendToSlot doubles. A key
+	// its owner marked reusable is the exception -- the bomb mission rebuilds its
+	// transport at every sub-round -- and is taken over instead: drop the
+	// connection it replaces (marked released, so its teardown is not read as a
+	// peer disappearing) and bind this one.
+	if reservation.bound && !reservation.reusable {
+		r.mu.Unlock()
+		r.log.Warn("[Relay] duplicate registration rejected",
+			"room", reservation.roomID, "slot", reservation.slot)
+		return false
+	}
 	var replaced []*relayConn
 	if reservation.bound {
 		members := r.rooms[reservation.roomID][:0]

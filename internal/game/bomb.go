@@ -98,6 +98,11 @@ func (r *Room) BombSeriesDecided() bool {
 	return r.Setting.Game.Mode == bombModeID && r.bomb != nil && r.bomb.winner != 0
 }
 
+// bombRelayReservationTTL is how long a series' relay key stays usable. A series
+// is three sub-rounds of up to 240 s with a reload between each, so the original
+// two-minute window expired mid-series (2026-11-10).
+const bombRelayReservationTTL = 10 * time.Minute
+
 // bombRevivesPerSubRound is how many times one seat may respawn inside a single
 // sub-round (master, 2026-11-10: the limit is per sub-round, not per match).
 const bombRevivesPerSubRound = 2

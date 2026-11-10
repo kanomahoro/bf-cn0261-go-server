@@ -30,6 +30,7 @@ func TestRelayRegistrationTakesOverARebuiltTransport(t *testing.T) {
 	var key protocol.RelayKey
 	key[0] = 7
 	relay.Register(key, 3, 1, "127.0.0.1")
+	relay.MarkReusable(key)
 
 	first, _ := newTestRelayConn(t)
 	registration := protocol.RelayRegistration{Key: key, Slot: 1}
@@ -54,15 +55,16 @@ func TestRelayRegistrationTakesOverARebuiltTransport(t *testing.T) {
 	}
 }
 
-// TestRelayRefreshKeepsTheReservationUsable checks a series' key: refreshing it
-// must extend the expiry without clearing the binding, so the next sub-round's
+// TestRelayExtendKeepsTheReservationUsable checks a series' key: extending it must
+// push the expiry out without clearing the binding, so the next sub-round's
 // registration still resolves (it was refused as "unknown relay key" once the
 // two-minute reservation expired mid-series, 2026-11-10).
-func TestRelayRefreshKeepsTheReservationUsable(t *testing.T) {
+func TestRelayExtendKeepsTheReservationUsable(t *testing.T) {
 	relay := NewRelay(config.Relay{}, slog.Default())
 	var key protocol.RelayKey
 	key[0] = 9
 	relay.Register(key, 5, 0, "127.0.0.1")
+	relay.MarkReusable(key)
 
 	first, _ := newTestRelayConn(t)
 	if !relay.join(first, protocol.RelayRegistration{Key: key, Slot: 0}) {
@@ -75,13 +77,31 @@ func TestRelayRefreshKeepsTheReservationUsable(t *testing.T) {
 	relay.reservations[key] = reservation
 	relay.mu.Unlock()
 
-	relay.Refresh(key)
+	relay.Extend(key, 10*time.Minute)
 
 	second, _ := newTestRelayConn(t)
 	if !relay.join(second, protocol.RelayRegistration{Key: key, Slot: 0}) {
-		t.Fatal("the refreshed key could not be registered again")
+		t.Fatal("the extended key could not be registered again")
 	}
 	if !relay.HasSlot(5, 0) {
 		t.Fatal("the refreshed registration did not attach")
+	}
+}
+
+// TestRelayDuplicateRegistrationStaysRejected checks the other side of that rule:
+// a key nobody marked reusable keeps the original one-connection behaviour.
+func TestRelayDuplicateRegistrationStaysRejected(t *testing.T) {
+	relay := NewRelay(config.Relay{}, slog.Default())
+	var key protocol.RelayKey
+	key[0] = 11
+	relay.Register(key, 6, 0, "127.0.0.1")
+
+	first, _ := newTestRelayConn(t)
+	if !relay.join(first, protocol.RelayRegistration{Key: key, Slot: 0}) {
+		t.Fatal("the first registration was rejected")
+	}
+	second, _ := newTestRelayConn(t)
+	if relay.join(second, protocol.RelayRegistration{Key: key, Slot: 0}) {
+		t.Fatal("a plain key accepted a second transport")
 	}
 }
