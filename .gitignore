@@ -13,3 +13,28 @@ __pycache__/
 launcher/dist/
 launcher/build/
 dist/
+
+# 单元测试不纳入版本库（发布树同样不带；回归时从历史取回，见 docs/release.md）
+*_test.go
+
+# 编译产物与发布包（不放二进制、压缩包进仓库）
+/bfserver
+/bfserver.exe
+*.exe
+*.zip
+*.tar.gz
+*.tgz
+*.7z
+*.apk
+
+# 调试与临时产物
+tmp/
+*.bak
+*.orig
+*.rej
+*.out
+*.prof
+*.pprof
+*.trace
+core
+core.*

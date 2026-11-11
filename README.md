@@ -1,17 +1,34 @@
-# BubbleFighter CN0261 Server (Go)
+Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENSE](LICENSE)。
+
+> 仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营或任何侵犯他人权利的场景。
+> 游戏名称、商标、美术与音频等素材的权利归原权利人所有；部分协议行为与数据库结构参考
+> [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（MIT，Copyright (c) 2026 Albert Gong）。
+
+# Bubble Fighter CN0261(cn-717) Server (Go)
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.6.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.9.0-blue?style=flat-square)
 
-泡泡战士 CN0261（国服 2015 版，协议 717）服务端的 Go 重写版。单二进制、无 cgo，
+Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.6.0**：竞技（1）+ 道具战（3）+ 僵尸（8）+ 狙击（12）+ 热血个人（13）+ 热血团队（14）+ 热血狙击（18）
-+ 队长战（20）+ 爆破（19），已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+当前版本 **v0.9.0**：竞技（1）+ 道具战（3）+ 僵尸（8）+ 狙击（12）+ 热血个人（13）+ 热血团队（14）+ 热血狙击（18）
++ 爆破（19）+ 队长战（20），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+客户端的 11 个可选模式里只剩僵尸 BOSS（16）与海盗（101）未做。
 
+> 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
+> `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
+
+- **v0.9.0** 单人教程（25 关）入版；修掉爆破整场结算掉线、爆破地图没有弹药箱、狙击射爆泡封不计分；
+  日志级别按 `docs/logging.md` 重新梳理；单元测试移出版本库
+- **v0.8.5** relay 改动收敛到爆破：预留期回到 2 分钟、同 key 接管只对标记可复用的 key 生效
+- **v0.8.x** 爆破真机迭代：小局之间只发 `S705`（横幅与 HUD 队伍比分确认无法安全实现，定稿放弃）；
+  复活预算改为每小局 2 次；relay 预留期与接管收敛到只在爆破生效
+- **v0.7.x** 爆破小局重开：客户端重载场景会拆 relay，服务端改为宽限 20 秒不释放座位；
+  观察者（`S974`）、爆炸先于时钟的判定、地图池校验（6 张，含两张只属于爆破的图）
 - **v0.6.0** 爆破（19）落地：三局两胜、每小局攻守互换、炸弹装机/拆弹/爆炸状态机（2012/2011 → 973）、
   死亡转观察者（S974）、小局之间只重载场景不重进房间、整场只结算一次。规则见 [`BOMB.md`](BOMB.md)
 - **v0.5.0** 队长战（20）真机验收通过：开局点名（S982）、阵亡转交（泡封队友不接任）、
@@ -23,6 +40,30 @@
 - **v0.3.1** 仓库合并与日志/文档整理，**无协议与玩法改动**
 - **v0.3.0** 僵尸模式（真机验收定稿，规则见 [`ZOMBIE.md`](ZOMBIE.md)）
 - **v0.2.0** 道具战；更早的变更见 [`CHANGELOG.md`](CHANGELOG.md)
+
+## 模式一览
+
+客户端一共只提供 11 个可选模式（多出来的那些是别的版本才有的，**不要拿参考实现的配置当客户端能力证据**）。
+「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 已到 v0.5.0**，
+所以 v0.5.0 及以前的模式都已随主线发布，`main` 之后只在本地累积的是 **19 爆破**与**教程**。
+
+| 模式 | 名称 | 服务端负责的部分 | 加入版本 | 状态 | 文档 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 竞技 | 两队、比分上限、泡封—营救 | v0.1.x | 稳定 · 已在 `main` | — |
+| 3 | 道具战 | 15 种道具箱的创建/拾取/使用/切槽/投掷、红蓝归属、两槽记账 | v0.2.0 | 稳定 · 已在 `main` | — |
+| 8 | 僵尸（选王，180 s） | 选王、死亡转化、王死判人类胜、无限复活、按机型实测的变身延迟 | v0.3.0 | 定稿 · 已在 `main` | [`ZOMBIE.md`](ZOMBIE.md) |
+| 12 | 狙击 | 同竞技 + 开局强制狙击枪 + 弹药箱；射爆泡封计分 | v0.4.0 | 稳定 · 已在 `main` | — |
+| 13 | 热血个人 | 无队伍、全员平局结算、退人到只剩一人也结算、出生点客户端权威 | v0.4.0 | 稳定 · 已在 `main` | — |
+| 14 | 热血团队 | 去掉泡封—营救的竞技，最后一击直接死亡并计分 | v0.4.0 | 稳定 · 已在 `main` | — |
+| 18 | 热血狙击 | 同 14 + 强制狙击枪 + 弹药箱 | v0.4.0 | 稳定 · 已在 `main` | — |
+| 20 | 队长战 | 开局点名（S982）、阵亡转交（泡封中不接任）、队长 ULTRA | v0.5.0 | 定稿 · 已在 `main` | [`CAPTAIN.md`](CAPTAIN.md) |
+| 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | **定稿** · 未 push | [`BOMB.md`](BOMB.md) |
+| 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 · 未 push | [`TUTORIAL.md`](TUTORIAL.md) |
+| 16 | 僵尸 BOSS（PVE 救援） | — | 未做 | 待做 | — |
+| 101 | 海盗（wave 关卡） | — | 未做 | 待做 | — |
+
+`main` 之后（v0.6.0 → v0.9.0）修掉的问题逐条记在 [`CHANGELOG.md`](CHANGELOG.md)：每条都有现象、
+根因、改法与真机日志，这里不重复。真机日志原件按日期归档在 `workspace/artifacts/logs/`。
 
 ## 功能范围
 
@@ -42,14 +83,15 @@
 | 补给 | 道具箱与弹药箱的点位上报、按间隔刷新、拾取广播（道具战、僵尸、狙击、热血、爆破五种线路） |
 | 管理后台 | 概览、在线玩家、房间、日志、战绩、公告、改钱包、封禁，列表均支持翻页（默认关闭） |
 
-**未实现**：其余模式（夺星 5/6、僵尸 BOSS 16、海盗 101 等）、
+**未实现**：僵尸 BOSS（16）、海盗（101）两个客户端可选模式，以及客户端根本不提供的
+夺星 5/6、AOS 22 等（**不要拿参考实现的配置当客户端能力证据**）、
 多大厅频道、服务端反作弊（战斗判定沿用客户端上报，与 2015 原版一致）。
 
 ## 环境要求
 
 - **数据库：MariaDB 10.11**（只在 MariaDB 上验证过，MySQL 未测试）
 - **Go 1.27+**（仅构建需要，运行只要二进制）
-- **客户端：泡泡战士 CN0261（2015 国服版，协议 717）** —— 需自备，本仓库不提供
+- **客户端：Bubble Fighter CN0261(cn-717)**（泡泡战士 2015 国服版）—— 需自备，本仓库不提供
 - 依赖只有两个：`go-sql-driver/mysql`、`golang.org/x/crypto/scrypt`
 - 验证环境：Debian 12 x86_64 / MariaDB 10.11.19 / 2 vCPU 2 GB（对局与压测均在此规格下跑通）
 
@@ -95,10 +137,13 @@ sudo bash bfserver-install.sh
 ```bash
 go build -o bin/bfserver ./cmd/bfserver
 
-# 发布构建
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.Version=0.5.0" -o bfserver ./cmd/bfserver
+# 发布构建（-s -w 不能省：否则 exe 多出约 4 MB 符号表与 DWARF）
+CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v0.5.0  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.9.0  By:rurudoo
+
+# 版本号写在 cmd/bfserver/main.go 的 Version 变量里；需要出号时再改，
+# 不要用 -X main.Version 在命令行覆盖（会与 CHANGELOG/发布包不一致）
 ```
 
 发布树里不带单元测试（`go build` 也不会把它们编进二进制）。需要回归测试时从历史取回：
@@ -149,7 +194,7 @@ git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
 openssl rand -hex 32
 
 # 2. 编辑 config/server.json 的 admin 段：enabled 改 true，token 填上一步的值
-#    "admin": { "enabled": true, "listenAddress": "127.0.0.1", "listenPort": 26110, "token": "<刚才那串>" }
+#    "admin": { "enabled": true, "listenAddress": "127.0.0.1", "listenPort": 26110, "token": "***" }
 
 # 3. 重启
 systemctl restart bfserver
@@ -179,7 +224,11 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
   - `[Round] settlement clamped` —— 满级或钱包到上限，属正常
   - `game result packet rejected` —— 结算包被拒，通常是角色数据异常
 
-级别含义、各段默认值与轮转行为：见 [`docs/configuration.md`](docs/configuration.md)。
+分级原则（哪些事件走 Info、哪些只能 Debug）见 [`docs/logging.md`](docs/logging.md)；
+各段默认值与轮转行为见 [`docs/configuration.md`](docs/configuration.md)。
+
+> 排查计分问题时把级别调到 `debug`，`peer life` / `peer kick` 两行会打印每个攻击事件的
+> `kind` / `accepted` / `victimState` / `direct` / `special` —— 这是判断「这刀算没算分」的依据。
 
 ## 命令行参数
 
@@ -209,7 +258,7 @@ internal/protocol/ 封包编解码
 internal/store/    持久化
 config/            默认配置与数据表（地图、武器、防御、角色、复活、成长）
 database/          迁移脚本
-docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布）
+docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布、日志约定）
 launcher/          登录器（Python）
 tools/             一键安装脚本
 ZOMBIE.md          僵尸模式规则与真机验收记录
@@ -253,11 +302,13 @@ Release 资产只包含**二进制包**与 `SHA256SUMS`；安装脚本一直在�
 
 ## 许可证
 
-MIT，见 [LICENSE](LICENSE)。
+MIT，见 [LICENSE](LICENSE)。版权所有 (c) 2026 kanomahoro；
+部分协议行为与数据库结构参考 BubbleFighter_CN0261_Server（MIT，Copyright (c) 2026 Albert Gong）。
 
 > 本项目仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营
 > 或任何侵犯他人权利的场景。游戏名称、商标、美术与音频等素材的权利归原权利人所有。
 
 ## 文档
 
-完整索引见 [`docs/README.md`](docs/README.md)（使用/架构/模式/素材四类）。
+完整索引见 [`docs/README.md`](docs/README.md)（使用/架构/模式/素材四类）；
+各版本改了什么、为什么改，见 [`CHANGELOG.md`](CHANGELOG.md)（最新在最上面）。
