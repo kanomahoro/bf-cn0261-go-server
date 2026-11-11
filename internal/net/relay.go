@@ -126,6 +126,11 @@ type Relay struct {
 	onPacket     RelayHandler
 	onDisconnect RelayDisconnectHandler
 
+	// allowPeerFrame is the game-side rule for peer frames this relay's own
+	// whitelist does not carry (the horde round's spawn frames). Nil keeps the
+	// original behaviour: such a packet is consumed here.
+	allowPeerFrame func(roomID uint16, id uint16) bool
+
 	// registrationTimeout is how long an unregistered connection may stay open.
 	registrationTimeout time.Duration
 
@@ -157,6 +162,27 @@ func (r *Relay) SetDisconnectHandler(handler RelayDisconnectHandler) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.onDisconnect = handler
+}
+
+// SetPeerFrameAllowance installs the game-side rule for peer frames the relay's
+// own whitelist does not carry. The 2015 client switches its gpp traffic to the
+// match relay when no direct peer link is available (kr-812 sub_80D4C0 /
+// cn-324 sub_6F7F10), which is every deployment that runs relay-only: without
+// this rule a horde round's spawn frames would die here and the other seats
+// would see no mobs. Call it before connections are accepted.
+func (r *Relay) SetPeerFrameAllowance(allow func(roomID uint16, id uint16) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allowPeerFrame = allow
+}
+
+// peerFrameAllowed asks the game side whether one relay packet is a peer frame
+// it wants forwarded although relayForwardable does not list it.
+func (r *Relay) peerFrameAllowed(roomID uint16, id uint16) bool {
+	r.mu.Lock()
+	allow := r.allowPeerFrame
+	r.mu.Unlock()
+	return allow != nil && allow(roomID, id)
 }
 
 // SendToSlot delivers a packet to a room member's registered relay connection.
@@ -435,6 +461,13 @@ func (r *Relay) handle(conn net.Conn) {
 				// Only in-match peer state may reach another peer. Everything else is
 				// control traffic the server consumes itself (see relayForwardable).
 				if relayForwardable(packet.ID) {
+					r.forward(client, packet)
+				} else if r.peerFrameAllowed(roomID, packet.ID) {
+					// A mode that owns these numbers (a horde round's spawn frames)
+					// forwards them to the seats itself: the match relay is the only
+					// transport a relay-only client has for its peer frames.
+					r.log.Debug("[Relay] peer frame forwarded", "room", roomID, "slot", slot,
+						"id", packet.ID, "len", len(packet.Payload))
 					r.forward(client, packet)
 				} else {
 					r.log.Debug("[Relay] consumed", "room", roomID, "slot", slot,

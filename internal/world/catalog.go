@@ -41,6 +41,13 @@ func (m Maps) Find(name string) (Map, bool) {
 			return entry, true
 		}
 	}
+	// The pirate battle names its maps with npc_* keys while loading the rel_*
+	// scene behind them; neither is in the competitive catalog.
+	for _, entry := range m.HordeMaps() {
+		if entry.ResourceName == name {
+			return entry, true
+		}
+	}
 	// A few maps belong to exactly one mode and carry neither competitive flag:
 	// the client lists them only in that mode's own widget.
 	for _, entries := range modeExtraMaps {
@@ -56,6 +63,10 @@ func (m Maps) Find(name string) (Map, bool) {
 // bombModeID is the client's bomb mission. The mode plays its own MapMeta
 // isBombmode list, which Candidates serves from the bomb pool.
 const bombModeID = 19
+
+// hordeModeID is the client's pirate battle (wgtHorde). Its pool is the 33 npc_*
+// rows of MapMeta's isHordeModeMap list.
+const hordeModeID = 101
 
 // Mode ids the pools below are keyed by. The game package keeps its own copies;
 // these exist so a map pool can be expressed here.
@@ -99,6 +110,9 @@ func (Maps) HasModeMap(mode uint32, name string) bool {
 
 // Candidates returns the maps that support a mode and theme.
 func (m Maps) Candidates(mode uint32, theme string) []Map {
+	if mode == hordeModeID {
+		return m.HordeCandidates(theme, 0)
+	}
 	if mode == bombModeID {
 		var out []Map
 		for _, entry := range m.BombMaps() {

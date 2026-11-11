@@ -140,6 +140,13 @@ const sniperModeID = 12
 // the Captain's extra health and its gauge included, is the client's.
 const captainModeID = 20
 
+// pirateModeID is the client's pirate battle (wgtHorde): one to four players
+// against the waves the room master's own client spawns. The server admits the
+// room, runs its map pool, repeats the host's wave and NPC reports to the seats
+// and settles the round -- the waves, the AI and the spawn points stay in the
+// client (see internal/game/pirate.go).
+const pirateModeID = 101
+
 // The two hot-blood team battles: teamSurvivalModeID is wgtTeamSurvival and
 // sniperTeamSurvivalModeID is wgtSniperTeamSurvival. Both are the competitive
 // round with the bubble-and-rescue stage removed, so a hit that takes the last
@@ -182,7 +189,8 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	if request.Mode != 1 && request.Mode != itemModeID && request.Mode != sniperModeID &&
 		request.Mode != singlePvpModeID && request.Mode != teamSurvivalModeID &&
 		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID &&
-		request.Mode != captainModeID && request.Mode != bombModeID {
+		request.Mode != captainModeID && request.Mode != bombModeID &&
+		request.Mode != pirateModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {
@@ -191,7 +199,8 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// The zombie and bomb battles carry no rules in the client, so a sub mode
 		// they send cannot change the round; it is echoed back instead of costing
 		// the room its create. Any other mode keeps the audited values only.
-		if (request.Mode != zombieModeID && request.Mode != bombModeID) || request.SubMode > 15 {
+		if (request.Mode != zombieModeID && request.Mode != bombModeID &&
+			request.Mode != pirateModeID) || request.SubMode > 15 {
 			return setting, fmt.Errorf("unsupported room sub mode")
 		}
 	}
@@ -219,6 +228,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	found := false
 	if random {
 		candidates := maps.Candidates(request.Mode, theme)
+		if request.Mode == pirateModeID {
+			// The client's pirate entry offers a difficulty pool on top of the theme:
+			// "Random" enters every npc_* row of the theme and Random_Hot_DifN the
+			// three rows of that difficulty.
+			candidates = maps.HordeCandidates(theme, pirateDifficulty(protocol.FromU16(request.Strings16[3])))
+		}
 		if len(candidates) == 0 {
 			return setting, fmt.Errorf("no map candidates for the requested theme")
 		}
@@ -233,6 +248,17 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 			return setting, fmt.Errorf("unknown map resource")
 		}
 		switch request.Mode {
+		case pirateModeID:
+			// The pirate battle has its own 33 npc_* rows; the create dialog starts on
+			// the startup map, so a key outside the pool is replaced instead of
+			// refusing the room (the bomb mission does the same).
+			if !maps.IsHordeMap(entry.ResourceName) {
+				candidates := maps.HordeCandidates(theme, 0)
+				if len(candidates) == 0 {
+					return setting, fmt.Errorf("no pirate map candidates for the requested theme")
+				}
+				entry = candidates[0]
+			}
 		case bombModeID:
 			// The bomb mission's own pool is the authority: two of its six maps
 			// carry neither the normal nor the item flag in MapMeta. The client's
@@ -282,6 +308,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	if request.Mode == zombieModeID {
 		limit = zombieRoundLimitMs
 	}
+	// The pirate battle runs the 300 s its MapMeta row states, and its round is
+	// decided by the waves rather than by a kill limit.
+	if request.Mode == pirateModeID {
+		limit = chosen.TimeLimitMilliseconds
+		score = 0
+	}
 	if limit < 60000 || limit > 1800000 || limit%1000 != 0 || score > 200 {
 		return setting, fmt.Errorf("room rules are outside the supported range")
 	}
@@ -312,7 +344,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// rewriting it to, say, Village left the dialog on that tab and the host saw
 		// three maps until the "all" tab refreshed the six.
 		themeSlot := chosen.Theme
-		if request.Mode == bombModeID {
+		if request.Mode == bombModeID || request.Mode == pirateModeID {
 			themeSlot = theme
 		}
 		setting.Strings16 = [4][]uint16{
@@ -325,4 +357,28 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	setting.Values128[0] = score
 	setting.Values128[2] = limit
 	return setting, nil
+}
+
+// pirateDifficulty reads the difficulty out of the client's pirate random marker:
+// Random_Hot_Dif1..Dif3 pick that difficulty, everything else keeps all three.
+func pirateDifficulty(marker string) uint32 {
+	const prefix = "Random_Hot_Dif"
+	if !strings.HasPrefix(marker, prefix) {
+		return 0
+	}
+	digits := marker[len(prefix):]
+	if digits == "" {
+		return 0
+	}
+	value := uint32(0)
+	for _, digit := range digits {
+		if digit < '0' || digit > '9' {
+			return 0
+		}
+		value = value*10 + uint32(digit-'0')
+	}
+	if value > 3 {
+		return 0
+	}
+	return value
 }

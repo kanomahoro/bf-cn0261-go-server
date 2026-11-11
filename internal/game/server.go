@@ -389,6 +389,11 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	if (packet.ID == 710 || packet.ID == 2023) && s.handleTutorialScore(session, packet) {
 		return nil
 	}
+	// The pirate battle's waves, spawn frames, stage result and reward traffic are
+	// claimed here for the same reason: their numbers belong to other modes too.
+	if piratePacketID(packet.ID) && s.handlePiratePacket(session, packet) {
+		return nil
+	}
 	switch packet.ID {
 	case 1: // FirstConnect: content flags, patch reply, center list
 		return s.handleFirstConnect(session, packet)
@@ -456,6 +461,8 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handlePartyChat(session, packet)
 	case 503: // RoomReqEnterGame
 		return s.handleEnterGame(session, packet)
+	case 2025: // gcpUserHostStart: the room master starts a pirate round
+		return s.handleHostStart(session, packet)
 	case 701: // map loaded
 		return s.handleMapLoaded(session, packet)
 	case 601: // relay connected report
