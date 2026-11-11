@@ -143,6 +143,13 @@ type Session struct {
 	handshake        bool
 	lastChatNotice   time.Time
 
+	// tutorial is the landing page's single-player flow. It lives on the session
+	// because a tutorial never creates a room; the mutex guards it against the
+	// stage's own timers.
+	tutorialMu  sync.Mutex
+	tutorial    *tutorialState
+	tutorialSeq uint64
+
 	send Sender
 }
 
@@ -270,6 +277,7 @@ func (s *Server) Disconnect(session *Session) {
 	session.closing.Store(true)
 	// Unconditional: an entry that failed halfway may have left a seat with the flag
 	// still false, and a stale seat locks the player out of the plaza.
+	s.tutorialStop(session)
 	s.leavePlaza(session)
 	if session.room != nil {
 		if err := s.leaveRoom(session); err != nil {
@@ -372,6 +380,15 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		}
 	}
 	s.log.Debug("inbound", "session", session.ID, "id", packet.ID, "len", len(packet.Payload))
+	// The tutorial's own traffic is answered before anything else claims its
+	// numbers: 32920 (a mob's life points) and 710/2023 (a stage's goals) also
+	// exist outside a tutorial, and only the tutorial stage replaces them.
+	if tutorialNpcPacketID(packet.ID) && s.handleTutorialNpc(session, packet) {
+		return nil
+	}
+	if (packet.ID == 710 || packet.ID == 2023) && s.handleTutorialScore(session, packet) {
+		return nil
+	}
 	switch packet.ID {
 	case 1: // FirstConnect: content flags, patch reply, center list
 		return s.handleFirstConnect(session, packet)
@@ -379,11 +396,24 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handleLogin(session, packet)
 	case 102: // InitialInfo
 		return s.handleInitialInfo(session, packet)
+	case 405: // ReqCreateTutorialSession: the landing page's tutorial button
+		return s.handleTutorialCreate(session, packet)
+	case 920: // ReqSingleStageInfo: the tutorial select scene's cleared list
+		return s.handleTutorialStageList(session, packet)
+	case 107: // ReqPlayTutorial: the select scene hands over a stage
+		return s.handleTutorialPlay(session, packet)
+	case 724: // ReqEndStage: a tutorial stage reports its own result
+		return s.handleTutorialEndStage(session, packet)
 	case 15: // ReqCheckCreateUserName
 		return s.handleNicknameCheck(session, packet)
 	case 16: // ReqCreateUserInfo, or a recovery report during a match
 		if session.room != nil && session.room.StartedReport() {
 			return s.handleHealthReport(session, packet)
+		}
+		// Inside a tutorial stage C16 is the recovery report too; parsing it as a
+		// character creation would drop the connection mid-stage.
+		if s.tutorialInStage(session) {
+			return s.handleTutorialInStageReport(session, packet)
 		}
 		return s.handleCreateCharacter(session, packet)
 	case 17: // character ready -> login reply
@@ -395,6 +425,11 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	case 14: // ReqMoveInto (outside a match)
 		if session.room != nil && session.room.StartedReport() {
 			return s.handleHealthReport(session, packet)
+		}
+		// Inside a tutorial stage C14 is the health reset report; the lobby handler
+		// would read it as a channel move and pull the player out of the stage.
+		if s.tutorialInStage(session) {
+			return s.handleTutorialInStageReport(session, packet)
 		}
 		return s.handleMoveInto(session, packet)
 	case 401: // ReqListSession
@@ -695,6 +730,9 @@ func (s *Server) handleSceneEntry(session *Session, packet protocol.Packet) erro
 		return fmt.Errorf("%w: scene entry requires an empty payload", protocol.ErrInvalidPacket)
 	}
 	if packet.ID == 105 {
+		// Back on the landing page: any tutorial flow the client left behind is
+		// over, and its timers must not fire into this scene.
+		s.tutorialStop(session)
 		// Main menu: the plaza roster no longer applies.
 		if session.inPlaza {
 			s.leavePlaza(session)

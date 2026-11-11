@@ -308,6 +308,9 @@ func (s *Server) enterPlaza(session *Session) error {
 		s.log.Debug("[Plaza] refused a seat for a closing session", "session", session.ID)
 		return nil
 	}
+	// The plaza owns the session from here: a tutorial flow left open in the
+	// landing page is over, and its timers must not act on the plaza scene.
+	s.tutorialStop(session)
 	if !ChannelContains(session.channelType, session.channelIndex) {
 		session.channelType = lobbyChannelType
 		session.channelIndex = 0

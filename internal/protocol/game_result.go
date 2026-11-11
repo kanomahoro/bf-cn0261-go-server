@@ -29,15 +29,40 @@ type GameResultPlayer struct {
 // the two team totals, and any other value is written as given. The zombie battle
 // (team 14) and the cooperative families need that.
 func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameResultPlayer) (Packet, error) {
-	if teamScores[0] > 200 || teamScores[1] > 200 || len(players) == 0 || len(players) > PlayerSlots {
+	if teamScores[0] > 200 || teamScores[1] > 200 {
 		return Packet{}, fmt.Errorf("%w: game result capacity", ErrInvalidPacket)
 	}
 	if winner > 17 {
 		return Packet{}, fmt.Errorf("%w: game result winner", ErrInvalidPacket)
 	}
-	// The client's ScoreData record has sixteen slots; only eight can be
-	// occupied, the rest must still be written as empty rows or the client reads
-	// past the payload and crashes on the result screen.
+	slots, err := resultSlots(players)
+	if err != nil {
+		return Packet{}, err
+	}
+
+	w := NewWriter()
+	writeScoreData(w, teamScores, winner, slots)
+	for _, player := range slots {
+		if player == nil {
+			w.Unsigned(0)
+			continue
+		}
+		w.Unsigned(player.AwardMedal)
+	}
+	for range slots {
+		w.Unsigned(Unset)
+	}
+	return Packet{ID: 729, Payload: w.Payload()}, nil
+}
+
+// resultSlots validates the result rows and places them in the client's
+// sixteen-slot table. The client's ScoreData record has sixteen slots; only eight
+// can be occupied, the rest must still be written as empty rows or the client
+// reads past the payload and crashes on the result screen.
+func resultSlots(players []GameResultPlayer) ([]*GameResultPlayer, error) {
+	if len(players) == 0 || len(players) > PlayerSlots {
+		return nil, fmt.Errorf("%w: game result capacity", ErrInvalidPacket)
+	}
 	slots := make([]*GameResultPlayer, 16)
 	for index := range players {
 		player := &players[index]
@@ -50,12 +75,17 @@ func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameRes
 			player.AwardScore > 0x7FFFFFFF ||
 			(player.AwardGrade > 8 && player.AwardGrade != Unset) ||
 			(player.AwardMedal != 0 && (player.AwardMedal < 4 || player.AwardMedal > 9)) {
-			return Packet{}, fmt.Errorf("%w: game result identity", ErrInvalidPacket)
+			return nil, fmt.Errorf("%w: game result identity", ErrInvalidPacket)
 		}
 		slots[player.Slot] = player
 	}
+	return slots, nil
+}
 
-	w := NewWriter()
+// writeScoreData writes the bare ScoreData block: the team table the client reads
+// with its sixteen rows. A caller that needs the result screen's own reward tail
+// appends it afterwards.
+func writeScoreData(w *Writer, teamScores [2]uint16, winner uint8, slots []*GameResultPlayer) {
 	w.Unsigned(17) // team table capacity
 	if winner == 0 && teamScores[0] != teamScores[1] {
 		if teamScores[0] > teamScores[1] {
@@ -79,17 +109,6 @@ func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameRes
 	for _, player := range slots {
 		writeResultPlayer(w, player)
 	}
-	for _, player := range slots {
-		if player == nil {
-			w.Unsigned(0)
-			continue
-		}
-		w.Unsigned(player.AwardMedal)
-	}
-	for range slots {
-		w.Unsigned(Unset)
-	}
-	return Packet{ID: 729, Payload: w.Payload()}, nil
 }
 
 func writeResultPlayer(w *Writer, player *GameResultPlayer) {
@@ -174,7 +193,9 @@ func writeResultPlayer(w *Writer, player *GameResultPlayer) {
 // battle teams, the zombie battle's team (14) and the cooperative zombies' (15).
 func validResultTeam(team uint8) bool {
 	switch team {
-	case 1, 2, 14, 15:
+	// Team 0 is the client's "no team" value: the tutorial's live score update
+	// carries it. Every played round names one of the four below.
+	case 0, 1, 2, 14, 15:
 		return true
 	default:
 		return false

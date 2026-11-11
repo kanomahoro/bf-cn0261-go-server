@@ -928,6 +928,11 @@ func (s *Server) handleLeaveRoom(session *Session, packet protocol.Packet) error
 	if packet.ID != 404 || len(packet.Payload) != 0 {
 		return fmt.Errorf("%w: expected empty ReqLeaveSession", protocol.ErrInvalidPacket)
 	}
+	// The tutorial has no room: its own flow is dropped and the landing page is
+	// restated in place of the lobby entry below.
+	if s.handleTutorialLeave(session, packet) {
+		return nil
+	}
 	if err := s.leaveRoom(session); err != nil {
 		return err
 	}
@@ -1565,6 +1570,11 @@ func (s *Server) handleMapLoaded(session *Session, packet protocol.Packet) error
 	}
 	if err := r.RequireEnd(); err != nil {
 		return err
+	}
+	// A tutorial stage reports its own load through this packet; it has no room to
+	// broadcast the report to.
+	if s.handleTutorialMapLoaded(session) {
+		return nil
 	}
 	room := session.room
 	if room == nil {

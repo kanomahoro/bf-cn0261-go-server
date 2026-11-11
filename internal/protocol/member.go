@@ -44,8 +44,12 @@ const Unset uint32 = 0xFFFFFFFF
 // WriteSessionMember serializes a UserSlot (0x41B060).
 func WriteSessionMember(w *Writer, m SessionMember, ownerSlot uint32) error {
 	if m.Character != nil {
+		// Team 0 is the client's own "no team" value: the single-player tutorial's
+		// seat carries it. Every room seat is assigned team 1 or 2 on join, and the
+		// zombie battle's 14 travels in its own team packet, so nothing else writes
+		// 0 here.
 		if m.Character.AccountID == 0 || m.Closed || ownerSlot >= 32 ||
-			(m.Team != 1 && m.Team != 2 && m.Team != 16) {
+			(m.Team != 0 && m.Team != 1 && m.Team != 2 && m.Team != 16) {
 			return fmt.Errorf("%w: invalid session member state", ErrInvalidPacket)
 		}
 	} else if len(m.Items) != 0 || m.Ready || m.IntrusionState != 0 {
