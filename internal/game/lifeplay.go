@@ -128,6 +128,13 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 	if err != nil {
 		return err
 	}
+	// Kept at debug level: a hit the round refuses (a bubble popped by a weapon, a
+	// stale report) is otherwise invisible, and "the kill did not count" has to be
+	// told apart from "the report never arrived".
+	s.log.Debug("peer life", "slot", session.slot, "id", packet.ID, "kind", event.Kind,
+		"accepted", accepted, "victim", event.VictimObject,
+		"victimState", life.StateOf(uint8((event.VictimObject-1000000)/100000)),
+		"actor", event.ActorObject, "direct", event.DirectDeath, "room", room.ID)
 	if !accepted {
 		// Debug only: a dropped hit is invisible otherwise, and "the kill did not
 		// count" has to be told from "the kill was never accepted".
@@ -208,7 +215,8 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 	s.log.Debug("peer kick", "slot", session.slot, "kind", event.Kind, "accepted", accepted,
 		"victim", event.Victim, "actor", event.Actor,
 		"victimState", life.StateOf(victimSlot), "actorState", life.StateOf(actorSlot),
-		"succeeded", event.Succeeded, "room", room.ID)
+		"succeeded", event.Succeeded, "special", event.SpecialKick, "style", event.Style,
+		"room", room.ID)
 	if accepted {
 		if s.broadcastScores(room) && !room.BombRound() {
 			s.log.Debug("score limit reached", "room", room.ID)
