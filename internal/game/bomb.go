@@ -125,7 +125,7 @@ func (s *Server) bombReviveAllowed(room *Room, slot int) bool {
 	room.bombRevives[slot]++
 	used := room.bombRevives[slot]
 	room.mu.Unlock()
-	s.log.Info("[Bomb] revive used", "room", room.ID, "slot", slot,
+	s.log.Debug("[Bomb] revive used", "room", room.ID, "slot", slot,
 		"used", used, "limit", bombRevivesPerSubRound)
 	return true
 }
@@ -530,7 +530,7 @@ func (s *Server) endBombSubRound(room *Room, winner uint8) {
 	// No score update is published between sub-rounds either: sending the series score
 	// through gspUpdateScoreData (S986) broke the sub-round flow as well, so the
 	// mission runs with the round-end notice alone until the HUD path is settled.
-	s.log.Info("[Bomb] sub-round results sent", "room", room.ID, "round", roundIndex,
+	s.log.Debug("[Bomb] sub-round results sent", "room", room.ID, "round", roundIndex,
 		"sent", "S705 round end", "wins", wins, "match_over", matchOver)
 	room.mu.Lock()
 	if room.phase != phaseSettling || room.generation != generation || room.bomb == nil {
@@ -676,7 +676,7 @@ func (s *Server) forceBombSubRoundStart(room *Room, generation int) {
 		room.loadingTimer = nil
 	}
 	room.mu.Unlock()
-	s.log.Warn("[Bomb] no load report for the next sub-round; counting down anyway",
+	s.log.Info("[Bomb] no load report for the next sub-round; counting down anyway",
 		"room", room.ID, "round", room.bombRoundIndex())
 	room.Broadcast(protocol.CreateEverybodyLoadedReply())
 	room.Broadcast(protocol.CreateGameCountdownReply(uint32(countdownLength / time.Millisecond)))

@@ -1354,7 +1354,7 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		mapName = gameMap.ResourceName
 	}
 	if settingNow.Game.Mode == bombModeID {
-		s.log.Info("[Bomb] the round starts", "room", room.ID, "map", mapName)
+		s.log.Debug("[Bomb] the round starts", "room", room.ID, "map", mapName)
 	}
 
 	// Pin the resolved map into the setting: the client reports it back with its
@@ -1654,7 +1654,7 @@ func (s *Server) startRound(room *Room, tracking int) {
 		// The reference server aborts the round here. Real clients do not always
 		// echo the tables (they are advisory for damage prediction), so we only
 		// warn and start: aborting leaves both players stuck on the ready screen.
-		s.log.Warn("countdown ended without every defense seed confirmation",
+		s.log.Info("countdown ended without every defense seed confirmation",
 			"room", room.ID, "missing", missing, "seedsSent", sent)
 	}
 	room.phase = phasePlaying

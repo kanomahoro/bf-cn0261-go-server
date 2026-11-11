@@ -336,7 +336,7 @@ func (s *Server) handleTutorialStageList(session *Session, packet protocol.Packe
 	if err := session.Send(protocol.CreateTutorialStageInfoReply(rows)); err != nil {
 		return err
 	}
-	s.log.Info("[Tutorial] stage list", "session", session.ID, "stages", len(rows))
+	s.log.Debug("[Tutorial] stage list", "session", session.ID, "stages", len(rows))
 	return nil
 }
 
@@ -618,7 +618,7 @@ func (s *Server) handleTutorialScore(session *Session, packet protocol.Packet) b
 	if err := session.Send(update); err != nil {
 		return true
 	}
-	s.log.Info("[Tutorial] goal counted", "session", session.ID, "map", state.stage.Key,
+	s.log.Debug("[Tutorial] goal counted", "session", session.ID, "map", state.stage.Key,
 		"bubbles", state.bubbles, "pangs", state.pangs, "helps", state.helps)
 	return true
 }
@@ -734,7 +734,7 @@ func (s *Server) handleTutorialNpc(session *Session, packet protocol.Packet) boo
 			return true
 		}
 		_ = session.Send(packet)
-		s.log.Info("[Tutorial] spawn group echo", "session", session.ID, "id", packet.ID,
+		s.log.Debug("[Tutorial] spawn group echo", "session", session.ID, "id", packet.ID,
 			"bytes", len(packet.Payload))
 		return true
 	case 903, 904:
@@ -757,7 +757,7 @@ func (s *Server) handleTutorialNpc(session *Session, packet protocol.Packet) boo
 		}
 		_ = session.Send(protocol.Packet{ID: 908})
 		_ = session.Send(protocol.Packet{ID: 909, Payload: packet.Payload})
-		s.log.Info("[Tutorial] wave table echoed", "session", session.ID, "bytes", len(packet.Payload))
+		s.log.Debug("[Tutorial] wave table echoed", "session", session.ID, "bytes", len(packet.Payload))
 		return true
 	case 905:
 		// The host reports every wave done: the prologue is complete.

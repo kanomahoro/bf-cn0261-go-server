@@ -660,7 +660,7 @@ func (s *Server) sendLoginReply(session *Session) error {
 	// clean up after itself.
 	if session.Character.ID != 0 {
 		if holder := s.plazas.characterHolder(session.Character.ID, session.ID); holder != nil {
-			s.log.Warn("[Plaza] dropping a seat left by an earlier session",
+			s.log.Debug("[Plaza] dropping a seat left by an earlier session",
 				"character", session.Character.ID, "holder", holder.ID)
 			s.dropPlazaSeat(holder.ID)
 		}
@@ -807,7 +807,9 @@ func (s *Server) handleChannelMove(session *Session, packet protocol.Packet) err
 		address, port := s.endpoint()
 		return session.Send(protocol.CreateChannelReply(0, address, port))
 	}
-	s.log.Info("[Channel] move refused: this server runs a single channel",
+	// A client that keeps asking for another channel would otherwise fill the log:
+	// single-channel is this server's normal shape, so it stays at debug.
+	s.log.Debug("[Channel] move refused: this server runs a single channel",
 		"session", session.ID, "type", request.Type, "index", request.Index)
 	return session.Send(protocol.CreateChannelReply(1, [4]byte{}, 0))
 }

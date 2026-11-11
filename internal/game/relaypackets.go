@@ -130,7 +130,7 @@ func (s *Server) forceDefenseSeeds(room *Room) {
 	}
 	room.seedsSent = true
 	room.mu.Unlock()
-	s.log.Warn("defense seeds forced without every character report", "room", room.ID)
+	s.log.Info("defense seeds forced without every character report", "room", room.ID)
 	s.sendDefenseSeeds(room)
 }
 

@@ -324,7 +324,7 @@ func (s *Server) enterPlaza(session *Session) error {
 		if s.accountOnline(holder) {
 			return fmt.Errorf("character is already present on another connection")
 		}
-		s.log.Warn("[Plaza] dropping a seat whose session is gone",
+		s.log.Debug("[Plaza] dropping a seat whose session is gone",
 			"character", session.Character.ID, "holder", holder.ID)
 		s.dropPlazaSeat(holder.ID)
 	}
