@@ -66,6 +66,11 @@ type BattleLife struct {
 	// side, so the team comparisons below must not treat a shared zero team as
 	// friendly, and no seat can rescue another.
 	teamless bool
+	// specialKickScores marks the round whose client reports a bubble popped by a
+	// weapon as a special kick: the sniper battle, the one mode where that report
+	// was seen (2026-11-11). Any other round keeps refusing it, so a mode that
+	// never sends it cannot have its scoring changed by this path.
+	specialKickScores bool
 }
 
 // NewBattleLife builds the tracker.
@@ -639,7 +644,13 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 		victim.kickRequests[actorSlot] = nil
 		return true, nil
 	case protocol.KickConfirmed:
-		if !event.Succeeded || event.SpecialKick || !pending {
+		// The sniper battle's client reports a bubble popped by a weapon as a
+		// special kick: no contact attempt comes with it (the bubble was shot, not
+		// kicked), so there is no pending request to match. That round credits the
+		// pang; every other mode keeps refusing the report, so nothing else can
+		// score differently.
+		special := event.SpecialKick && l.specialKickScores
+		if !event.Succeeded || (!pending && !special) {
 			return false, nil
 		}
 		victim.state = stateKicked

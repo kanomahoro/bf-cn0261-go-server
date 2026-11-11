@@ -13,6 +13,9 @@ func (s *Server) bindLife(room *Room) error {
 	room.mu.Lock()
 	defer room.mu.Unlock()
 	life := NewBattleLife(nil, room.Setting.Game.Mode == singlePvpModeID)
+	// Only the sniper battle reports a bubble popped by a weapon as a special
+	// kick; the report scores a pang there and is refused everywhere else.
+	life.specialKickScores = room.Setting.Game.Mode == sniperModeID
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		if entry.session == nil {
