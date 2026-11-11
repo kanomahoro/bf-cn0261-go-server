@@ -156,9 +156,9 @@ func (s *Server) itemMode(room *Room) bool {
 
 // ammoSupplyMode reports whether a mode places ammo boxes that the client itself
 // turns into ammunition: the zombie battle, the sniper battle, the two
-// hot-blood battles that carry boxes and the Captain battle. The server only
-// places and removes them -- what a box grants lives in the client, so a pickup
-// is broadcast and the taker is told the kind.
+// hot-blood battles that carry boxes, the Captain battle and the bomb mission.
+// The server only places and removes them -- what a box grants lives in the
+// client, so a pickup is broadcast and the taker is told the kind.
 //
 // The Captain battle is listed with the other competitive kill modes because a
 // box only ever appears when the round master's own map report names supply
@@ -166,7 +166,11 @@ func (s *Server) itemMode(room *Room) bool {
 // place a box the client did not report.
 func ammoSupplyMode(mode uint32) bool {
 	switch mode {
-	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID, captainModeID:
+	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID, captainModeID,
+		bombModeID:
+		// The bomb maps carry ammunition points and every seat reports them with
+		// C702 at every sub-round (2026-11-11: 4 seats x 3 sub-rounds in one match),
+		// so the mission's boxes come from here like the other ammo modes.
 		return true
 	}
 	return false
@@ -824,10 +828,14 @@ func (s *Server) startSupplies(room *Room, state *supplyRound) {
 	// the round that is starting now.
 	state.round = room.tracking
 	// The map points carry a box when the round starts and then refresh on their
-	// own interval, which is how the 2015 maps play.
+	// own interval, which is how the 2015 maps play. A box the previous round left
+	// is gone by now -- the bomb mission reloads the stage between its sub-rounds
+	// and keeps the same points, so a stale id would keep that point empty for the
+	// whole next sub-round.
 	now := time.Now()
 	for _, point := range state.points {
 		point.NextAt = now
+		point.ActiveID = 0
 	}
 	room.mu.Unlock()
 	go s.runSupplies(room, state)
