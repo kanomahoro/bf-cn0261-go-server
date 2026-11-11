@@ -1,6 +1,21 @@
 # Changelog
 
-## 未发布：教程模式（单人，等真机；版本号仍冻结在 0.8.5）
+## 未发布（版本号冻结在 0.8.5，等 master 指令再出号）
+
+- `4e93ade` **狙击模式：武器射爆被泡封的敌人计分**（此前完全不计分）。客户端把「射爆泡泡」上报为
+  `C32795` 的 `special=true` 确认，我们一律拒绝（既要求 `pending` 又拒绝 special）。现按模式放行：
+  只有狙击 12 接受，且只要求「受害者被泡封 + 对手 + 成功」；接受后置 `kicked`，后续 `GotKicked` 不会重复计分。
+  其他模式收到 special 仍照旧拒绝。
+- `fa9f70f` 诊断日志（debug 级）：`peer life` 打 kind / victimState / direct，`peer kick` 加 special 与 style。
+- `803e41e` **爆破：弹药箱**。爆破地图有补给点，4 个座位每个小局都会上报 `C702`（一局共 12 次），
+  但爆破不在 `ammoSupplyMode` 里，上报被丢弃、箱子从未生成。现与其他弹药模式同链路；
+  另外 `startSupplies` 每轮重置 `ActiveID`，否则上一小局残留的箱子 id 会让该点下一小局整局不刷。
+- `405db4a` **爆破：整场结算不发 S732**。第三局结束后 `endAnnouncement` 阶段广播 S732，而爆破的
+  `teamScores` 恒为 0:0，胜利方非房主在 2.84 s 后掉线（真机日志 `artifacts/logs/2026-11-11/bomb-2v2-3rd-round-crash-2218.log`）。
+  现 `sendsWinnerAnnouncement(mode)` 让爆破跳过；S729 结果屏 / S733 / S736 链条不变。
+- **爆破定稿**：小局结果横幅与 HUD 队伍比分不再尝试（见 `BOMB.md` 的验收结论）。
+
+## 未发布：教程模式（单人，真机已通过）
 
 首次实现教程模式（设计稿 `TUTORIAL.md`），全部为新增代码，老模式一行未改：
 
@@ -16,6 +31,9 @@
 - 不建表、不发奖励、不发首登自动教程（S2C 11）、不建 Room、不进 `finishRound/cancelRound/S729`
 - 用例：`internal/{game,protocol,world}/tutorial_test.go`（405 非空包、922 25 行、107 校验、
   103/15 信封、载入→开赛、结算 tick、prologue 回落地页、非教程态 724 无副作用、NPC 回显、离开、generation 令牌）
+- **2026-11-11 真机验收通过**（prologue + 编号关卡全流程）；随后修掉三处：计数回发包号 711→**729**、
+  `S732` 改裸 ScoreData、入场删掉 `S522`、prologue 结束不再多发 `S108`
+- **明确不做**：弹药补给与「按关卡限定武器」（Fantasy 同样不做；客户端自己处理，不影响通关）
 
 ## v0.8.5（2026-11-11，relay 改动收敛到爆破）
 

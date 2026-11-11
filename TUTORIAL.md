@@ -367,3 +367,31 @@ handshake → inbound 日志
 
 ### 回归
 `go build` / `go vet` / `go test ./...` / `go test -race ./internal/...` 全绿；老模式分发路径仅在 405/920/107/724 与 NPC 号上新增前判，未改动任何现有 handler 分支。
+
+---
+
+## 17. 真机验收结论（2026-11-11）
+
+**通过**：落地页「教程」→ 选关（25 关全开）→ 编号关卡（mode 15）与 prologue（mode 103）均可完成，
+结算与回跳正常，prologue 的刷怪/波次/清场全链路正常。
+
+验证后修正的四处（都已进代码）：
+
+| 项 | 修正 |
+| --- | --- |
+| 计数回发包号 | `711` → **729**（`profiles/cn-717/opcodes.yaml` 的 verified 条目：729 = `gspGameBroadcastPlayerScoreData`，711 是道具包） |
+| `S732` 包体 | 改为**裸 ScoreData**（原先带奖励尾巴，比 Fantasy 多字节） |
+| 入场 `S522` | 删除（Fantasy 教程入场不发） |
+| prologue 结束的 `S108` | 删除（只发 Kind 1 信封；只有客户端自己按 `C404` 退出时才补 108） |
+
+**明确不做**（2026-11-11 master 决定）：
+
+- **弹药补给**：教程里客户端会上报补给点，但 Fantasy 同样「收下不调度」（`TryHandleMapSuppliesAsync`），
+  我们跟随，不影响通关
+- **按关卡限定武器**：Fantasy 不限制（原样下发玩家当前穿戴），客户端数据（`*_singleplay.ini`）里也没有武器字段；
+  真机确认各关卡可以正常打通
+- 首登自动教程 / 老教程 `rel_Tutorial_01` / 通关奖励 / 落库：一并不做
+
+**回归要求**：以后改动这个文件涉及的号码（405/920/107/724/710/2023/NPC 号）时，
+必须跑 `TestTutorialDispatchClaimsItsOwnNumbers` 与 `TestTutorialDispatchLeavesTheOrdinaryNumbersAlone`
+—— 校验的是**分发层**，只测 helper 会漏掉「闸门在 switch 之后」这类问题（本轮踩过一次）。
