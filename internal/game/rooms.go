@@ -1707,6 +1707,14 @@ func (s *Server) startRound(room *Room, tracking int) {
 	room.mu.Unlock()
 }
 
+// sendsWinnerAnnouncement reports whether the staged end sequence announces the
+// winner with S732. The bomb series never does: its sub-rounds are decided by the
+// mission rather than by a team total, and this client drops a few seconds after
+// the packet arrives (sub-rounds 2026-11-10, the settled match 2026-11-11).
+func sendsWinnerAnnouncement(mode uint32) bool {
+	return mode != bombModeID
+}
+
 // roundClockExpired ends the round the clock ran out on. The bomb mission decides
 // its sub-round for the defending team instead of settling the match: an unplanted
 // bomb is the defenders' round, and an armed one keeps running on its own
@@ -2219,8 +2227,15 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		}
 		room.Setting.State = 6
 		room.mu.Unlock()
-		if winner, err := protocol.CreateGameWinnerReply(teamScores[0], teamScores[1]); err == nil {
-			room.Broadcast(winner)
+		// The bomb series does not send S732: its sub-rounds are decided by the
+		// mission, not by a team total, and this client crashes on the packet a few
+		// seconds after it arrives (2026-11-10 sub-rounds, 2026-11-11 on the settled
+		// match: the winning side's second seat dropped 2.84 s after it). The result
+		// screen and the return to the room do not depend on it.
+		if sendsWinnerAnnouncement(setting.Game.Mode) {
+			if winner, err := protocol.CreateGameWinnerReply(teamScores[0], teamScores[1]); err == nil {
+				room.Broadcast(winner)
+			}
 		}
 		room.mu.Lock()
 		if room.endTimer != nil {
