@@ -58,6 +58,48 @@ var hordeMapPool = []Map{
 	{ResourceName: "npc_Space01_Spaceship03", Theme: "Space", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
 }
 
+// hordeStages maps each pirate mission key to the resource directory its stage is
+// built from (MapMeta's Directory). The client loads the stage and names it in its
+// reports through that directory, so the stage entry carries it.
+var hordeStages = map[string]string{
+	"npc_Forest02_Ravine01":      "rel_Forest02_Ravine",
+	"npc_Forest02_Ravine02":      "rel_Forest02_Ravine",
+	"npc_Forest02_Ravine03":      "rel_Forest02_Ravine",
+	"npc_Forest01_Hill01":        "rel_Forest01_Hill",
+	"npc_Forest01_Hill02":        "rel_Forest01_Hill",
+	"npc_Forest01_Hill03":        "rel_Forest01_Hill",
+	"npc_Stadium01_Pangpang01":   "rel_Stadium01_Pangpang",
+	"npc_Stadium01_Pangpang02":   "rel_Stadium01_Pangpang",
+	"npc_Stadium01_Pangpang03":   "rel_Stadium01_Pangpang",
+	"npc_Desert04_Pharaoh01":     "rel_Desert04_Pharaoh",
+	"npc_Desert04_Pharaoh02":     "rel_Desert04_Pharaoh",
+	"npc_Desert04_Pharaoh03":     "rel_Desert04_Pharaoh",
+	"npc_Village07_Easy01":       "rel_Village07_Easy02",
+	"npc_Village07_Easy02":       "rel_Village07_Easy02",
+	"npc_Village07_Easy03":       "rel_Village07_Easy02",
+	"npc_Forest03_Waterfall01":   "rel_Forest03_Waterfall",
+	"npc_Forest03_Waterfall02":   "rel_Forest03_Waterfall",
+	"npc_Forest03_Waterfall03":   "rel_Forest03_Waterfall",
+	"npc_pirate03_prison01":      "rel_pirate03_prison",
+	"npc_pirate03_prison02":      "rel_pirate03_prison",
+	"npc_pirate03_prison03":      "rel_pirate03_prison",
+	"npc_village08_daohouse01":   "rel_village08_daohouse",
+	"npc_village08_daohouse02":   "rel_village08_daohouse",
+	"npc_village08_daohouse03":   "rel_village08_daohouse",
+	"npc_Desert05_mummy01":       "rel_Desert05_mummy",
+	"npc_Desert05_mummy02":       "rel_Desert05_mummy",
+	"npc_Desert05_mummy03":       "rel_Desert05_mummy",
+	"npc_Village05_Playground01": "rel_Village05_Playground",
+	"npc_Village05_Playground02": "rel_Village05_Playground",
+	"npc_Village05_Playground03": "rel_Village05_Playground",
+	"npc_Space01_Spaceship01":    "rel_Space01_Spaceship",
+	"npc_Space01_Spaceship02":    "rel_Space01_Spaceship",
+	"npc_Space01_Spaceship03":    "rel_Space01_Spaceship",
+}
+
+// HordeStageKey returns the resource directory a pirate mission key is built from.
+func HordeStageKey(name string) string { return hordeStages[name] }
+
 // HordeMaps returns the pirate battle's map pool, in the client's own order.
 func (Maps) HordeMaps() []Map { return hordeMapPool }
 

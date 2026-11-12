@@ -48,7 +48,7 @@ func (r *Room) beginPirateRound() {
 		return
 	}
 	difficulty := uint32(0)
-	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[1]); ok {
+	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[3]); ok {
 		difficulty = entry
 	}
 	r.pirate = &pirateState{generation: r.generation + 1, difficulty: difficulty}
@@ -103,17 +103,18 @@ func (s *Server) handlePiratePacket(session *Session, packet protocol.Packet) bo
 	case 905:
 		s.pirateAllWaves(session, room, packet)
 	case 32857:
-		// A spawn group is not relayed and not echoed. In an ordinary (non-tutorial)
-		// round this client's own queue already runs the request locally before it
-		// sends it -- that is what npc_local_spawn_group_builds lists cn-717 for --
-		// while the tutorial bypasses that queue (kr-812 sub_7FF340), which is why
-		// the single-player prologue does need its echo and this does not. A peer
-		// that received the group would expand every mob a second time, and this
-		// client expands groups only on the master.
-		s.log.Debug("[Pirate] spawn group stays with the host", "room", room.ID,
+		// The reference answers an ordinary round's spawn group with nothing: cn-717 is
+		// in npc_local_spawn_group_builds, so the master's own queue already ran the
+		// request (kr-812 sub_4620A0). Logged so a host that never names a real group
+		// stays visible.
+		s.log.Info("[Pirate] spawn group from the host", "room", room.ID,
 			"bytes", len(packet.Payload))
 	case 32862, 32892, 32866, 32873:
-		s.pirateSpawn(session, room, packet)
+		// Concrete NPC frames are not repeated by the round on this build: the match
+		// relay carries a gpp frame to the other seats itself (relayForwardable plus
+		// RelayPeerFrameAllowed), and echoing it here would create every mob twice.
+		s.log.Debug("[Pirate] spawn frame from the host", "room", room.ID,
+			"id", packet.ID, "bytes", len(packet.Payload))
 	case 724:
 		s.pirateStageResult(session, room, packet)
 	case 736, 2021, 735:
@@ -196,42 +197,6 @@ func (s *Server) pirateWaveTable(session *Session, room *Room, packet protocol.P
 	room.Broadcast(protocol.Packet{ID: 908})
 	room.Broadcast(protocol.Packet{ID: 909, Payload: packet.Payload})
 	s.log.Info("[Pirate] wave table", "room", room.ID, "bytes", len(packet.Payload))
-}
-
-// pirateSpawn repeats one spawn frame to the other seats. The host's client
-// already applies its own copy locally (its queue runs in the local-plus-
-// transport mode), so echoing it back to the sender would spawn every mob twice.
-//
-// This server runs relay only: no direct peer link is ever set up, so the client
-// sends its gpp frames over the match relay and reads its peers' frames from the
-// same place (kr-812 sub_80D4C0, cn-324 sub_6F7F10). A frame that still arrives
-// on the game connection is therefore handed on over the relay first, and only
-// falls back to the game connection for a seat without a live relay transport.
-func (s *Server) pirateSpawn(session *Session, room *Room, packet protocol.Packet) {
-	if !s.pirateHostReady(session, room, packet.ID) {
-		return
-	}
-	if len(packet.Payload) == 0 || len(packet.Payload) > pirateMaxNpcBody {
-		s.log.Warn("[Pirate] spawn body out of bounds", "session", session.ID,
-			"id", packet.ID, "bytes", len(packet.Payload))
-		return
-	}
-	relayed, sent := 0, 0
-	for _, member := range room.View() {
-		if !member.Occupied || member.Slot == session.slot || member.Session == nil {
-			continue
-		}
-		if s.relay != nil && s.relay.SendToSlot(room.ID, uint8(member.Slot), packet) {
-			relayed++
-			sent++
-			continue
-		}
-		if member.Session.Send(packet) == nil {
-			sent++
-		}
-	}
-	s.log.Debug("[Pirate] spawn relayed", "room", room.ID, "id", packet.ID,
-		"bytes", len(packet.Payload), "seats", sent, "viaRelay", relayed)
 }
 
 // pirateAllWaves answers the host's cleared report: 906 goes back to the host

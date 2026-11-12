@@ -1432,9 +1432,12 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	}
 
 	// Pin the resolved map into the setting: the client reports it back with its
-	// relay character report, and S510 advertises the same value.
+	// relay character report, and S510 advertises the same value. A pirate room keeps
+	// the client's own second string (the scene), which is what it reports.
 	room.mu.Lock()
-	room.Setting.Game.Strings16[1] = protocol.U16String(mapName)
+	if settingNow.Game.Mode != pirateModeID {
+		room.Setting.Game.Strings16[1] = protocol.U16String(mapName)
+	}
 	room.mu.Unlock()
 	if err := room.BeginStart(); err != nil {
 		return session.Send(protocol.CreateGameEntryReply(protocol.StartUnavailable, nil, 2))
@@ -1490,12 +1493,20 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 
 	// Original order: room setting, every slot, the signature (game mode), then
 	// S510 with state 3, then the peer/relay handoff.
-	s.broadcastRoundEntry(room, roundEntry{
+	entry := roundEntry{
 		setting:    room.SettingCopy(),
 		mapName:    mapName,
 		notices:    zombieNotices,
 		freshRelay: true,
-	})
+	}
+	if entry.setting.Game.Mode == pirateModeID {
+		// PlayRoomCodec sends the stage the settings select, not the room's mission key:
+		// the mission key's directory is what the client loads and reports back.
+		if stage := world.HordeStageKey(mapName); stage != "" {
+			entry.mapName = stage
+		}
+	}
+	s.broadcastRoundEntry(room, entry)
 	s.prepareDefenseSeeds(room)
 
 	// Loading must complete within the same timeout the original uses, otherwise

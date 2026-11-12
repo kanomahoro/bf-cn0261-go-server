@@ -224,6 +224,17 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		theme = "All"
 	}
 
+	// A pirate pick arrives the way the client's own change request writes it:
+	// {display name, scene, theme, mission key}. The pool is keyed by the mission key
+	// in the fourth slot, and the room keeps all four strings unchanged -- the second
+	// one is what the stage entry loads and what the client reports back.
+	pirateKeepsStrings := false
+	if request.Mode == pirateModeID && !random {
+		if third := protocol.FromU16(request.Strings16[3]); third != "" {
+			resourceName = third
+		}
+	}
+
 	var chosen world.Map
 	found := false
 	if random {
@@ -252,12 +263,14 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 			// The pirate battle has its own 33 npc_* rows; the create dialog starts on
 			// the startup map, so a key outside the pool is replaced instead of
 			// refusing the room (the bomb mission does the same).
+			pirateKeepsStrings = true
 			if !maps.IsHordeMap(entry.ResourceName) {
 				candidates := maps.HordeCandidates(theme, 0)
 				if len(candidates) == 0 {
 					return setting, fmt.Errorf("no pirate map candidates for the requested theme")
 				}
 				entry = candidates[0]
+				pirateKeepsStrings = false
 			}
 		case bombModeID:
 			// The bomb mission's own pool is the authority: two of its six maps
@@ -285,8 +298,11 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 				return setting, fmt.Errorf("map does not support the normal mode")
 			}
 		}
-		if first, third := protocol.FromU16(request.Strings16[1]), protocol.FromU16(request.Strings16[3]); first != "" && third != "" && first != third {
-			return setting, fmt.Errorf("map resource mismatch")
+		// A pirate room states the scene and the mission in different slots on purpose.
+		if request.Mode != pirateModeID {
+			if first, third := protocol.FromU16(request.Strings16[1]), protocol.FromU16(request.Strings16[3]); first != "" && third != "" && first != third {
+				return setting, fmt.Errorf("map resource mismatch")
+			}
 		}
 		chosen = entry
 		found = true
@@ -323,7 +339,9 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	setting.Flag4 = request.Flag4
 	setting.Flag5 = request.Flag5
 	setting.Flag444 = request.Flag444
-	if random {
+	if pirateKeepsStrings {
+		setting.Strings16 = request.Strings16
+	} else if random {
 		// The marker the client sent is kept in the fourth slot: every round reads
 		// it to tell "never chosen" from a pinned name, while the display slot keeps
 		// the all-random entry the room card draws.
