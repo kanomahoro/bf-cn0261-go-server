@@ -1306,6 +1306,14 @@ func roundMap(maps world.Maps, setting protocol.SessionSetting) string {
 		}
 		return maps.DefaultRulesMap
 	}
+	if setting.Game.Mode == pirateModeID {
+		// A pirate room keeps the mission key in the third string (npc_table_key).
+		if name := protocol.FromU16(setting.Game.Strings16[2]); name != "" && name != "Random" {
+			if _, ok := maps.Find(name); ok {
+				return name
+			}
+		}
+	}
 	if name := protocol.FromU16(setting.Game.Strings16[1]); name != "" && name != "Random" {
 		if _, ok := maps.Find(name); ok {
 			return name
@@ -1500,11 +1508,11 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		freshRelay: true,
 	}
 	if entry.setting.Game.Mode == pirateModeID {
-		// PlayRoomCodec sends the stage the settings select, not the room's mission key:
-		// the mission key's directory is what the client loads and reports back.
-		if stage := world.HordeStageKey(mapName); stage != "" {
-			entry.mapName = stage
-		}
+		// The entry names the mission key: the client looks its stage script up from that
+		// key (MapMeta's Directory leads to NpcMode/Scripts/Maps/<dir>/), and a key with
+		// no script is exactly what raises its blank alert dialog (2026-11-04 note from a
+		// CN client researcher: "海盗的话有一个要发 npc_xxxx … 找不到 lua 就会报错").
+		entry.mapName = mapName
 	}
 	s.broadcastRoundEntry(room, entry)
 	s.prepareDefenseSeeds(room)

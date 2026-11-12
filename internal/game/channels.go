@@ -340,7 +340,28 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	setting.Flag5 = request.Flag5
 	setting.Flag444 = request.Flag444
 	if pirateKeepsStrings {
-		setting.Strings16 = request.Strings16
+		// The four setting strings are, in wire order: map_directory, current_map,
+		// npc_table_key and map_name (packets/room.yaml GameSetting for cn-717). A pirate
+		// room keeps the scene in the first two, the mission key in npc_table_key -- the
+		// author's "有一个要发 npc_xxxx, 要跟它的 lua 对应" -- and the display name last,
+		// which is also what RoomSettingChangeMap.Apply does for a mission.
+		stage := world.HordeStageKey(chosen.ResourceName)
+		if stage == "" {
+			stage = protocol.FromU16(request.Strings16[0])
+		}
+		name := protocol.FromU16(request.Strings16[3])
+		if name == "" || maps.IsHordeMap(name) {
+			name = protocol.FromU16(request.Strings16[0])
+		}
+		if name == "" {
+			name = chosen.ResourceName
+		}
+		setting.Strings16 = [4][]uint16{
+			protocol.U16String(stage),
+			protocol.U16String(stage),
+			protocol.U16String(chosen.ResourceName),
+			protocol.U16String(name),
+		}
 	} else if random {
 		// The marker the client sent is kept in the fourth slot: every round reads
 		// it to tell "never chosen" from a pinned name, while the display slot keeps

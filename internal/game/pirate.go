@@ -48,7 +48,7 @@ func (r *Room) beginPirateRound() {
 		return
 	}
 	difficulty := uint32(0)
-	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[3]); ok {
+	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[2]); ok {
 		difficulty = entry
 	}
 	r.pirate = &pirateState{generation: r.generation + 1, difficulty: difficulty}

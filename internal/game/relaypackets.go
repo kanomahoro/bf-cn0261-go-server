@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
+	"github.com/kanomahoro/bf-cn0261-go-server/internal/world"
 )
 
 // HandleRelayPacket feeds one in-match packet that arrived over a member's relay
@@ -77,7 +78,22 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		// must name the map the round actually runs.
 		setting := room.SettingCopy()
 		resource := protocol.FromU16(setting.Game.Strings16[1])
-		if _, err := protocol.ReadRelayReport(packet, uint8(session.slot), resource); err != nil {
+		_, err := protocol.ReadRelayReport(packet, uint8(session.slot), resource)
+		if err != nil && setting.Game.Mode == pirateModeID {
+			// A pirate room carries the scene and the mission key in two strings; the
+			// client names whichever one it loaded, so the other is accepted too and the
+			// reported key is logged (the mission key is what finds its stage script).
+			mission := protocol.FromU16(setting.Game.Strings16[2])
+			if stage := world.HordeStageKey(mission); stage != "" {
+				mission = stage
+			}
+			if _, retry := protocol.ReadRelayReport(packet, uint8(session.slot), mission); retry == nil {
+				s.log.Debug("[Pirate] relay report named the mission key", "room", room.ID,
+					"slot", session.slot, "key", mission)
+				err = nil
+			}
+		}
+		if err != nil {
 			return err
 		}
 		room.mu.Lock()
