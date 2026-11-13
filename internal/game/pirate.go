@@ -106,11 +106,20 @@ func mapEntryDifficulty(name []uint16) (uint32, bool) {
 }
 
 // The pirate battle's own values, taken from the reference server's capture of
-// npc_pirate03_prison01 (2026-11-14): +168 states -1, S704 states (240000, 0, 0) and the
-// wave table reply repeats the host's table back to it unchanged. The +164 difficulty is
-// per map (the mission's own 1/2/3), not a constant.
+// npc_pirate03_prison01 (2026-11-14): +168 states -1 and the wave table reply repeats the
+// host's table back to it unchanged. The +164 difficulty is per map (the mission's own
+// 1/2/3), not a constant.
+//
+// The round's length is the client's own rule record: its C503 carries the map's MapMeta
+// words, and a pirate map's TimeAttackTimeLimit is 300 s (its DeathMatchTimeLimit is 240).
+// The pirate family plays TimeAttack, so S704 states 300000. The map's wave schedule runs
+// to 223 s, which the reference's 240 s fallback left almost no room for.
 const (
-	pirateRoundLimitMS   uint32 = 240000
+	pirateRoundLimitMS uint32 = 300000
+	// pirateBlockLimitMS is what the room setting's four limit words state. The client's
+	// own block carries the map's DeathMatchTimeLimit there (240 s on every pirate map),
+	// while the round itself plays the TimeAttack limit.
+	pirateBlockLimitMS   uint32 = 240000
 	pirateSettingWord168 uint32 = 0xFFFFFFFF
 )
 

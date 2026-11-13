@@ -409,8 +409,8 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// Values128 is the reference server's own block for this map: the kill limit (20,
 		// the map's DeathMatchKillLimit) followed by four time limits of 240000. This
 		// server wrote a zero kill limit and a single 300000 word instead.
-		setting.Values128 = [5]uint32{20, pirateRoundLimitMS, pirateRoundLimitMS,
-			pirateRoundLimitMS, pirateRoundLimitMS}
+		setting.Values128 = [5]uint32{20, pirateBlockLimitMS, pirateBlockLimitMS,
+			pirateBlockLimitMS, pirateBlockLimitMS}
 		// GameSetting +164: the Lua difficulty cn-717 sub_AE8A60 copies into its HordeModeMgr.
 		// The client uses it twice: as the level of the map's WaveTest table (TableWave2Level)
 		// and as the mobs' HP rate. It follows the mission the player picked (npc_*_01/02/03
