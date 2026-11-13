@@ -173,7 +173,7 @@ func ammoSupplyMode(mode uint32) bool {
 		// so the mission's boxes come from here like the other ammo modes.
 		// The pirate battle carries ammunition points as well; its box kinds live in
 		// the client, so only the placement, the refresh and the pickup broadcast are
-		// the server's.
+		// the server's. The reference's own capture sends fifteen of them during a wave.
 		return true
 	}
 	return false

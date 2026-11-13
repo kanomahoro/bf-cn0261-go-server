@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
 )
 
@@ -9,16 +10,24 @@ import (
 // single-player prologue does (see internal/game/tutorial.go). What the server
 // owes the round is the bookkeeping the client cannot do itself:
 //
-//   - repeat the host's wave reports (903/904/908) to every seat, because each
+//   - repeat the host's wave reports (903/904) to every seat, because each
 //     seat's wave manager waits for the reply before it continues,
+//   - repeat the host's wave table (908) as 909, which is what installs it,
 //   - answer the host's "every wave cleared" report (905) with 906 and only to
-//     the host, which is what ends the round,
-//   - carry the spawn frames for the seats that are not the host,
+//     the host, which releases its wave latch; the round itself settles on the
+//     stage word (724) that follows,
+//   - consume the host's mob life-point reports (32920): they must not reach the
+//     generic player life handler, which refuses a mob's object id and drops the
+//     connection (the reference forwards them to the other seats, never back to
+//     the sender of a build that already applied them),
 //   - settle the round on the host's stage report (724) or on the clock.
 //
 // Waves, mobs, spawn points, ammunition and the AI all stay in the client. The
-// mode is cooperative: one to four seats, all on the first battle team, with the
-// wave table's own difficulty taken from the map row the room picked.
+// spawn frames themselves are not repeated here: cn-717 is one of the builds whose
+// master expands its spawn groups locally, and the match relay carries the
+// concrete gpp frames to the other seats. The mode is cooperative: one to four
+// seats, all on the first battle team, with the wave table's own difficulty taken
+// from the map row the room picked.
 
 // pirateState is one pirate round. It is created when the round starts and
 // dropped when it ends, and the generation it carries keeps a stale timer or a
@@ -27,11 +36,18 @@ type pirateState struct {
 	generation int
 	// wave is the last wave the host reported; 0 before the first one.
 	wave uint32
-	// difficulty is MapMeta's difficulty of the chosen map (1..3).
+	// difficulty is MapMeta's difficulty of the chosen map (1..3); the round-start
+	// log states it, and the client is told the same value in GameSetting +164.
 	difficulty uint32
-	// cleared is set once the host reported every wave cleared, so a duplicate
-	// report cannot settle the round twice.
+	// cleared is set once the host reported every wave cleared (905). The round is not
+	// settled by that report: the stage word every client sends right after it (724)
+	// decides, so a failure can never be preceded by a clear (Fantasy CHANGELOG
+	// 2026-11-04: "the host's all-waves report no longer ends the round by itself:
+	// the stage word that every client sends right after it decides").
 	cleared bool
+	// stageDone is set once the stage word settled the round, so a second report
+	// cannot settle it twice.
+	stageDone bool
 }
 
 // pirateMaxNpcBody bounds the opaque spawn bodies the host relays.
@@ -48,11 +64,27 @@ func (r *Room) beginPirateRound() {
 		return
 	}
 	difficulty := uint32(0)
-	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[2]); ok {
+	if entry, ok := mapEntryDifficulty(r.Setting.Game.Strings16[3]); ok {
 		difficulty = entry
+	}
+	// The reference server's own pirate round puts every seat on team 2: its S503 seat
+	// record carries team 2, while this server left the seats on team 1. The client copies
+	// the local seat's team to the mission's friendly NPCs, so the team decides which NPCs
+	// the player may damage and which the wave manager treats as its own.
+	for slot := range r.slots {
+		if r.slots[slot].session != nil {
+			r.slots[slot].team = pirateSeatTeam
+		}
 	}
 	r.pirate = &pirateState{generation: r.generation + 1, difficulty: difficulty}
 }
+
+// pirateSeatTeam is the team a pirate round's seats play on, and pirateOtherTeam the
+// side that wins when the waves are not cleared.
+const (
+	pirateSeatTeam  uint8 = 2
+	pirateOtherTeam uint8 = 1
+)
 
 // mapEntryDifficulty reads the difficulty suffix of a pirate map key
 // (npc_*_01/02/03). It is the only place the server needs the map row once the
@@ -73,6 +105,15 @@ func mapEntryDifficulty(name []uint16) (uint32, bool) {
 	return 0, false
 }
 
+// The pirate battle's own values, taken from the reference server's capture of
+// npc_pirate03_prison01 (2026-11-14): +168 states -1, S704 states (240000, 0, 0) and the
+// wave table reply repeats the host's table back to it unchanged. The +164 difficulty is
+// per map (the mission's own 1/2/3), not a constant.
+const (
+	pirateRoundLimitMS   uint32 = 240000
+	pirateSettingWord168 uint32 = 0xFFFFFFFF
+)
+
 // piratePacketID reports whether the packet belongs to a pirate round's own
 // traffic. The numbers are shared with other modes, so the room's mode decides
 // whether they are claimed here.
@@ -81,6 +122,7 @@ func piratePacketID(id uint16) bool {
 	case 903, 904, 905, 908, // the wave manager
 		32857, 32862, 32892, // spawn group, member mob, one AI object
 		32866, 32873, // a mob replay, a wave's spawn group assignment
+		32920,               // a mob's life points, consumed without an echo
 		724,                 // the stage result
 		736, 2021, 735, 519: // drops and reward cards, consumed without a grant
 		return true
@@ -105,16 +147,40 @@ func (s *Server) handlePiratePacket(session *Session, packet protocol.Packet) bo
 	case 32857:
 		// The reference answers an ordinary round's spawn group with nothing: cn-717 is
 		// in npc_local_spawn_group_builds, so the master's own queue already ran the
-		// request (kr-812 sub_4620A0). Logged so a host that never names a real group
-		// stays visible.
+		// request (kr-812 sub_4620A0). The group word is logged because a run has to
+		// tell the lua's own group (1 for one player) from the AI script's groups.
+		group := uint32(0)
+		if word, err := pirateWaveWord(packet); err == nil {
+			group = word
+		}
 		s.log.Info("[Pirate] spawn group from the host", "room", room.ID,
+			"group", group, "bytes", len(packet.Payload),
+			"hex", fmt.Sprintf("%x", packet.Payload))
+	case 32920:
+		// gppLifePoint: the host's mob life points. The reference forwards these to the
+		// other seats and does NOT echo them back to their sender on this build
+		// (SpawnGroupRelayTests: cn-717 asserts IncludeSender == false, because the sender
+		// already applied its own copy), so this case consumes the report without an
+		// echo. Without it the generic player life handler refuses a mob's object id with
+		// ErrInvalidPacket, and that drops the connection.
+		if len(packet.Payload) == 0 || len(packet.Payload) > pirateMaxNpcBody {
+			s.log.Warn("[Pirate] life point out of bounds", "session", session.ID,
+				"bytes", len(packet.Payload))
+			return true
+		}
+		s.log.Debug("[Pirate] mob life point from the host", "room", room.ID,
 			"bytes", len(packet.Payload))
+
 	case 32862, 32892, 32866, 32873:
-		// Concrete NPC frames are not repeated by the round on this build: the match
-		// relay carries a gpp frame to the other seats itself (relayForwardable plus
-		// RelayPeerFrameAllowed), and echoing it here would create every mob twice.
+		// The match relay carries a gpp frame to the other seats itself. A one-seat
+		// round has no peer feed, and the reference's legacy handler answers the AI
+		// object and the spawn-group member to their sender there, so the same two
+		// are answered here (a mob replay stays peer-only).
 		s.log.Debug("[Pirate] spawn frame from the host", "room", room.ID,
 			"id", packet.ID, "bytes", len(packet.Payload))
+		if packet.ID == 32862 || packet.ID == 32892 {
+
+		}
 	case 724:
 		s.pirateStageResult(session, room, packet)
 	case 736, 2021, 735:
@@ -182,9 +248,9 @@ func (s *Server) pirateWave(session *Session, room *Room, packet protocol.Packet
 		"seats", room.Occupied())
 }
 
-// pirateWaveTable answers the host's wave table (908) the way the client expects:
-// the empty 908 clears the old mobs on every seat, the echoed 909 installs the
-// table. The host's own latch clears on 909 too.
+// pirateWaveTable answers the host's spawn table the way the reference server does:
+// an empty Unknown908 first, then gspRepWaveAllSpawnMobs carrying the host's own
+// table back to every member (the host included).
 func (s *Server) pirateWaveTable(session *Session, room *Room, packet protocol.Packet) {
 	if !s.pirateHostReady(session, room, 908) {
 		return
@@ -196,11 +262,13 @@ func (s *Server) pirateWaveTable(session *Session, room *Room, packet protocol.P
 	}
 	room.Broadcast(protocol.Packet{ID: 908})
 	room.Broadcast(protocol.Packet{ID: 909, Payload: packet.Payload})
-	s.log.Info("[Pirate] wave table", "room", room.ID, "bytes", len(packet.Payload))
+	s.log.Info("[Pirate] wave table", "room", room.ID, "bytes", len(packet.Payload),
+		"seats", room.Occupied())
 }
 
 // pirateAllWaves answers the host's cleared report: 906 goes back to the host
-// alone (the other seats never wait on it), and the round is settled as a win.
+// alone (the other seats never wait on it) and releases its wave latch. The round
+// is settled by the stage word that follows, not here.
 func (s *Server) pirateAllWaves(session *Session, room *Room, packet protocol.Packet) {
 	if !s.pirateHostReady(session, room, 905) {
 		return
@@ -215,7 +283,6 @@ func (s *Server) pirateAllWaves(session *Session, room *Room, packet protocol.Pa
 	duplicate := state == nil || state.cleared
 	if state != nil {
 		state.cleared = true
-		room.pirateWinner = 1
 	}
 	room.mu.Unlock()
 	if duplicate {
@@ -224,11 +291,10 @@ func (s *Server) pirateAllWaves(session *Session, room *Room, packet protocol.Pa
 	}
 	_ = session.Send(protocol.Packet{ID: 906})
 	s.log.Info("[Pirate] every wave cleared", "room", room.ID, "wave", state.wave)
-	s.finishRound(room, false)
 }
 
 // pirateStageResult handles the host's stage result (724): word 1 is a cleared
-// stage, word 0 a failed one.
+// stage, word 0 a failed one. This report settles the round, never 905 on its own.
 func (s *Server) pirateStageResult(session *Session, room *Room, packet protocol.Packet) {
 	if !s.pirateHostReady(session, room, 724) {
 		return
@@ -238,15 +304,18 @@ func (s *Server) pirateStageResult(session *Session, room *Room, packet protocol
 		s.log.Warn("[Pirate] unreadable stage result", "session", session.ID, "error", err)
 		return
 	}
-	winner := uint8(2)
+	// The seats play on team 2 in this mode, so a cleared stage is a win for team 2.
+	// The result packets compare each member's own team with this word (S705/S732 and
+	// the per-member outcome), which is why it has to name the seats' team and not 1.
+	winner := pirateOtherTeam
 	if completed == 1 {
-		winner = 1
+		winner = pirateSeatTeam
 	}
 	room.mu.Lock()
 	state := room.pirate
-	duplicate := state == nil || state.cleared
+	duplicate := state == nil || state.stageDone
 	if state != nil {
-		state.cleared = true
+		state.stageDone = true
 		room.pirateWinner = winner
 	}
 	room.mu.Unlock()
@@ -269,4 +338,64 @@ func pirateWaveWord(packet protocol.Packet) (uint32, error) {
 		return 0, err
 	}
 	return word, nil
+}
+
+// handleObjectAdd answers C709 gcpReqAddObject. Right after its map report a
+// client asks the server to add its own character's scene object to the round,
+// and the original answers with a zero countdown (S703 gspGameCountDown, the
+// reply RoundStartBinding sends for RoundObjectAddAcknowledged). Only a pirate
+// room answers it: every other mode this server runs was verified without the
+// exchange, and a stage that does wait for the answer never requests a wave.
+func (s *Server) handleObjectAdd(session *Session, packet protocol.Packet) error {
+	room := session.room
+	if room == nil || !seated(session) || room.SettingCopy().Game.Mode != pirateModeID {
+		return nil
+	}
+	r := protocol.NewReader(packet.Payload)
+	object, err := r.Unsigned()
+	if err != nil {
+		return err
+	}
+	if err := r.RequireEnd(); err != nil {
+		return err
+	}
+	// The request may only name the sender's own object (scene entity slot).
+	if object != objectFor(session.slot) {
+		s.log.Debug("[Pirate] object add names another seat", "room", room.ID,
+			"slot", session.slot, "object", object)
+		return nil
+	}
+	// Nothing is answered here. The earlier revision sent gspGameCountDown with a zero
+	// countdown, and the reference server's own capture shows no reply to this request
+	// at all: the client states its clock when the real S703 arrives, and a zero one
+	// here left every scheduled spawn group of the wave table overdue.
+	room.mu.RLock()
+	starting := room.phase == phaseLoading || room.phase == phaseCountdown
+	room.mu.RUnlock()
+	if !starting {
+		return nil
+	}
+	s.log.Debug("[Pirate] object add accepted", "room", room.ID, "slot", session.slot,
+		"object", object)
+	return nil
+}
+
+// pirateRoundDifficulty reports the difficulty the running pirate round took from
+// its map row, and 0 outside a pirate round. The round-start log states it so a
+// test can tell which row the room resolved.
+func (r *Room) pirateRoundDifficulty() uint32 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if r.pirate == nil {
+		return 0
+	}
+	return r.pirate.difficulty
+}
+
+// pirateSettingDifficulty reports the difficulty the room states in GameSetting
+// +164, which is the value the client copies into its horde manager.
+func (r *Room) pirateSettingDifficulty() uint32 {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Setting.Game.Values148[4]
 }

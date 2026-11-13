@@ -140,6 +140,11 @@ type Room struct {
 	// pirates) and is read once by finishRound, like the bomb series' winner.
 	pirate       *pirateState
 	pirateWinner uint8
+	// pirateMarker is the Random marker a pirate room's map strings held when the
+	// round pinned the map it drew. The round puts it back into the second and fourth
+	// strings, so a room whose master never chose a map draws a fresh one next round
+	// (roundMap reads the fourth string) and its card shows the random entry again.
+	pirateMarker []uint16
 }
 
 // SetPassword stores the room password.
@@ -416,6 +421,18 @@ func (r *Room) Broadcast(p protocol.Packet) {
 	var targets [maxRoomSlots]*Session
 	count := r.sessionsInto(&targets)
 	for i := 0; i < count; i++ {
+		_ = targets[i].Send(p)
+	}
+}
+
+// BroadcastExcept sends a packet to every member but one.
+func (r *Room) BroadcastExcept(skip *Session, p protocol.Packet) {
+	var targets [maxRoomSlots]*Session
+	count := r.sessionsInto(&targets)
+	for i := 0; i < count; i++ {
+		if skip != nil && targets[i] == skip {
+			continue
+		}
 		_ = targets[i].Send(p)
 	}
 }
@@ -1307,8 +1324,8 @@ func roundMap(maps world.Maps, setting protocol.SessionSetting) string {
 		return maps.DefaultRulesMap
 	}
 	if setting.Game.Mode == pirateModeID {
-		// A pirate room keeps the mission key in the third string (npc_table_key).
-		if name := protocol.FromU16(setting.Game.Strings16[2]); name != "" && name != "Random" {
+		// A pirate room keeps the mission key in the fourth string (map_name).
+		if name := protocol.FromU16(setting.Game.Strings16[3]); name != "" && name != "Random" {
 			if _, ok := maps.Find(name); ok {
 				return name
 			}
@@ -1440,10 +1457,35 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	}
 
 	// Pin the resolved map into the setting: the client reports it back with its
-	// relay character report, and S510 advertises the same value. A pirate room keeps
-	// the client's own second string (the scene), which is what it reports.
+	// relay character report, and S510 advertises the same value. A pirate room pins
+	// the pair the client resolves its stage from: the second string is GameSetting
+	// current_map, the name it opens NpcMode/Scripts/Maps/<name>/<name>.lua with
+	// (packets/room.yaml: "the map table's Directory column; gspRoomEnterGame
+	// overwrites it at match start"), and the fourth is map_name, the MapMeta row key
+	// (npc_*) it reads the row's flags and difficulty from. A room whose master never
+	// picked a map leaves both as the Random marker, so the round states both.
 	room.mu.Lock()
-	if settingNow.Game.Mode != pirateModeID {
+	if settingNow.Game.Mode == pirateModeID {
+		if stage := world.HordeStageKey(mapName); stage != "" {
+			room.Setting.Game.Strings16[1] = protocol.U16String(stage)
+		}
+		if s.maps.IsHordeMap(mapName) {
+			// Remember the random marker before the round replaces it: roundMap reads
+			// that string to tell a drawn map from a chosen one.
+			if marker := protocol.FromU16(room.Setting.Game.Strings16[3]); strings.HasPrefix(marker, "Random") {
+				room.pirateMarker = room.Setting.Game.Strings16[3]
+			} else {
+				room.pirateMarker = nil
+			}
+			room.Setting.Game.Strings16[3] = protocol.U16String(mapName)
+			// The Lua difficulty follows the map the round actually drew: a plain Random
+			// entry spans all three difficulties, so the value the room was created with
+			// can belong to another map.
+			if row, ok := s.maps.Find(mapName); ok && row.Difficulty > 0 {
+				room.Setting.Game.Values148[4] = row.Difficulty
+			}
+		}
+	} else {
 		room.Setting.Game.Strings16[1] = protocol.U16String(mapName)
 	}
 	room.mu.Unlock()
@@ -1464,7 +1506,9 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	}
 	if settingNow.Game.Mode == pirateModeID {
 		s.log.Info("[Pirate] the run starts", "room", room.ID, "map", mapName,
-			"seats", occupied)
+			"stage", world.HordeStageKey(mapName),
+			"mapDifficulty", room.pirateRoundDifficulty(),
+			"settingDifficulty", room.pirateSettingDifficulty(), "seats", occupied)
 	}
 	// Without a bound life tracker every peer life/kick event would be dropped
 	// and no score would ever be published.
@@ -1508,11 +1552,13 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		freshRelay: true,
 	}
 	if entry.setting.Game.Mode == pirateModeID {
-		// The entry names the mission key: the client looks its stage script up from that
-		// key (MapMeta's Directory leads to NpcMode/Scripts/Maps/<dir>/), and a key with
-		// no script is exactly what raises its blank alert dialog (2026-11-04 note from a
-		// CN client researcher: "海盗的话有一个要发 npc_xxxx … 找不到 lua 就会报错").
-		entry.mapName = mapName
+		// The entry names the scene, not the mission key: the client opens
+		// NpcMode/Scripts/Maps/<name>/<name>.lua with what the entry carries, so a
+		// mission key here is the blank alert the author warned about. The mission key
+		// stays in the room settings, where the client resolves its MapMeta row.
+		if stage := world.HordeStageKey(mapName); stage != "" {
+			entry.mapName = stage
+		}
 	}
 	s.broadcastRoundEntry(room, entry)
 	s.prepareDefenseSeeds(room)
@@ -1588,6 +1634,9 @@ func (s *Server) broadcastRoundEntry(room *Room, entry roundEntry) {
 		room.Broadcast(signature)
 	}
 	mapName := protocol.U16String(entry.mapName)
+	// The entry reply (501) is what clears the client's intrusion window; the reference's
+	// own capture leaves it out, but this client refuses to start a round without it
+	// ("beyond the intrusion time"), so it stays for every mode.
 	if entry.series != nil {
 		room.Broadcast(protocol.CreateGameEntrySeriesReply(protocol.StartSuccess, mapName, phaseLoading, *entry.series))
 	} else {
@@ -1763,6 +1812,13 @@ func (s *Server) startRound(room *Room, tracking int) {
 	if duration == 0 {
 		duration = 240000
 	}
+	if room.Setting.Game.Mode == pirateModeID {
+		// The reference's capture of this map states 240000 (MapMeta DeathMatchTimeLimit)
+		// while the create block carries the TimeAttack limit. The room's own setting is
+		// read directly: this function already holds the room lock, and SettingCopy would
+		// take it again.
+		duration = pirateRoundLimitMS
+	}
 	first, second := 0, 0
 	for slot := range room.slots {
 		if room.slots[slot].session == nil {
@@ -1779,7 +1835,20 @@ func (s *Server) startRound(room *Room, tracking int) {
 	s.log.Info("[Round] started", "room", room.ID, "team1", first, "team2", second,
 		"durationMs", duration)
 
-	room.Broadcast(protocol.CreateGameStartReply(duration, uint32(tracking)))
+	// The reference states 0 in S704's third word for an ordinary round; a pirate room
+	// states the configured word so the wave script's clock base can be tested without a
+	// rebuild (the client mirrors this word into the session clock).
+	thirdWord := uint32(tracking)
+	if room.SettingCopy().Game.Mode == pirateModeID {
+		thirdWord = 0
+	}
+	startPacket := protocol.CreateGameStartReply(duration, thirdWord)
+	if room.SettingCopy().Game.Mode == pirateModeID {
+		s.log.Info("[Pirate] round start packet", "room", room.ID,
+			"bytes", len(startPacket.Payload),
+			"hex", fmt.Sprintf("%x", startPacket.Payload))
+	}
+	room.Broadcast(startPacket)
 	// The zombie battle's king is picked once the opening passed; the round's
 	// generation makes a pick from an earlier round impossible.
 	room.mu.RLock()
@@ -1848,10 +1917,10 @@ func (s *Server) roundClockExpired(room *Room) {
 		return
 	}
 	if mode == pirateModeID {
-		// A pirate round that runs its 300 s out is a failed run: the waves were not
-		// cleared in time.
+		// A pirate round that runs its clock out is a failed run: the waves were not
+		// cleared in time, so the other side wins.
 		room.mu.Lock()
-		room.pirateWinner = 2
+		room.pirateWinner = pirateOtherTeam
 		room.mu.Unlock()
 		s.log.Info("[Pirate] the clock ran out before every wave was cleared", "room", room.ID)
 	}
@@ -2011,6 +2080,7 @@ func (s *Server) cancelRound(room *Room) {
 	if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
 		room.Setting.Game.Strings16[1] = nil
 	}
+	room.restorePirateMap()
 	room.life = nil
 	room.pings = nil
 	room.supplies = nil
@@ -2086,23 +2156,24 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		room.seriesWinner = 0
 	}
 	if decided == 0 {
-		// The pirate battle decides its round by the waves: 1 the seats cleared
-		// them, 2 they did not.
+		// The pirate battle decides its round by the waves: the seats' team when they
+		// cleared them, the other team when they did not.
 		decided = room.pirateWinner
 	}
 	pirateDecided := room.pirateWinner != 0
 	room.pirate = nil
 	room.pirateWinner = 0
+	room.restorePirateMap()
 	if pirateDecided {
 		// A cooperative round has no team totals of its own: the waves decide. The
 		// result screen still reads them, and an all-zero line has shown a cleared
 		// stage as a loss on this client family (Fantasy's id-400 note), so the
 		// winning side is given the higher total here -- the same thing
 		// cooperative_score_outcome_modes does for the reference server.
-		if decided == 1 {
-			teamScores = [2]uint16{1, 0}
-		} else {
+		if decided == pirateSeatTeam {
 			teamScores = [2]uint16{0, 1}
+		} else {
+			teamScores = [2]uint16{1, 0}
 		}
 	}
 	if decided == 0 {
@@ -2441,4 +2512,19 @@ func roomIDTracking(room *Room) int {
 	room.mu.RLock()
 	defer room.mu.RUnlock()
 	return room.tracking
+}
+
+// restorePirateMap puts the Random marker back into a pirate room's three map
+// strings after a round replaced them with the map it drew. The create shape of a
+// room whose master never chose a map carries that marker in all three
+// (packets/builds.yaml: a mode-101 create names Random_Hot_Dif1 there), so the room
+// goes back to exactly that and the next round draws again. Called under the room
+// lock wherever a round ends.
+func (r *Room) restorePirateMap() {
+	if r.Setting.Game.Mode != pirateModeID || r.pirateMarker == nil {
+		return
+	}
+	r.Setting.Game.Strings16[1] = r.pirateMarker
+	r.Setting.Game.Strings16[3] = r.pirateMarker
+	r.pirateMarker = nil
 }

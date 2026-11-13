@@ -37,7 +37,8 @@ func (s *Server) RelayPeerFrameAllowed(roomID uint16, id uint16) bool {
 	}
 	switch id {
 	case 32862, 32892, // a spawn group member, one AI object
-		32866, 32873: // a mob replay, a wave's spawn group assignment
+		32866, 32873, // a mob replay, a wave's spawn group assignment
+		32920: // a mob's life points: the reference forwards them to the other seats
 		return true
 	}
 	return false
@@ -80,10 +81,10 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		resource := protocol.FromU16(setting.Game.Strings16[1])
 		_, err := protocol.ReadRelayReport(packet, uint8(session.slot), resource)
 		if err != nil && setting.Game.Mode == pirateModeID {
-			// A pirate room carries the scene and the mission key in two strings; the
-			// client names whichever one it loaded, so the other is accepted too and the
-			// reported key is logged (the mission key is what finds its stage script).
-			mission := protocol.FromU16(setting.Game.Strings16[2])
+			// A pirate room carries the scene in the second string and the mission key in
+			// the fourth; the client names whichever one it loaded, so the other is
+			// accepted too (the scene is what its stage script is opened by).
+			mission := protocol.FromU16(setting.Game.Strings16[3])
 			if stage := world.HordeStageKey(mission); stage != "" {
 				mission = stage
 			}
@@ -167,7 +168,11 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 	// showed the king's ultra broadcasting 32772/32783/32828/32812 that never
 	// reached the humans. Packets the relay itself forwards are skipped so nothing
 	// reaches a peer twice, and the seat's own respawn request stays server-side.
+	// A pirate room's own gpp frames (spawn groups, AI objects, mob lua messages)
+	// are not item traffic: they belong to the round's NPC path, so they are not
+	// swept into the item forwarder here.
 	if packet.ID >= 32768 && s.supplyMode(room) && packet.ID != 32904 &&
+		room.SettingCopy().Game.Mode != pirateModeID &&
 		!relayAlreadyForwards(packet.ID) && !s.RelayPeerFrameAllowed(room.ID, packet.ID) {
 		s.forwardItemPacket(room, session.slot, packet, true)
 	}

@@ -226,9 +226,8 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 
 	// A pirate pick arrives the way the client's own change request writes it:
 	// {display name, scene, theme, mission key}. The pool is keyed by the mission key
-	// in the fourth slot, and the room keeps all four strings unchanged -- the second
-	// one is what the stage entry loads and what the client reports back.
-	pirateKeepsStrings := false
+	// in the fourth slot, which is also the key the client resolves its stage script
+	// from; the second slot is what the stage entry loads and what it reports back.
 	if request.Mode == pirateModeID && !random {
 		if third := protocol.FromU16(request.Strings16[3]); third != "" {
 			resourceName = third
@@ -263,14 +262,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 			// The pirate battle has its own 33 npc_* rows; the create dialog starts on
 			// the startup map, so a key outside the pool is replaced instead of
 			// refusing the room (the bomb mission does the same).
-			pirateKeepsStrings = true
 			if !maps.IsHordeMap(entry.ResourceName) {
 				candidates := maps.HordeCandidates(theme, 0)
 				if len(candidates) == 0 {
 					return setting, fmt.Errorf("no pirate map candidates for the requested theme")
 				}
 				entry = candidates[0]
-				pirateKeepsStrings = false
 			}
 		case bombModeID:
 			// The bomb mission's own pool is the authority: two of its six maps
@@ -339,39 +336,52 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	setting.Flag4 = request.Flag4
 	setting.Flag5 = request.Flag5
 	setting.Flag444 = request.Flag444
-	if pirateKeepsStrings {
-		// The four setting strings are, in wire order: map_directory, current_map,
-		// npc_table_key and map_name (packets/room.yaml GameSetting for cn-717). A pirate
-		// room keeps the scene in the first two, the mission key in npc_table_key -- the
-		// author's "有一个要发 npc_xxxx, 要跟它的 lua 对应" -- and the display name last,
-		// which is also what RoomSettingChangeMap.Apply does for a mission.
-		stage := world.HordeStageKey(chosen.ResourceName)
-		if stage == "" {
-			stage = protocol.FromU16(request.Strings16[0])
+	if request.Mode == pirateModeID && !random {
+		// The client's own pirate change request states, in wire order (packets/room.yaml
+		// GameSetting offsets 16/44/72/100): the localized map name, the map table's
+		// Directory (the scene), the theme, and the map key the player chose (npc_*).
+		// current_map is the string gspRoomEnterGame overwrites at match start, and it is
+		// what feeds the NPC Lua map name, so the scene belongs there; the mission key stays
+		// in the fourth slot -- the author's "有一个要发 npc_xxxx, 要跟它的 lua 对应".
+		display := protocol.FromU16(request.Strings16[0])
+		if display == "" || maps.IsHordeMap(display) {
+			display = chosen.ResourceName
 		}
-		name := protocol.FromU16(request.Strings16[3])
-		if name == "" || maps.IsHordeMap(name) {
-			name = protocol.FromU16(request.Strings16[0])
-		}
-		if name == "" {
-			name = chosen.ResourceName
+		scene := world.HordeStageKey(chosen.ResourceName)
+		if scene == "" {
+			scene = protocol.FromU16(request.Strings16[1])
 		}
 		setting.Strings16 = [4][]uint16{
-			protocol.U16String(stage),
-			protocol.U16String(stage),
+			protocol.U16String(display),
+			protocol.U16String(scene),
+			protocol.U16String(theme),
 			protocol.U16String(chosen.ResourceName),
-			protocol.U16String(name),
 		}
 	} else if random {
 		// The marker the client sent is kept in the fourth slot: every round reads
 		// it to tell "never chosen" from a pinned name, while the display slot keeps
-		// the all-random entry the room card draws.
+		// the all-random entry the room card draws. A pirate room keeps the marker in
+		// all three map strings, which is the shape its own create writes ("a mode-101
+		// create carries Random_Hot_Dif1 in the three map strings and All as the
+		// theme", packets/builds.yaml); the round then replaces them with the map it drew.
 		marker := protocol.FromU16(request.Strings16[3])
 		if !strings.HasPrefix(marker, "Random") {
 			marker = "Random"
 		}
-		setting.Strings16 = [4][]uint16{
-			protocol.U16String("Random"), {}, protocol.U16String(theme), protocol.U16String(marker),
+		if request.Mode == pirateModeID {
+			if marker == "Random" {
+				marker = "Random_Hot_Dif1"
+			}
+			setting.Strings16 = [4][]uint16{
+				protocol.U16String(marker),
+				protocol.U16String(marker),
+				protocol.U16String(theme),
+				protocol.U16String(marker),
+			}
+		} else {
+			setting.Strings16 = [4][]uint16{
+				protocol.U16String("Random"), {}, protocol.U16String(theme), protocol.U16String(marker),
+			}
 		}
 	} else {
 		label := protocol.FromU16(request.Strings16[0])
@@ -395,6 +405,33 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	}
 	setting.Values128[0] = score
 	setting.Values128[2] = limit
+	if request.Mode == pirateModeID {
+		// Values128 is the reference server's own block for this map: the kill limit (20,
+		// the map's DeathMatchKillLimit) followed by four time limits of 240000. This
+		// server wrote a zero kill limit and a single 300000 word instead.
+		setting.Values128 = [5]uint32{20, pirateRoundLimitMS, pirateRoundLimitMS,
+			pirateRoundLimitMS, pirateRoundLimitMS}
+		// GameSetting +164: the Lua difficulty cn-717 sub_AE8A60 copies into its HordeModeMgr.
+		// The client uses it twice: as the level of the map's WaveTest table (TableWave2Level)
+		// and as the mobs' HP rate. It follows the mission the player picked (npc_*_01/02/03
+		// are difficulties 1/2/3), so a solo round on a 01 mission plays at difficulty 1.
+		difficulty := chosen.Difficulty
+		if difficulty == 0 {
+			difficulty = 1
+		}
+		setting.Values148[4] = difficulty
+		// GameSetting +168: the reference's own default for this word is -1 (packets/room.yaml,
+		// unknown_168). A zero here reached the pirate wave script as a zero time base, and every
+		// scheduled spawn group of the map's lua then counted as overdue: all 26 mobs of wave 1
+		// appeared inside one second, the wave wrote them off and the round ended five seconds in.
+		setting.Values148[5] = pirateSettingWord168
+		// The reference's own block carries the client's all-random marker in the first
+		// three trailing strings ("Random" x3). This server wrote them empty, which is
+		// the last byte-level difference between the two blocks.
+		for i := 0; i < 3; i++ {
+			setting.Strings180[i] = protocol.U16String("Random")
+		}
+	}
 	return setting, nil
 }
 
