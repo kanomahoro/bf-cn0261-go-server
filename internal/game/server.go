@@ -461,12 +461,8 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handlePartyChat(session, packet)
 	case 503: // RoomReqEnterGame
 		return s.handleEnterGame(session, packet)
-	case 2025: // gcpUserHostStart: the room master starts a pirate round
-		return s.handleHostStart(session, packet)
 	case 701: // map loaded
 		return s.handleMapLoaded(session, packet)
-	case 709: // ReqAddObject: the client asks for its own character's scene object
-		return s.handleObjectAdd(session, packet)
 	case 601: // relay connected report
 		return s.handleRelayConnected(session, packet)
 	case 607: // ReportTableSetHolePunchingEnd must be empty

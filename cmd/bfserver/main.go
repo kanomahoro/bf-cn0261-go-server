@@ -269,10 +269,6 @@ func run(args []string) error {
 		// Relay traffic carries in-match state (character reports, defense
 		// confirmations, life events), so the game logic observes it too.
 		relay.SetPacketHandler(server.HandleRelayPacket)
-		// A relay-only client sends the gameplay peer frames (a horde round's
-		// spawns among them) on its relay connection; the relay's own whitelist
-		// does not carry every number a mode owns, so the game side gets a say.
-		relay.SetPeerFrameAllowance(server.RelayPeerFrameAllowed)
 		// A relay connection that dies mid-match means the member cannot see or
 		// be seen any more, so the round is cancelled exactly like a disconnect.
 		relay.SetDisconnectHandler(server.RelayDisconnected)

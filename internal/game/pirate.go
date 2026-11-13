@@ -349,46 +349,6 @@ func pirateWaveWord(packet protocol.Packet) (uint32, error) {
 	return word, nil
 }
 
-// handleObjectAdd answers C709 gcpReqAddObject. Right after its map report a
-// client asks the server to add its own character's scene object to the round,
-// and the original answers with a zero countdown (S703 gspGameCountDown, the
-// reply RoundStartBinding sends for RoundObjectAddAcknowledged). Only a pirate
-// room answers it: every other mode this server runs was verified without the
-// exchange, and a stage that does wait for the answer never requests a wave.
-func (s *Server) handleObjectAdd(session *Session, packet protocol.Packet) error {
-	room := session.room
-	if room == nil || !seated(session) || room.SettingCopy().Game.Mode != pirateModeID {
-		return nil
-	}
-	r := protocol.NewReader(packet.Payload)
-	object, err := r.Unsigned()
-	if err != nil {
-		return err
-	}
-	if err := r.RequireEnd(); err != nil {
-		return err
-	}
-	// The request may only name the sender's own object (scene entity slot).
-	if object != objectFor(session.slot) {
-		s.log.Debug("[Pirate] object add names another seat", "room", room.ID,
-			"slot", session.slot, "object", object)
-		return nil
-	}
-	// Nothing is answered here. The earlier revision sent gspGameCountDown with a zero
-	// countdown, and the reference server's own capture shows no reply to this request
-	// at all: the client states its clock when the real S703 arrives, and a zero one
-	// here left every scheduled spawn group of the wave table overdue.
-	room.mu.RLock()
-	starting := room.phase == phaseLoading || room.phase == phaseCountdown
-	room.mu.RUnlock()
-	if !starting {
-		return nil
-	}
-	s.log.Debug("[Pirate] object add accepted", "room", room.ID, "slot", session.slot,
-		"object", object)
-	return nil
-}
-
 // pirateRoundDifficulty reports the difficulty the running pirate round took from
 // its map row, and 0 outside a pirate round. The round-start log states it so a
 // test can tell which row the room resolved.

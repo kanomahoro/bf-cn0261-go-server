@@ -425,18 +425,6 @@ func (r *Room) Broadcast(p protocol.Packet) {
 	}
 }
 
-// BroadcastExcept sends a packet to every member but one.
-func (r *Room) BroadcastExcept(skip *Session, p protocol.Packet) {
-	var targets [maxRoomSlots]*Session
-	count := r.sessionsInto(&targets)
-	for i := 0; i < count; i++ {
-		if skip != nil && targets[i] == skip {
-			continue
-		}
-		_ = targets[i].Send(p)
-	}
-}
-
 // pingMembers builds the slot-to-session array of occupied slots.
 func (r *Room) pingMembers() []uint64 {
 	r.mu.RLock()
@@ -1349,31 +1337,6 @@ func (s *Server) handleEnterGame(session *Session, packet protocol.Packet) error
 		return err
 	}
 	return s.enterGame(session, room, start)
-}
-
-// handleHostStart answers C2025 gcpUserHostStart: the empty request the 2015
-// client sends when the room master presses start in a horde room. The original
-// answers it with the same gspRoomEnterGame family as C503, so both entries run
-// one path here.
-func (s *Server) handleHostStart(session *Session, packet protocol.Packet) error {
-	room := session.room
-	if room == nil {
-		return nil
-	}
-	// Only the pirate battle is known to start this way. Every other mode keeps its
-	// audited C503 path, and must keep the "unhandled" behaviour it had before, so
-	// the dispatch is pinned to the pirate room here.
-	if room.SettingCopy().Game.Mode != pirateModeID {
-		s.log.Debug("[Pirate] host start outside a pirate room", "session", session.ID,
-			"mode", room.SettingCopy().Game.Mode)
-		return nil
-	}
-	if len(packet.Payload) != 0 {
-		s.log.Debug("[Pirate] the host start request must be empty", "session", session.ID,
-			"bytes", len(packet.Payload))
-		return nil
-	}
-	return s.enterGame(session, room, protocol.GameStartRequest{})
 }
 
 func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStartRequest) error {

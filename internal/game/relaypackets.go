@@ -12,38 +12,6 @@ import (
 // connection into the game logic. The reference server routes every relay
 // packet through the round coordinator before forwarding it, which is how
 // character reports, defense confirmations and life events reach the server.
-// RelayPeerFrameAllowed reports whether a relay packet is a peer frame a mode
-// wants forwarded although the relay's own whitelist does not carry it. The 2015
-// client sends its gpp traffic over the match relay whenever no direct peer link
-// is available (kr-812 sub_80D4C0, cn-324 sub_6F7F10), which is every relay-only
-// deployment: a horde round's spawn frames arrive there, and dropping them leaves
-// the other seats with no mobs at all.
-//
-// 32857 (a spawn group) is deliberately absent: the master's client expands it
-// into the concrete member and AI-object frames itself, so relaying the group as
-// well would spawn every mob twice.
-func (s *Server) RelayPeerFrameAllowed(roomID uint16, id uint16) bool {
-	s.mu.Lock()
-	room := s.rooms[roomID]
-	s.mu.Unlock()
-	if room == nil || room.SettingCopy().Game.Mode != pirateModeID {
-		return false
-	}
-	room.mu.RLock()
-	live := room.Started
-	room.mu.RUnlock()
-	if !live {
-		return false
-	}
-	switch id {
-	case 32862, 32892, // a spawn group member, one AI object
-		32866, 32873, // a mob replay, a wave's spawn group assignment
-		32920: // a mob's life points: the reference forwards them to the other seats
-		return true
-	}
-	return false
-}
-
 func (s *Server) HandleRelayPacket(roomID uint16, slot uint8, packet protocol.Packet) {
 	s.mu.Lock()
 	room := s.rooms[roomID]
@@ -168,12 +136,8 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 	// showed the king's ultra broadcasting 32772/32783/32828/32812 that never
 	// reached the humans. Packets the relay itself forwards are skipped so nothing
 	// reaches a peer twice, and the seat's own respawn request stays server-side.
-	// A pirate room's own gpp frames (spawn groups, AI objects, mob lua messages)
-	// are not item traffic: they belong to the round's NPC path, so they are not
-	// swept into the item forwarder here.
 	if packet.ID >= 32768 && s.supplyMode(room) && packet.ID != 32904 &&
-		room.SettingCopy().Game.Mode != pirateModeID &&
-		!relayAlreadyForwards(packet.ID) && !s.RelayPeerFrameAllowed(room.ID, packet.ID) {
+		!relayAlreadyForwards(packet.ID) {
 		s.forwardItemPacket(room, session.slot, packet, true)
 	}
 	return nil

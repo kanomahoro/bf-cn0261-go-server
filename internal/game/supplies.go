@@ -92,6 +92,7 @@ func relayAlreadyForwards(id uint16) bool {
 	switch id {
 	case 32898, 32901, 32924, // peer fire
 		32773, 32777, 32900, 32906, 32920, // attacks, life points
+		32862, 32892, 32866, 32873, // NPC peer frames (the relay carries them)
 		32884, 32885, 32922, // movement and watch target
 		32925: // respawn complete
 		return true
