@@ -449,7 +449,8 @@ func (s *Server) notePveUnknown(room *Room, session *Session, packet protocol.Pa
 // numbers are shared with other modes, so the room's mode decides.
 func pveBossPacketID(id uint16) bool {
 	switch id {
-	case 921, // a counted item slot
+	case 710, 2023, // the client's live score reports (bubble / pop / rescue)
+		921,                 // a counted item slot
 		923,                 // the score unit of the NPC that died
 		927,                 // a mission's progress report (C2S; the S2C reply of the same number is ours)
 		925,                 // the empty PvE revival request (C2S)
@@ -474,6 +475,8 @@ func (s *Server) handlePveBossPacket(session *Session, packet protocol.Packet) b
 		return false
 	}
 	switch packet.ID {
+	case 710, 2023:
+		s.pveBossScoreReport(session, room, packet)
 	case 921:
 		s.pveBossCountedItem(session, room, packet)
 	case 923:
@@ -535,6 +538,87 @@ func (s *Server) pveBossPlaying(session *Session, room *Room) bool {
 		s.log.Debug("[PveBoss] report outside play", "room", room.ID, "session", session.ID)
 	}
 	return playing
+}
+
+// pveBossScoreReport answers the client's live score reports (C710 for a bubble or a
+// rescue, C2023 for a finished target) with the round's score table (S729), exactly
+// the way the tutorial stage answers the same reports. The counters themselves are
+// already counted from the life stream; what the client needs is the table, because
+// its own HUD only moves when the server echoes it -- without the echo the panel
+// keeps showing zero while the settlement is correct.
+func (s *Server) pveBossScoreReport(session *Session, room *Room, packet protocol.Packet) {
+	if !s.pveBossPlaying(session, room) {
+		return
+	}
+	var err error
+	switch packet.ID {
+	case 710:
+		_, _, err = protocol.ReadTutorialScoreReport(packet)
+	case 2023:
+		_, _, err = protocol.ReadTutorialOptimizedScoreReport(packet)
+	}
+	if err != nil {
+		s.log.Debug("[PveBoss] unreadable score report", "session", session.ID,
+			"id", packet.ID, "error", err)
+		return
+	}
+	rows := s.pveBossScoreRows(room)
+	if len(rows) == 0 {
+		return
+	}
+	update, err := protocol.CreateTutorialScoreReply(rows)
+	if err != nil {
+		s.log.Debug("[PveBoss] score table rejected", "room", room.ID, "error", err)
+		return
+	}
+	room.Broadcast(update)
+	s.log.Debug("[PveBoss] score table echoed", "room", room.ID, "seats", len(rows),
+		"reporter", session.slot, "id", packet.ID)
+}
+
+// pveBossScoreRows builds the live score rows of every occupied seat from the life
+// tracker's counters, in slot order.
+func (s *Server) pveBossScoreRows(room *Room) []protocol.GameResultPlayer {
+	members := room.View()
+	life := room.Life()
+	rows := make([]protocol.GameResultPlayer, 0, len(members))
+	for _, member := range members {
+		if !member.Occupied || member.Character.AccountID == 0 {
+			continue
+		}
+		wire := s.svc.WireCharacter(member.Character)
+		if wire.AccountID == 0 || protocol.CheckNickname(wire.Nickname) != protocol.NicknameOK {
+			continue
+		}
+		level := wire.Level
+		if level == 0 {
+			level = 1
+		}
+		var score protocol.BattleScore
+		if life != nil {
+			if value, err := life.Score(uint8(member.Slot)); err == nil {
+				score = value
+			}
+		}
+		rows = append(rows, protocol.GameResultPlayer{
+			Slot:       uint8(member.Slot),
+			AccountID:  wire.AccountID,
+			Nickname:   wire.Nickname,
+			Team:       member.Team,
+			Bubbles:    score.BubbleCount,
+			Pangs:      score.PangCount,
+			Rescues:    score.RescueCount,
+			Level:      level,
+			LevelStart: 0,
+			Experience: 0,
+			NextLevel:  0,
+			AwardGrade: protocol.Unset,
+			AwardMedal: 0,
+			AwardScore: 0,
+			LucciGain:  0,
+		})
+	}
+	return rows
 }
 
 // pveBossCountedItem runs one counted item slot: the local client plays the

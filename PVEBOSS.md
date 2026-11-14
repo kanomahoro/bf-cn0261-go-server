@@ -145,6 +145,20 @@
 （`applyNpcVictim` / `ApplyKick` / `applyNpcActor` 三个 NPC 分支），结算行 `S729` 里的
 `BubbleCount / PangCount / RescueCount` 就是面板上的那三列。已用单测覆盖三条路径。
 
+### 4.2.6 实时计分表（`C710` / `C2023` → `S729`）
+
+客户端在对局中会不停上报自己的计分事件（日志里 2 分钟 140 次）：
+
+- `C710 gcpGameUpdateScore`：16 字节，首字节是 kind（教程里 1/22=泡封、4=救援；本模式实测 3 / 26）
+- `C2023 gcpGameUpdateScoreOptimze`：紧凑版
+
+**服务端必须回一张 `S729 gspGameBroadcastPlayerScoreData`**（和教程关卡的做法完全一致，
+`tutorial.go` 的 `handleTutorialScore` 就是干这个的）。不回的话：**结算面板的数字是对的
+（来自生命事件统计），但对局内 HUD 的计数/点数一直是 0** —— 因为客户端只认服务端回的那张表。
+
+实现：`pveBossScoreReport` 收到 710/2023 就用 `BattleLife` 的实时计数拼行，广播 S729。
+计数只从生命事件走一次（不回写），所以不会双计。
+
 ### 4.3 统计分（PVE 点数）
 
 - `C923` 的 unit_index 查表得分（`[4,3,10,11,15,15,20,20,15,15,20,20,15,15,20,20]`，unit=-1 不计），
