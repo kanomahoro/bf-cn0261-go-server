@@ -17,7 +17,8 @@
 | v0.9.19-r7 | `1014d09` | `v0.9.19-r7` | `bfserver-win64-v0.9.19-pveboss-r7-20261114.zip` | **作废**（含中继解析器改动与日志清理，非必要） |
 | v0.9.19-r8 | 见下 | `v0.9.19-r8` | `bfserver-win64-v0.9.19-pveboss-r8-20261114.zip` | 已交付（HUB 不 +1，见 r9） |
 | v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | 单人已验证（两局，一胜） |
-| v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | **已交付，待双人复测** |
+| v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | 双人已验证（模式 16 定版） |
+| v0.9.19-r12 | 见下 | `v0.9.19-r12` | `bfserver-win64-v0.9.19-r12-20261114.zip` | **管理后台适配全部模式，行为同 r10** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -72,6 +73,34 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v0.9.19-r12 — 管理后台补齐全部模式
+
+一直加模式却没回头看后台，核对后发现三处缺口（现由 `internal/admin/modes_test.go` 钉住）：
+
+| 问题 | 现象 |
+| --- | --- |
+| 模式名表缺 **19 爆破 / 20 队长战** | 房间列表与战绩列表把这两类显示成「模式 19」「模式 20」 |
+| 战绩筛选下拉缺 **16 / 19 / 20 / 101** | 无法按僵尸BOSS、爆破、队长战、海盗筛选对局 |
+| 合作模式「胜方」显示红/蓝 | 16 与 101 没有红蓝双方，且两套约定相反（海盗 `1`=玩家通关，僵尸BOSS `2`=玩家通关） |
+
+改动：
+
+- `internal/admin/index.html`：模式表补齐 11 个模式（16 改名「僵尸BOSS」），筛选项补齐；
+  新增 `COOP_WIN`，16/101 的胜方列显示「通关 / 失败」
+- `internal/admin/modes.go`（新）：CSV 用的模式名表（原先只有数字）
+- `internal/admin/modes_test.go`（新）：Go 表、页面 `MODE`、筛选下拉三者必须一致
+- CSV 新增 `mode_name` 列
+- 文档：`docs/admin.md` 新增「模式名」一节（含两套合作模式胜方约定）；README 的模式表把 16 改成
+  「单人+双人真机通过 · 定版」
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-r12-20261114.zip` | `1a2088be54daab57dcb04071c5f04aea8189afdb9c4155dd48b41e560fec1c8c` |
+| `bfserver.exe`（包内） | `306da274a6e9f22b20b26f37dc7422c3a5915e175cfbc8b3b49c635cb48314a3` |
+| `bfserver-linux-amd64` | `4361f764ca4d7c9ef06460ac485c152686a09496e0f5964d7e306d5640d3c200` |
+
+游玩逻辑零改动（只动管理后台页面、CSV 与一个只读的模式名表）。
 
 ## v0.9.19-r10 — 双人反馈的两处死亡/复活缺陷
 
