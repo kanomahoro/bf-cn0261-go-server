@@ -805,6 +805,14 @@ func (l *BattleLife) applyNpcVictim(event protocol.PeerLifeEvent) (bool, error) 
 	}
 	switch event.Kind {
 	case protocol.LifeKnocked:
+		// A mob whose bubble is knocked off by the hit that takes its last points
+		// dies outright -- the pirate battle's super pang -- so the same report that
+		// bubbles a healthy mob pops a finished one. Both score, on different
+		// counters.
+		if event.DirectDeath {
+			increment(&l.players[actorSlot].score.PangCount)
+			return true, nil
+		}
 		increment(&l.players[actorSlot].score.BubbleCount)
 		return true, nil
 	}
