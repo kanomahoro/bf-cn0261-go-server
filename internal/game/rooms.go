@@ -141,11 +141,12 @@ type Room struct {
 	pirate       *pirateState
 	pirateWinner uint8
 	// pirateRandom records whether the pirate room's card names a Random entry, and
-	// pirateMarker is the marker it was created with (Random_Hot_Dif1..Dif3). The
-	// marker decides the next draw's difficulty; it is never written back into the
-	// card, because this client resolves the card's map strings while its room stage
-	// still holds the scene the last round played, and a name it cannot resolve
-	// crashes it (2026-11-14: the map dialog died before it opened).
+	// pirateMarker is the marker it was created with (Random_Hot_Dif1..Dif3), which
+	// decides the next draw's difficulty. A round pins the map it drew into the card
+	// and the room puts the marker back when the round ends -- in the display slot
+	// only, with the map keys emptied, because this client resolves a card's map
+	// names against the scene its room stage still holds and a second name crashes
+	// its map dialog (2026-11-14: fault 0005 at 0x71DFE6, before the dialog opened).
 	pirateRandom bool
 	pirateMarker []uint16
 }
@@ -1446,8 +1447,8 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		}
 		if s.maps.IsHordeMap(mapName) {
 			// A marker in the card means the master never chose a map: keep the entry
-			// so every following round draws again. The card itself is replaced by the
-			// map this round drew and never shows the marker again (see pirateRandom).
+			// so every following round draws again (the round-end restore states it in
+			// the display slot, see cancelRound).
 			if marker := protocol.FromU16(room.Setting.Game.Strings16[3]); strings.HasPrefix(marker, "Random") {
 				room.pirateMarker = room.Setting.Game.Strings16[3]
 				room.pirateRandom = true
@@ -2052,7 +2053,16 @@ func (s *Server) cancelRound(room *Room) {
 	// A room whose map was never chosen shows the random entry again: the pinned
 	// name only existed for the round that just ended, and a room that did choose
 	// one keeps it.
-	if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
+	if room.Setting.Game.Mode == pirateModeID && room.pirateRandom && room.pirateMarker != nil {
+		// The pirate room shows its all-random entry in the display slot and leaves
+		// the two map keys empty, which is the shape the reference's
+		// room_unchosen_map states. A name it cannot resolve is what crashed this
+		// client's map dialog: its room stage still holds the scene it just played,
+		// so the card must not name a second map (2026-11-14).
+		room.Setting.Game.Strings16[0] = room.pirateMarker
+		room.Setting.Game.Strings16[1] = nil
+		room.Setting.Game.Strings16[3] = nil
+	} else if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
 		room.Setting.Game.Strings16[1] = nil
 	}
 	room.life = nil
