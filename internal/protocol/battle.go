@@ -408,23 +408,6 @@ func CreateGameOutcomeReply(won bool) Packet {
 	return Packet{ID: 705, Payload: w.Payload()}
 }
 
-// CreateHordeOutcomeReply builds S705 for the cooperative horde family: the word
-// names the winning SIDE, not the recipient's result -- 2 when the seats' blue team
-// won, 3 when the other side did (cn-324 sub_63B230 / kr-812 sub_5ACB20 compare it
-// with the local team in native horde stage kind 10). A seat on the red team inverts
-// the pair, exactly as the reference's WriteGameEndForRecipient does.
-func CreateHordeOutcomeReply(seatTeam uint8, won bool) Packet {
-	blueWins := won == (seatTeam == 2)
-	word := uint32(3)
-	if blueWins {
-		word = 2
-	}
-	w := NewWriter()
-	w.Unsigned(0)
-	w.Unsigned(word)
-	return Packet{ID: 705, Payload: w.Payload()}
-}
-
 // CreateGameWinnerReply builds S732.
 func CreateGameWinnerReply(firstTeam, secondTeam uint16) (Packet, error) {
 	if firstTeam > 200 || secondTeam > 200 {
