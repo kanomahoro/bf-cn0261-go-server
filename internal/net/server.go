@@ -190,7 +190,7 @@ func (g *Game) handle(ctx context.Context, id uint64, conn net.Conn) {
 	var session *game.Session
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			g.log.Error("connection panic", "session", id, "panic", recovered)
+			g.log.Error("[Session] connection panic", "session", id, "panic", recovered)
 		}
 		// Releasing the room here is what keeps ghost rooms and stale slots from
 		// accumulating when a client disappears without ReqLeaveSession.
@@ -239,7 +239,7 @@ func (g *Game) handle(ctx context.Context, id uint64, conn net.Conn) {
 			if err := g.server.Handle(session, packet); err != nil {
 				// A rejected packet is either a client bug or a protocol mismatch;
 				// warn so operators can see it without enabling debug logging.
-				g.log.Warn("handle failure", "session", id, "id", packet.ID,
+				g.log.Warn("[Session] handle failure", "session", id, "id", packet.ID,
 					"len", len(packet.Payload), "error", err)
 				if errors.Is(err, protocol.ErrInvalidPacket) || errors.Is(err, protocol.ErrTruncated) || errors.Is(err, protocol.ErrTrailing) {
 					return

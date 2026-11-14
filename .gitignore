@@ -38,3 +38,12 @@ tmp/
 *.trace
 core
 core.*
+
+# 客户端崩溃转储（排查时可能落在服务器目录）
+*.mdmp
+*.dmp
+# 编辑器与系统杂项
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

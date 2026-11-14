@@ -641,7 +641,7 @@ func (s *Server) continueBombRound(room *Room, generation int) {
 		room.loadingTimer.Stop()
 	}
 	room.loadingTimer = time.AfterFunc(loadingTimeout, func() {
-		s.log.Warn("loading timed out", "room", room.ID)
+		s.log.Warn("[Bomb] loading timed out", "room", room.ID)
 		s.cancelRound(room)
 	})
 	room.mu.Unlock()

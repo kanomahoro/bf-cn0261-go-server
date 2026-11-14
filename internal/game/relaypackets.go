@@ -159,7 +159,7 @@ func (s *Server) forceDefenseSeeds(room *Room) {
 	}
 	room.seedsSent = true
 	room.mu.Unlock()
-	s.log.Info("defense seeds forced without every character report", "room", room.ID)
+	s.log.Warn("[Defense] seeds forced without every character report", "room", room.ID)
 	s.sendDefenseSeeds(room)
 }
 
@@ -263,7 +263,7 @@ func (s *Server) bombRelayGrace(room *Room, slot uint8, target *Session) {
 
 // releaseSeatAfterRelayLoss drops a seat whose relay transport is gone for good.
 func (s *Server) releaseSeatAfterRelayLoss(room *Room, slot uint8, target *Session) {
-	s.log.Warn("relay transport lost; releasing the seat", "room", room.ID, "slot", slot)
+	s.log.Warn("[Relay] transport lost; releasing the seat", "room", room.ID, "slot", slot)
 	if err := s.leaveRoom(target); err != nil {
 		s.log.Debug("leave after relay loss failed", "session", target.ID, "error", err)
 		return

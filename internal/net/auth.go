@@ -368,7 +368,7 @@ func (a *Auth) handle(conn net.Conn) {
 			a.reply(conn, authResponse{Success: false, Error: "credentialsRejected"})
 			return
 		}
-		a.log.Error("authentication failed", "account", request.AccountName, "error", err)
+		a.log.Error("[Authentication] failed", "account", request.AccountName, "error", err)
 		a.reply(conn, authResponse{Success: false, Error: "serviceBusy"})
 		return
 	}
@@ -391,7 +391,7 @@ func (a *Auth) registrationError(conn net.Conn, account string, err error) {
 		errors.Is(err, features.ErrPasswordPolicy):
 		a.reply(conn, authResponse{Success: false, Error: "invalidRequest"})
 	default:
-		a.log.Error("registration failed", "account", account, "error", err)
+		a.log.Error("[Authentication] registration failed", "account", account, "error", err)
 		a.reply(conn, authResponse{Success: false, Error: "serviceBusy"})
 	}
 }

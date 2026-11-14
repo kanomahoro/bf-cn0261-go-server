@@ -749,7 +749,7 @@ func (s *Server) handleTutorialNpc(session *Session, packet protocol.Packet) boo
 			reply = 905
 		}
 		_ = session.Send(protocol.Packet{ID: reply, Payload: packet.Payload})
-		s.log.Info("[Tutorial] wave", "session", session.ID, "wave", wave, "reply", reply)
+		s.log.Debug("[Tutorial] wave", "session", session.ID, "wave", wave, "reply", reply)
 		return true
 	case 908:
 		if len(packet.Payload) == 0 || len(packet.Payload) > tutorialMaxNpcBody {

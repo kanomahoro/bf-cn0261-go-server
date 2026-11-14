@@ -252,7 +252,7 @@ func (s *Server) handleMapReport(session *Session, packet protocol.Packet) error
 	}
 	report, err := protocol.ReadSupplyReport(packet, maxSupplyPoints)
 	if err != nil {
-		s.log.Warn("map supply report rejected", "room", room.ID, "slot", session.slot, "error", err)
+		s.log.Warn("[Supplies] map report rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
 	if session.slot != room.MasterSlot() {
@@ -323,7 +323,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	}
 	objectID, kind, err := protocol.ReadSupplyPickup(packet)
 	if err != nil {
-		s.log.Warn("item pickup rejected", "room", room.ID, "slot", session.slot, "error", err)
+		s.log.Warn("[Supplies] pickup rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
 	seat := session.slot
@@ -349,7 +349,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 	team := room.slots[seat].team
 	if kind != 0 && !knownCarriedKind(kind) {
 		if log := markSupplyRefusal(state); log {
-			s.log.Warn("box carried a kind outside the known sheets; granted anyway",
+			s.log.Warn("[Supplies] box carried an unknown kind; granted anyway",
 				"room", room.ID, "slot", seat, "kind", kind)
 		}
 	}
@@ -387,7 +387,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 				// box is still refused above, because there the colour comes from the map
 				// report rather than from a client.
 				if created.team != 0 && created.team != uint32(team) {
-					s.log.Warn("item mode: pickup of the other team's colour",
+					s.log.Warn("[Supplies] pickup of the other team's colour",
 						"room", room.ID, "slot", seat, "box_team", suppliesColorName(created.team),
 						"seat_team", suppliesColorName(uint32(team)))
 				}
@@ -398,7 +398,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		log := markSupplyRefusal(state)
 		room.mu.Unlock()
 		if log {
-			s.log.Warn("item mode refused a box; further refusals this round are not logged",
+			s.log.Warn("[Supplies] refused a box; further refusals this round are not logged",
 				"room", room.ID, "reason", refusal)
 		}
 		return nil
@@ -441,7 +441,7 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		// Overwrite slot 0 and leave the other one alone: clearing both would throw
 		// away an item the seat may really hold.
 		if log := markSupplyRefusal(state); log {
-			s.log.Warn("item slot state disagreed with the client; slot 0 overwritten",
+			s.log.Warn("[Supplies] slot state disagreed with the client; slot 0 overwritten",
 				"room", room.ID, "slot", seat, "held", held.kinds)
 		}
 		itemSlot = 0
@@ -579,7 +579,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	}
 	request, err := protocol.ReadSupplyDrop(packet)
 	if err != nil {
-		s.log.Warn("dropped item rejected", "room", room.ID, "slot", session.slot, "error", err)
+		s.log.Warn("[Supplies] dropped item rejected", "room", room.ID, "slot", session.slot, "error", err)
 		return nil
 	}
 	// A kind-0 request is a random box. The client sends one on every knock-down,
@@ -610,14 +610,14 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		log := markSupplyRefusal(state)
 		room.mu.Unlock()
 		if log {
-			s.log.Warn("item mode refused a box; further refusals this round are not logged",
+			s.log.Warn("[Supplies] refused a box; further refusals this round are not logged",
 				"room", room.ID, "reason", "more thrown boxes than the round keeps")
 		}
 		return nil
 	}
 	if request.Kind != 0 && !knownCarriedKind(request.Kind) {
 		if log := markSupplyRefusal(state); log {
-			s.log.Warn("a thrown box carried a kind outside the known sheets; kept anyway",
+			s.log.Warn("[Supplies] thrown box carried an unknown kind; kept anyway",
 				"room", room.ID, "kind", request.Kind)
 		}
 	}
@@ -996,7 +996,7 @@ func (s *Server) itemRelayAllowed(room *Room, packet protocol.Packet) (objectID 
 	}
 	objectID, _, point, err := protocol.ReadSupplyCreate(packet, 0)
 	if err != nil {
-		s.log.Warn("client box could not be decoded; forwarding it unread",
+		s.log.Warn("[Supplies] box could not be decoded; forwarding it unread",
 			"room", room.ID, "error", err)
 		return 0, clientBox{}, true
 	}

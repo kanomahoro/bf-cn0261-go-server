@@ -1546,7 +1546,7 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		room.loadingTimer.Stop()
 	}
 	room.loadingTimer = time.AfterFunc(loadingTimeout, func() {
-		s.log.Warn("loading timed out", "room", room.ID)
+		s.log.Warn("[Round] loading timed out", "room", room.ID)
 		s.cancelRound(room)
 	})
 	room.mu.Unlock()
@@ -1779,7 +1779,7 @@ func (s *Server) startRound(room *Room, tracking int) {
 		// The reference server aborts the round here. Real clients do not always
 		// echo the tables (they are advisory for damage prediction), so we only
 		// warn and start: aborting leaves both players stuck on the ready screen.
-		s.log.Info("countdown ended without every defense seed confirmation",
+		s.log.Warn("[Defense] countdown ended without every seed confirmation",
 			"room", room.ID, "missing", missing, "seedsSent", sent)
 	}
 	room.phase = phasePlaying
@@ -1820,7 +1820,7 @@ func (s *Server) startRound(room *Room, tracking int) {
 	}
 	startPacket := protocol.CreateGameStartReply(duration, thirdWord)
 	if room.SettingCopy().Game.Mode == pirateModeID {
-		s.log.Info("[Pirate] round start packet", "room", room.ID,
+		s.log.Debug("[Pirate] round start packet", "room", room.ID,
 			"bytes", len(startPacket.Payload),
 			"hex", fmt.Sprintf("%x", startPacket.Payload))
 	}
@@ -2325,7 +2325,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		if saveErr == nil {
 			break
 		}
-		s.log.Error("settlement failed", "room", room.ID, "attempt", attempt, "error", saveErr)
+		s.log.Error("[Round] settlement failed", "room", room.ID, "attempt", attempt, "error", saveErr)
 		if attempt < settlementTries {
 			time.Sleep(settlementRetry)
 		}
@@ -2395,7 +2395,7 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	} else {
 		// Without this packet the client has no result screen at all, so it must
 		// not disappear into the debug stream.
-		s.log.Warn("game result packet rejected", "room", room.ID, "error", err)
+		s.log.Warn("[Round] result packet rejected", "room", room.ID, "error", err)
 	}
 	if setting.Game.Mode == zombieModeID || setting.Game.Mode == pirateModeID {
 		// The zombie battle decides one winner for every seat, which the team
@@ -2478,13 +2478,13 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 					// the client keeps showing the old totals until the next login.
 					fresh, err := s.db.CharacterByAccount(member.Session.Account.ID)
 					if err != nil {
-						s.log.Warn("character reload failed", "session", member.Session.ID, "error", err)
+						s.log.Warn("[Round] character reload failed", "session", member.Session.ID, "error", err)
 						continue
 					}
 					member.Session.Character = fresh
 					room.SetProfile(member.Slot, fresh, member.Items)
 					if err := s.sendUserStatFor(member.Session, fresh, member.Items); err != nil {
-						s.log.Warn("user stat refresh failed", "session", member.Session.ID, "error", err)
+						s.log.Warn("[Round] user stat refresh failed", "session", member.Session.ID, "error", err)
 					}
 				}
 				s.cancelRound(room)

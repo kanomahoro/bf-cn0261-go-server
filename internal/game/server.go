@@ -643,7 +643,7 @@ func (s *Server) handleLogin(session *Session, packet protocol.Packet) error {
 	if err != nil {
 		// Login continues with an empty inventory rather than failing outright,
 		// but the reason must not be lost silently.
-		s.log.Error("inventory load failed at login", "character", character.ID, "error", err)
+		s.log.Error("[Login] inventory load failed", "character", character.ID, "error", err)
 	}
 	session.Items = items
 	return s.sendLoginReply(session)
@@ -713,7 +713,7 @@ func (s *Server) handleCreateCharacter(session *Session, packet protocol.Packet)
 	session.Character = character
 	items, err := s.svc.Items(character.ID)
 	if err != nil {
-		s.log.Error("inventory load failed after character creation",
+		s.log.Error("[Login] inventory load failed after character creation",
 			"character", character.ID, "error", err)
 	}
 	session.Items = items

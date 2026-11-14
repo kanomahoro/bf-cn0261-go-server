@@ -42,14 +42,14 @@ func (s *Server) handlePurchase(session *Session, packet protocol.Packet) error 
 	}
 	result, err := s.svc.Purchase(session.Character.ID, request.StockID)
 	if err != nil {
-		s.log.Error("purchase failed", "character", session.Character.ID, "error", err)
+		s.log.Error("[Shop] purchase failed", "character", session.Character.ID, "error", err)
 		result = protocol.PurchaseFailed
 	}
 	if result == protocol.PurchaseOK {
 		character, _ := session.Profile()
 		items, err := s.svc.Items(character.ID)
 		if err != nil {
-			s.log.Error("inventory load failed after purchase", "character", character.ID, "error", err)
+			s.log.Error("[Shop] inventory load failed after purchase", "character", character.ID, "error", err)
 		}
 		session.SetProfile(character, items)
 		if refreshed, err := s.svc.Profile(session.Account.ID); err == nil {
@@ -371,7 +371,7 @@ func (s *Server) handleInventoryOpen(session *Session, packet protocol.Packet) e
 	cached, _ := session.Profile()
 	cachedItems, err := s.svc.Items(cached.ID)
 	if err != nil {
-		s.log.Error("inventory load failed", "character", cached.ID, "error", err)
+		s.log.Error("[Shop] inventory load failed", "character", cached.ID, "error", err)
 	}
 	session.SetProfile(cached, cachedItems)
 	items := s.svc.WireItems(session.Items)
