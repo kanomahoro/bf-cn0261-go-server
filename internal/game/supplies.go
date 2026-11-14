@@ -233,8 +233,13 @@ func seated(session *Session) bool {
 // and removes the box the moment it picks it, so refusing one loses the item (a
 // real round showed the box disappear and the HUD stay empty).
 func knownCarriedKind(kind uint32) bool {
-	return mapPointKinds[kind] || immediateKinds[kind]
+	return mapPointKinds[kind] || immediateKinds[kind] || pveDropKinds[kind]
 }
+
+// pveDropKinds are the kinds the zombie raid's mobs drop (its own sheet: the three
+// hub items and the two immediate ones). Keeping them here stops the raid's own loot
+// from being logged as an unknown kind once per round.
+var pveDropKinds = map[uint32]bool{229: true, 146: true, 136: true, 101: true, 17: true}
 
 // immediateKinds are the kinds that apply the moment they are picked up instead of
 // taking an item slot (the reference's immediate_supply_item_kinds).

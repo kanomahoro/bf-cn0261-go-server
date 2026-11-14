@@ -169,11 +169,23 @@ master 实测：道具能捡了，但**捡起来就当场用了**。正确规则
 于是三格道具一捡就被用掉。修法：raid 房里对 229/146/136 跳过 `715`（`pveCountedKind`）。
 顺带加了 `[PveBoss] loot taken`（Info，前 5 条，带 kind 与 applied）。
 
-### 14. 验证
+### 14. 日志审计：两处中继误拒（r7）
 
-- `go build` / `go vet` / `gofmt` 全过；共 15 个 `_test.go` 用例（开局队伍通知、下发顺序、任务成功/失败、
+读完 master 给的 4 局完整日志（47198 行），除了掉落/HUB 那条，还发现中继侧两处**误拒**：
+
+| 现象 | 次数/4 局 | 根因 | 修法 |
+| --- | --- | --- | --- |
+| `unsupported peer action 32773` | **2096** | 中继路径把近身攻击交给 `handlePeerAction`，而 32773 不在那张动作表里；而且**这个模式的客户端还会上报 NPC 的近身攻击**（对象是 NPC 自己的 id，不在座位分区） | 中继侧改走 `handlePeerNearFrom`（校验但不重复转发）；raid 里先判断对象是否属于某个座位，NPC 的直接消费并 Debug 记录 |
+| `return-to-normal object mismatch` | 26 | 同上：客户端报的是 NPC 的眩晕恢复，对象不是发送者自己 | raid 里外部对象忽略（Debug），其它模式保持严格 |
+
+顺带：`knownCarriedKind` 补上 PvE 的 5 个 kind（229/146/136/101/17），那条「unknown kind; kept anyway」
+的 WARN 不再每局误报一次。
+
+### 15. 验证
+
+- `go build` / `go vet` / `gofmt` 全过；共 16 个 `_test.go` 用例（开局队伍通知、下发顺序、任务成功/失败、
   点数、道具只回使用者、转队、僵尸复活恢复生命状态、三条计分路径、道具/点数表、弹药开关、
-  调度器起第一跳、掉落建箱与拾取、HUB/即时道具两种拾取），`go test ./internal/game` 与 `-race` 全绿。
+  调度器起第一跳、掉落建箱与拾取、HUB/即时道具两种拾取、NPC 近身攻击消费），`go test ./internal/game` 与 `-race` 全绿。
 - **未做真机**：BOSS 出场、任务条、点数面板、感染横幅都要 master 上真机看。
 
 ## v0.9.18（2026-11-14，海盗多人结算与计分）
