@@ -149,6 +149,14 @@ type Room struct {
 	// (2026-11-14: fault 0005 at 0x71DFE6, three card shapes tried).
 	pirateRandom bool
 	pirateMarker []uint16
+
+	// The cooperative zombie raid's round state; every field is inert outside
+	// mode 16. pveBoss carries the generation, the mission schedule and the round's
+	// points, and pveWinner is the side the result credits (2 the seats cleared the
+	// stage, 1 the raid failed). It is read once by finishRound, like the pirate
+	// battle's winner.
+	pveBoss   *pveBossState
+	pveWinner uint8
 }
 
 // SetPassword stores the room password.
@@ -821,8 +829,8 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	setting.Game = game
 	setting.Capacity = uint16(maxRoomSlots)
 	// The pirate battle's MapMeta rows carry MaxUser 4, so its room card and its
-	// join limit are four seats.
-	if setting.Game.Mode == pirateModeID {
+	// join limit are four seats. The raid's rows say the same.
+	if setting.Game.Mode == pirateModeID || setting.Game.Mode == pveBossModeID {
 		setting.Capacity = 4
 	}
 	// The password arrived outside the setting (C402 carries it after the last
@@ -1123,12 +1131,18 @@ func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) erro
 		s.zombieDeathReport(session)
 		return nil
 	}
+	// The cooperative zombie raid sends the same request when the local character
+	// dies: the seat turns into a zombie on team 15 instead of switching teams.
+	if room.StartedReport() && room.PveBossRound() {
+		s.pveBossDeathReport(session)
+		return nil
+	}
 	if len(packet.Payload) != 0 {
 		return fmt.Errorf("%w: expected empty RoomChangeTeam", protocol.ErrInvalidPacket)
 	}
 	// The pirate battle is cooperative: every seat fights the same waves, so the
-	// waiting room's team switch has nowhere to move a seat to.
-	if room.SettingCopy().Game.Mode == pirateModeID {
+	// waiting room's team switch has nowhere to move a seat to. The raid is too.
+	if room.SettingCopy().Game.Mode == pirateModeID || room.SettingCopy().Game.Mode == pveBossModeID {
 		return nil
 	}
 	if room.SettingCopy().State != 2 {
@@ -1355,12 +1369,13 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	settingNow := room.SettingCopy()
 	// The original rejects special-mode requests and event flags outright. A
 	// pirate create may carry its own flags (the client's difficulty/room kind),
-	// so the battle keeps its start and only records them.
-	if settingNow.Game.Mode == pirateModeID {
+	// so the battle keeps its start and only records them; the cooperative zombie
+	// raid's create does the same.
+	if settingNow.Game.Mode == pirateModeID || settingNow.Game.Mode == pveBossModeID {
 		if start.Flag4 || start.EventFlags[0] || start.EventFlags[1] || start.EventFlags[2] ||
 			start.EventFlags[3] || start.EventFlags[4] {
-			s.log.Debug("[Pirate] start carried flags", "room", room.ID, "flag4", start.Flag4,
-				"events", start.EventFlags)
+			s.log.Debug("[Round] start carried flags", "room", room.ID, "mode", settingNow.Game.Mode,
+				"flag4", start.Flag4, "events", start.EventFlags)
 		}
 	} else {
 		if start.Flag4 {
@@ -1394,9 +1409,10 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		}
 	}
 	if occupied < 2 {
-		// The pirate battle is a cooperative round and its MapMeta rows accept a
-		// single player, so the two-seat floor the versus modes keep does not apply.
-		if settingNow.Game.Mode != pirateModeID {
+		// The pirate battle and the cooperative zombie raid are rounds a single
+		// player can start: their MapMeta rows accept one seat, so the two-seat floor
+		// the versus modes keep does not apply.
+		if settingNow.Game.Mode != pirateModeID && settingNow.Game.Mode != pveBossModeID {
 			return session.Send(protocol.CreateGameEntryReply(protocol.StartAlone, nil, 2))
 		}
 	}
@@ -1405,10 +1421,10 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	}
 	if teams[0] != teams[1] || teams[0]+teams[1] != occupied {
 		// The zombie battle starts every seat on the human team, the individual
-		// hot-blood battle has no teams at all and the pirate battle's seats all
-		// fight the waves on one side, so none of them is ever balanced.
+		// hot-blood battle has no teams at all, and the pirate battle and the zombie
+		// raid's seats all fight on one side, so none of them is ever balanced.
 		if settingNow.Game.Mode != zombieModeID && settingNow.Game.Mode != singlePvpModeID &&
-			settingNow.Game.Mode != pirateModeID {
+			settingNow.Game.Mode != pirateModeID && settingNow.Game.Mode != pveBossModeID {
 			return session.Send(protocol.CreateGameEntryReply(protocol.StartUnequal, nil, 2))
 		}
 	}
@@ -1476,6 +1492,9 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	room.beginBombSeries()
 	// The pirate battle's round state starts with the generation it belongs to.
 	room.beginPirateRound()
+	// The zombie raid's round state carries the map whose mission groups the round
+	// plays, and the team notices that put every seat on the human side.
+	pveNotices := room.beginPveBossRound(mapName)
 	if room.BombRound() {
 		s.log.Info("[Bomb] series started", "room", room.ID, "map", mapName,
 			"revives_per_sub_round", bombRevivesPerSubRound)
@@ -1485,6 +1504,10 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 			"stage", world.HordeStageKey(mapName),
 			"mapDifficulty", room.pirateRoundDifficulty(),
 			"settingDifficulty", room.pirateSettingDifficulty(), "seats", occupied)
+	}
+	if settingNow.Game.Mode == pveBossModeID {
+		s.log.Info("[PveBoss] the round starts", "room", room.ID, "map", mapName,
+			"seats", occupied)
 	}
 	// Without a bound life tracker every peer life/kick event would be dropped
 	// and no score would ever be published.
@@ -1509,6 +1532,7 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	room.zombieWinner = 0
 	room.forfeitWinner = 0
 	room.pirateWinner = 0
+	room.pveWinner = 0
 	// A fresh round starts with no item-mode state; the host reports its map
 	// points after the map loads.
 	room.supplies = nil
@@ -1524,7 +1548,7 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 	entry := roundEntry{
 		setting:    room.SettingCopy(),
 		mapName:    mapName,
-		notices:    zombieNotices,
+		notices:    append(zombieNotices, pveNotices...),
 		freshRelay: true,
 	}
 	if entry.setting.Game.Mode == pirateModeID {
@@ -1579,6 +1603,22 @@ func (s *Server) broadcastRoundEntry(room *Room, entry roundEntry) {
 	}
 	for _, notice := range entry.notices {
 		room.Broadcast(notice)
+	}
+	// The zombie raid's client builds its game UI from two packets that the
+	// reference sends per member between the team notices and the seat records: the
+	// counted item slots (S930) and the rescue mission list (S924). They have to be
+	// in the session before S510 arrives, and this is the position the reference's
+	// own start path uses.
+	if entry.setting.Game.Mode == pveBossModeID {
+		prep := room.pveBossPrep()
+		for _, member := range room.View() {
+			if !member.Occupied || member.Session == nil {
+				continue
+			}
+			for _, packet := range prep {
+				_ = member.Session.Send(packet)
+			}
+		}
 	}
 	members := s.members(room)
 	// The sniper battles offer no other weapon, and the slot reply is what tells a
@@ -1795,6 +1835,12 @@ func (s *Server) startRound(room *Room, tracking int) {
 		// take it again.
 		duration = pirateRoundLimitMS
 	}
+	if room.Setting.Game.Mode == pveBossModeID {
+		// The raid plays TimeAttack: every MapMeta row states 600 s. The create block
+		// carries that value itself, but the round states it here as well so a room
+		// created before a map was picked cannot run a competitive clock.
+		duration = pveRoundLimitMs
+	}
 	first, second := 0, 0
 	for slot := range room.slots {
 		if room.slots[slot].session == nil {
@@ -1811,11 +1857,12 @@ func (s *Server) startRound(room *Room, tracking int) {
 	s.log.Info("[Round] started", "room", room.ID, "team1", first, "team2", second,
 		"durationMs", duration)
 
-	// The reference states 0 in S704's third word for an ordinary round; a pirate room
-	// states the configured word so the wave script's clock base can be tested without a
-	// rebuild (the client mirrors this word into the session clock).
+	// The reference states 0 in S704's third word for an ordinary round. The scripted
+	// cooperative modes state 0 as well: the client mirrors the word into the session
+	// clock that their stage scripts schedule against, and a non-zero base made the
+	// pirate battle's waves fire all at once (2026-11-14).
 	thirdWord := uint32(tracking)
-	if room.SettingCopy().Game.Mode == pirateModeID {
+	if room.SettingCopy().Game.Mode == pirateModeID || room.SettingCopy().Game.Mode == pveBossModeID {
 		thirdWord = 0
 	}
 	startPacket := protocol.CreateGameStartReply(duration, thirdWord)
@@ -1830,6 +1877,12 @@ func (s *Server) startRound(room *Room, tracking int) {
 	room.mu.RLock()
 	generation := room.generation
 	room.mu.RUnlock()
+	// The zombie raid's mission clock starts with the round-start packet, so its
+	// alerts land on the client's own match clock; the initial PVE ranking goes out
+	// with it.
+	if room.SettingCopy().Game.Mode == pveBossModeID {
+		s.startPveBossSchedule(room, generation)
+	}
 	s.scheduleZombieOpening(room, generation)
 	// The Captain battle names its two Captains here too, with the round start.
 	s.appointCaptainsAtStart(room, generation)
@@ -1857,10 +1910,11 @@ func (s *Server) startRound(room *Room, tracking int) {
 // mission rather than by a team total, and this client drops a few seconds after
 // the packet arrives (sub-rounds 2026-11-10, the settled match 2026-11-11).
 func sendsWinnerAnnouncement(mode uint32) bool {
-	// The bomb series and the pirate battle decide their result without the two team
-	// totals: the reference's own pirate settlement sends no S732 at all (captured
-	// 2026-11-14: C724 -> S729 -> S705, then S729 -> S733 -> S110).
-	return mode != bombModeID && mode != pirateModeID
+	// The bomb series and the cooperative modes decide their result without the two
+	// team totals: the reference's own pirate settlement sends no S732 at all
+	// (captured 2026-11-14: C724 -> S729 -> S705, then S729 -> S733 -> S110), and the
+	// raid shares that settlement shape.
+	return mode != bombModeID && mode != pirateModeID && mode != pveBossModeID
 }
 
 // roundClockExpired ends the round the clock ran out on. The bomb mission decides
@@ -1902,6 +1956,16 @@ func (s *Server) roundClockExpired(room *Room) {
 		room.pirateWinner = pirateOtherTeam
 		room.mu.Unlock()
 		s.log.Info("[Pirate] the clock ran out before every wave was cleared", "room", room.ID)
+	}
+	if mode == pveBossModeID {
+		// The raid's ten minutes ran out with the boss still standing: a failed run.
+		room.mu.Lock()
+		room.pveWinner = pveOtherTeam
+		if state := room.pveBoss; state != nil {
+			state.stopLocked()
+		}
+		room.mu.Unlock()
+		s.log.Info("[PveBoss] the clock ran out", "room", room.ID)
 	}
 	s.finishRound(room, true)
 }
@@ -1962,9 +2026,15 @@ func (s *Server) roundAfterDeparture(room *Room) {
 	// owner of the waves (the master may be exactly the one who left, and nothing
 	// reassigns the manager mid-run), so the round is cancelled back to the room
 	// instead of hanging until the 300 s clock runs out.
-	if mode == pirateModeID {
-		s.log.Info("[Pirate] a seat left mid-run; the round returns to the room",
-			"room", room.ID, "remaining", remaining)
+	if mode == pirateModeID || mode == pveBossModeID {
+		// Both cooperative rounds are driven by the room master's own client. Losing
+		// any seat leaves the run without a clear owner of the script (the master may
+		// be exactly the one who left, and nothing reassigns it mid-run), so the round
+		// returns to the room instead of settling on a team total that has no meaning
+		// here -- every raid seat is on team 2, and the two-team test below would
+		// otherwise hand the survivor a win.
+		s.log.Info("[Round] a seat left a cooperative round; the round returns to the room",
+			"room", room.ID, "mode", mode, "remaining", remaining)
 		s.cancelRound(room)
 		return
 	}
@@ -2046,6 +2116,12 @@ func (s *Server) cancelRound(room *Room) {
 	// The pirate battle keeps no state between rounds either.
 	room.pirate = nil
 	room.pirateWinner = 0
+	// Nor does the cooperative zombie raid.
+	if state := room.pveBoss; state != nil {
+		state.stopLocked()
+	}
+	room.pveBoss = nil
+	room.pveWinner = 0
 	if room.Setting.Game.Mode == bombModeID {
 		room.Setting.Game.Values148[6] &^= 1
 		room.Setting.Game.Values148[7] = 0
@@ -2076,9 +2152,13 @@ func (s *Server) cancelRound(room *Room) {
 		room.slots[slot].ready = false
 		room.slots[slot].loaded = false
 		// The zombie battle's seats go back to the human team: the waiting room's
-		// seat record only carries the two battle teams.
+		// seat record only carries the two battle teams. A converted raid seat does the
+		// same.
 		if room.slots[slot].team == zombieTeam {
 			room.slots[slot].team = zombieHumanTeam
+		}
+		if room.slots[slot].team == pveZombieTeam {
+			room.slots[slot].team = pveHumanTeam
 		}
 	}
 	members := make([]memberView, 0, maxRoomSlots)
@@ -2143,16 +2223,27 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		// cleared them, the other team when they did not.
 		decided = room.pirateWinner
 	}
+	// The zombie raid is decided the same way: the master's stage word clears it for
+	// the seats' human team, a failed stage or a wiped-out human side for the other.
+	if decided == 0 {
+		decided = room.pveWinner
+	}
+	pveDecided := room.pveWinner != 0
+	room.pveWinner = 0
+	if state := room.pveBoss; state != nil {
+		state.stopLocked()
+		room.pveBoss = nil
+	}
 	pirateDecided := room.pirateWinner != 0
 	room.pirate = nil
 	room.pirateWinner = 0
-	if pirateDecided {
-		// A cooperative round has no team totals of its own: the waves decide. The
-		// result screen still reads them, and an all-zero line has shown a cleared
-		// stage as a loss on this client family (Fantasy's id-400 note), so the
-		// winning side is given the higher total here -- the same thing
+	if pirateDecided || pveDecided {
+		// A cooperative round has no team totals of its own: the objective decides.
+		// The result screen still reads them, and an all-zero line has shown a cleared
+		// stage as a loss on this client family (Fantasy's id-400 note), so the winning
+		// side is given the higher total here -- the same thing
 		// cooperative_score_outcome_modes does for the reference server.
-		if decided == pirateSeatTeam {
+		if decided == pirateSeatTeam || decided == pveHumanTeam {
 			teamScores = [2]uint16{0, 1}
 		} else {
 			teamScores = [2]uint16{1, 0}
@@ -2193,6 +2284,15 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			}
 			if room.slots[slot].team == zombieTeam {
 				room.slots[slot].team = zombieHumanTeam
+			}
+		}
+	}
+	// The raid's converted seats go back to the human team for the waiting room's
+	// seat records, which only carry the two battle teams.
+	if setting.Game.Mode == pveBossModeID {
+		for slot := range room.slots {
+			if room.slots[slot].team == pveZombieTeam {
+				room.slots[slot].team = pveHumanTeam
 			}
 		}
 	}
@@ -2264,10 +2364,10 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		} else if winner == member.Team {
 			reward = s.prog.Rewards.Win
 		}
-		if setting.Game.Mode == pirateModeID {
-			// The pirate battle hands out nothing (2026-11-12 decision): the round is
-			// recorded, the result screen shows the counters, and neither experience
-			// nor Lucci moves.
+		if setting.Game.Mode == pirateModeID || setting.Game.Mode == pveBossModeID {
+			// The pirate battle hands out nothing (2026-11-12 decision), and the raid
+			// follows it: the round is recorded, the result screen shows the counters,
+			// and neither experience nor Lucci moves.
 			reward = world.Reward{}
 		}
 		var score protocol.BattleScore
@@ -2397,11 +2497,12 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		// not disappear into the debug stream.
 		s.log.Warn("[Round] result packet rejected", "room", room.ID, "error", err)
 	}
-	if setting.Game.Mode == zombieModeID || setting.Game.Mode == pirateModeID {
+	if setting.Game.Mode == zombieModeID || setting.Game.Mode == pirateModeID || setting.Game.Mode == pveBossModeID {
 		// The zombie battle decides one winner for every seat, which the team
 		// totals cannot express: every member gets its own outcome word (3 win,
-		// 2 loss) instead of the round-end notice. The pirate battle works the same
-		// way: its seats share one side and the waves decide whether they won.
+		// 2 loss) instead of the round-end notice. The pirate battle and the zombie
+		// raid work the same way: their seats share one side and the objective
+		// decides whether they won.
 		for _, member := range members {
 			if !member.Occupied || member.Session == nil {
 				continue

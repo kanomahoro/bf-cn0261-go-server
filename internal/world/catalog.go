@@ -48,6 +48,12 @@ func (m Maps) Find(name string) (Map, bool) {
 			return entry, true
 		}
 	}
+	// The cooperative zombie raid's seven maps carry no competitive flag either.
+	for _, entry := range m.PveMaps() {
+		if entry.ResourceName == name {
+			return entry, true
+		}
+	}
 	// A few maps belong to exactly one mode and carry neither competitive flag:
 	// the client lists them only in that mode's own widget.
 	for _, entries := range modeExtraMaps {
@@ -67,6 +73,10 @@ const bombModeID = 19
 // hordeModeID is the client's pirate battle (wgtHorde). Its pool is the 33 npc_*
 // rows of MapMeta's isHordeModeMap list.
 const hordeModeID = 101
+
+// pveModeID is the client's cooperative zombie raid (wgtZombiePve). Its pool is
+// the seven rel_zombie* rows of MapMeta's isZombiePveModeMap list.
+const pveModeID = 16
 
 // Mode ids the pools below are keyed by. The game package keeps its own copies;
 // these exist so a map pool can be expressed here.
@@ -112,6 +122,9 @@ func (Maps) HasModeMap(mode uint32, name string) bool {
 func (m Maps) Candidates(mode uint32, theme string) []Map {
 	if mode == hordeModeID {
 		return m.HordeCandidates(theme, 0)
+	}
+	if mode == pveModeID {
+		return m.PveCandidates(theme)
 	}
 	if mode == bombModeID {
 		var out []Map

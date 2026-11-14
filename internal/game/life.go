@@ -276,6 +276,16 @@ func (l *BattleLife) ConvertTeam(slot uint8, team uint8) bool {
 	return true
 }
 
+// BoundObject reports whether an object id is one of this round's player
+// objects. A cooperative round's mobs share the combat stream with the seats, and
+// their ids must never be mistaken for a seat's.
+func (l *BattleLife) BoundObject(object uint32) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	_, err := l.find(object)
+	return err == nil
+}
+
 // Apply processes one life event reported by sourceSlot.
 func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allowSelfDamage bool) (bool, error) {
 	l.mu.Lock()

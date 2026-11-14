@@ -97,12 +97,13 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		return nil
 	case packet.ID == 8 || packet.ID == 9:
 		return s.handleRelayPeerUpdate(session, packet)
-	case packet.ID == 32904 && room.SettingCopy().Game.Mode == pirateModeID:
+	case packet.ID == 32904 && (room.SettingCopy().Game.Mode == pirateModeID ||
+		room.SettingCopy().Game.Mode == pveBossModeID):
 		// The respawn request is a gpp frame (0x8088), so a relay-only client sends
 		// it on the match relay, where the relay hands it to the round instead of
-		// forwarding it (exactly as it treats the game connection's C713). Only the
-		// pirate battle opts in: every other mode is verified with this packet
-		// arriving on its game connection and keeps the behaviour it had.
+		// forwarding it (exactly as it treats the game connection's C713). The pirate
+		// battle and the zombie raid opt in; every other mode is verified with this
+		// packet arriving on its game connection and keeps the behaviour it had.
 		return s.handleRespawn(session, packet)
 	case protocol.IsPeerLife(packet.ID):
 		return s.handlePeerLife(session, packet, true)

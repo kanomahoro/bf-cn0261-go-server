@@ -190,7 +190,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		request.Mode != singlePvpModeID && request.Mode != teamSurvivalModeID &&
 		request.Mode != sniperTeamSurvivalModeID && request.Mode != zombieModeID &&
 		request.Mode != captainModeID && request.Mode != bombModeID &&
-		request.Mode != pirateModeID {
+		request.Mode != pirateModeID && request.Mode != pveBossModeID {
 		return setting, fmt.Errorf("unsupported room mode")
 	}
 	switch request.SubMode {
@@ -200,7 +200,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// they send cannot change the round; it is echoed back instead of costing
 		// the room its create. Any other mode keeps the audited values only.
 		if (request.Mode != zombieModeID && request.Mode != bombModeID &&
-			request.Mode != pirateModeID) || request.SubMode > 15 {
+			request.Mode != pirateModeID && request.Mode != pveBossModeID) || request.SubMode > 15 {
 			return setting, fmt.Errorf("unsupported room sub mode")
 		}
 	}
@@ -286,6 +286,17 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 			if !entry.ItemMode {
 				return setting, fmt.Errorf("map does not support the item mode")
 			}
+		case pveBossModeID:
+			// The raid's own seven rows carry no competitive flag, and its create dialog
+			// starts on the startup map; a key outside the pool is replaced the way the
+			// pirate room replaces one.
+			if !maps.IsPveMap(entry.ResourceName) {
+				candidates := maps.PveCandidates(theme)
+				if len(candidates) == 0 {
+					return setting, fmt.Errorf("no raid map candidates for the requested theme")
+				}
+				entry = candidates[0]
+			}
 		default:
 			// Modes 8/12/13 also list one map that carries neither competitive flag
 			// (the client's isZombieModeMap / isSniperModeMap / isSinglePvpModeMap
@@ -324,6 +335,12 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	// The pirate battle runs the 300 s its MapMeta row states, and its round is
 	// decided by the waves rather than by a kill limit.
 	if request.Mode == pirateModeID {
+		limit = chosen.TimeLimitMilliseconds
+		score = 0
+	}
+	// The raid runs its maps' TimeAttack limit (600 s) and no kill limit: the round
+	// is decided by the stage word, never by a pang count.
+	if request.Mode == pveBossModeID {
 		limit = chosen.TimeLimitMilliseconds
 		score = 0
 	}

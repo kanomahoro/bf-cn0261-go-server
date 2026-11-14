@@ -394,6 +394,11 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	if piratePacketID(packet.ID) && s.handlePiratePacket(session, packet) {
 		return nil
 	}
+	// The cooperative zombie raid's mission, point, item and stage traffic shares its
+	// numbers with other modes as well, so the room's mode decides.
+	if pveBossPacketID(packet.ID) && s.handlePveBossPacket(session, packet) {
+		return nil
+	}
 	switch packet.ID {
 	case 1: // FirstConnect: content flags, patch reply, center list
 		return s.handleFirstConnect(session, packet)

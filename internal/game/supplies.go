@@ -168,13 +168,17 @@ func (s *Server) itemMode(room *Room) bool {
 func ammoSupplyMode(mode uint32) bool {
 	switch mode {
 	case zombieModeID, sniperModeID, sniperTeamSurvivalModeID, singlePvpModeID, captainModeID,
-		bombModeID, pirateModeID:
+		bombModeID, pirateModeID, pveBossModeID:
 		// The bomb maps carry ammunition points and every seat reports them with
 		// C702 at every sub-round (2026-11-11: 4 seats x 3 sub-rounds in one match),
 		// so the mission's boxes come from here like the other ammo modes.
 		// The pirate battle carries ammunition points as well; its box kinds live in
 		// the client, so only the placement, the refresh and the pickup broadcast are
 		// the server's. The reference's own capture sends fifteen of them during a wave.
+		// The zombie raid's maps place ammunition and PvE item boxes on their own
+		// timers, and the host reports them the same way; the item ids are the raid's
+		// sheet (229 shieldMedipack / 146 bazookaPVE / 136 airBomb / 17 grenadeSupplies
+		// / 101 booster), not the item battle's, and none of them is filtered here.
 		return true
 	}
 	return false

@@ -18,8 +18,11 @@ func (s *Server) bindLife(room *Room) error {
 	life.specialKickScores = room.Setting.Game.Mode == sniperModeID
 	// The pirate battle's bubbles sit on its mobs, and its mobs knock the seats: both
 	// reports name objects this tracker never binds, so that round needs the NPC
-	// branches (see BattleLife.npcRounds).
-	life.npcRounds = room.Setting.Game.Mode == pirateModeID
+	// branches (see BattleLife.npcRounds). The zombie raid needs them for the same
+	// reason: its zombies, guardians, boss and mission NPCs are all mobs, and both a
+	// mob victim and a mob attacker would otherwise look like a protocol error and
+	// cost the connection.
+	life.npcRounds = room.Setting.Game.Mode == pirateModeID || room.Setting.Game.Mode == pveBossModeID
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		if entry.session == nil {
@@ -179,9 +182,14 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 		// A Captain that just went down hands the Captaincy on; the check ignores
 		// every event that left both appointments standing.
 		s.captainsAfterChange(room)
+		// The zombie raid's deaths turn the seat that fell; the report names the victim,
+		// which need not be the reporter.
+		if event.Kind == protocol.LifeDead && room.PveBossRound() {
+			s.pveBossDeathOfObject(room, event.VictimObject)
+		}
 		// The bomb mission is decided by the objective, never by a kill total: its
 		// score limit must not end a sub-round, the series decides the match.
-		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() {
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() && !room.PveBossRound() {
 			s.finishRound(room, false)
 			return nil
 		}
@@ -225,7 +233,7 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 		"succeeded", event.Succeeded, "special", event.SpecialKick, "style", event.Style,
 		"room", room.ID)
 	if accepted {
-		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() {
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() && !room.PveBossRound() {
 			s.log.Debug("score limit reached", "room", room.ID)
 			s.finishRound(room, false)
 		}

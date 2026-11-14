@@ -26,6 +26,8 @@
 | `[Defense] seeds forced without every character report` | Warn | 同上 |
 | `[Pirate] the run starts` / `wave` / `wave table` / `every wave cleared` / `stage reported` | Info | 每局/每波一条，多人结算排查靠它 |
 | `[Pirate] round start packet` / `[Pirate] spawn frame from the host` / `[Pirate] drop traffic ignored` | **Debug** | 逐波逐帧的过程细节（含 hex） |
+| `[PveBoss] the raid starts` / `mission started` / `mission cleared` / `mission timed out` / `mission failed: the citizen died` / `seat turned` / `stage reported` | Info | 每局/每任务/每次转队一条，BOSS 战排查靠它 |
+| `[PveBoss] points` / `counted item used` / `mob life point` / `drop traffic ignored` | **Debug** | 每次加分/道具/血量上报一条，量大 |
 | `loading timed out` / `[Bomb] the match settlement was dropped` / `[Bomb] the armed bomb was never reported` | Warn | 真异常，但已有兜底 |
 | `[Plaza] dropping a seat whose session is gone` | Debug | 断线清理的常态 |
 | `[Channel] move refused: single channel` | Debug | 客户端会重复请求，否则刷屏 |
@@ -34,7 +36,7 @@
 
 ## 输出格式
 
-- 每条 `Info` / `Warn` / `Error` 的消息都以 `[子系统]` 前缀开头：`[Round]`、`[Pirate]`、`[Bomb]`、
+- 每条 `Info` / `Warn` / `Error` 的消息都以 `[子系统]` 前缀开头：`[Round]`、`[Pirate]`、`[PveBoss]`、`[Bomb]`、
   `[Tutorial]`、`[Zombie]`、`[Captain]`、`[Supplies]`、`[Defense]`、`[Relay]`、`[Session]`、`[Login]`、
   `[Authentication]`、`[Admin]`、`[Shop]`、`[Database]`、`[Application]`、`[Room]`、`[Plaza]`、`[Channel]`
 - 结构化字段一律 `key=value`（slog 的 `TextHandler` 输出），键用小写驼峰：`room`、`slot`、`session`、

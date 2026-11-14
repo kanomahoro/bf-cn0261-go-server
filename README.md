@@ -8,18 +8,21 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.9.18-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.9.19-blue?style=flat-square)
 
 Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.9.18**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗模式的单人局与双人局均已在真机验收）。客户端的 11 个可选模式里只剩僵尸 BOSS（16）未做。
+当前版本 **v0.9.19**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗模式的单人局与双人局已在真机验收，僵尸 BOSS 战待真机验收）。**客户端 11 个可选模式至此全部实现。**
 
 > 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
 > `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
 
+- **v0.9.19** 僵尸袭击 BOSS 战（16）落地：救援任务闹钟（924/925/926/927）、PVE 点数（923 → 928/929）、
+  三格计数道具（930 + 921 → 715）、感染转队（C515 → S504）、7 张 `rel_zombie*` 图与 600 s 时限、结算不发奖励；
+  规则与协议见 [`PVEBOSS.md`](PVEBOSS.md)
 - **v0.9.18** 海盗多人收尾：双人结算（`906` 广播全房）、结算序列对齐参考实现（不发 `S732`、`S733` 前重发 `S729`）、
   结算面板计分（泡封 / 击爆三条路径 / 营救）、随机图回房间的卡片闪退修复；日志前缀与级别统一（见 `docs/logging.md`）
 - **v0.9.0** 单人教程（25 关）入版、海盗模式（101）落地（首次实现，待真机）；修掉爆破整场结算掉线、爆破地图没有弹药箱、狙击射爆泡封不计分；
@@ -44,7 +47,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 ## 模式一览
 
 客户端一共只提供 11 个可选模式（多出来的那些是别的版本才有的，**不要拿参考实现的配置当客户端能力证据**）。
-「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 与最新 tag 都是 `v0.9.18`**，
+「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 与最新 tag 都是 `v0.9.19`**，
 下表中已完成的模式全部随主线发布。
 
 | 模式 | 名称 | 服务端负责的部分 | 加入版本 | 状态 | 文档 |
@@ -60,9 +63,9 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | **定稿 · 已发布** | [`BOMB.md`](BOMB.md) |
 | 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 · 已发布（真机通过） | [`TUTORIAL.md`](TUTORIAL.md) |
 | 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算（不发奖励）、弹药箱、结算面板计分（泡封/击爆/营救） | v0.9.0 | **单人+双人真机通过 · 已发布**（v0.9.18） | [`PIRATE.md`](PIRATE.md) |
-| 16 | 僵尸 BOSS（PVE 救援） | — | 未做 | 待做 | — |
+| 16 | 僵尸袭击 BOSS 战（PVE 救援） | 7 张 `rel_zombie*` 图、1–4 人合作、救援任务闹钟、PVE 点数/排行、三格计数道具、感染转队、结算（不发奖励） | v0.9.19 | **已实现 · 待真机验收** | [`PVEBOSS.md`](PVEBOSS.md) |
 
-逐条修复（现象 / 根因 / 改法 / 真机结论）记在 [`CHANGELOG.md`](CHANGELOG.md)，最新是 **v0.9.18**；
+逐条修复（现象 / 根因 / 改法 / 真机结论）记在 [`CHANGELOG.md`](CHANGELOG.md)，最新是 **v0.9.19**；
 本表只列模式与里程碑，不重复细节。
 
 ## 功能范围
@@ -74,7 +77,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 登录与角色 | 票据登录、建角、昵称校验、角色外观 |
 | 大厅 | 广场（每实例 16 人）、房间列表、建房/进房/换队/准备/踢人/聊天 |
 | 对局 | 加载门控、防御种子表、倒计时、生命状态机、复活、比分、结算 |
-| 模式 | 竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101） |
+| 模式 | 竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸 BOSS 战（16） |
 | 单人教程 | 落地页「教程」→ 选关（25 关全开）→ 编号关卡（mode 15）/ prologue（mode 103），不建房间 |
 | 结算 | 每局写 `game_results` / `game_result_players` / `game_result_awards`，经验与 Lucci 落库 |
 | 商店与背包 | 目录、购买（Lucci/点卷）、装备、武器预设、期限道具过期清理 |
@@ -83,7 +86,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 补给 | 道具箱与弹药箱的点位上报、按间隔刷新、拾取广播（道具战、僵尸、狙击、热血、爆破、海盗） |
 | 管理后台 | 概览、在线玩家、房间、日志、战绩、公告、改钱包、封禁，列表均支持翻页（默认关闭） |
 
-**未实现**：僵尸 BOSS（16）这一个客户端可选模式，以及客户端根本不提供的
+**未实现**：客户端根本不提供的
 夺星 5/6、AOS 22 等（**不要拿参考实现的配置当客户端能力证据**）、
 多大厅频道、服务端反作弊（战斗判定沿用客户端上报，与 2015 原版一致）。
 
@@ -140,7 +143,7 @@ go build -o bin/bfserver ./cmd/bfserver
 # 发布构建（-s -w 不能省：否则 exe 多出约 4 MB 符号表与 DWARF）
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v0.9.18  By:rurudoo
+# BubbleFighter CN0261 Go Server v0.9.19  By:rurudoo
 
 # 版本号写在 cmd/bfserver/main.go 的 Version 变量里；需要出号时再改，
 # 不要用 -X main.Version 在命令行覆盖（会与 CHANGELOG/发布包不一致）

@@ -42,6 +42,17 @@ type Zombie struct {
 	ZombiniTurnMs int `json:"zombiniTurnMs"`
 }
 
+// PveBoss holds the cooperative zombie raid's testing switches. The mode's rules
+// are fixed; these exist for single-seat runs and default to off.
+type PveBoss struct {
+	// NoInfection keeps a dead human on the human side instead of turning it into a
+	// zombie, so a solo run does not end on its first death. Every raid map states
+	// respawnEnable 1 in its MapMeta row, so the client's ordinary respawn path
+	// revives the seat; the mode's own rule (a death turns you) is simply skipped.
+	// Off by default: with it on the round cannot be lost to infection at all.
+	NoInfection bool `json:"noInfection"`
+}
+
 // Database holds the MariaDB connection settings.
 type Database struct {
 	Host                  string `json:"host"`
@@ -167,6 +178,7 @@ type Config struct {
 	Authentication     Authentication `json:"authentication"`
 	Logging            Logging        `json:"logging"`
 	Zombie             Zombie         `json:"zombie"`
+	PveBoss            PveBoss        `json:"pveBoss"`
 	Admin              Admin          `json:"admin"`
 }
 

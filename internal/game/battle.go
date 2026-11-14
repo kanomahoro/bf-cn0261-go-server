@@ -283,6 +283,15 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 		// state, and let the relay forward the packet to the observers.
 		offered := life.SpawnIndex(uint8(session.slot))
 		if err := life.AdoptSpawnIndex(uint8(session.slot), request.Value); err != nil {
+			// A raid seat that already turned into a zombie comes back on the map
+			// script's own point, which sits in no battle team's block. The client has
+			// moved on by the time it reports this, so the report is dropped instead of
+			// costing the connection; no offer was ever made to that seat.
+			if room.PveBossRound() && life.Team(uint8(session.slot)) == pveZombieTeam {
+				s.log.Debug("[PveBoss] a converted seat reported its own spawn marker",
+					"room", room.ID, "slot", session.slot, "marker", request.Value)
+				return nil
+			}
 			return err
 		}
 		completed, err := life.CompleteRespawn(uint8(session.slot), objectID, request.Value)
