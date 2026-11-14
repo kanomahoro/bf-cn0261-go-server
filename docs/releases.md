@@ -8,7 +8,8 @@
 | 版本 | commit | tag | 交付包 | 状态 |
 | --- | --- | --- | --- | --- |
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
-| v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | **已交付，待真机** |
+| v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | 已交付（第一轮真机） |
+| v0.9.19-r2 | `26ee64f` | `v0.9.19-r2` | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | **已交付，待第二轮真机** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -29,6 +30,18 @@
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false \
   -ldflags "-s -w" -o bfserver.exe ./cmd/bfserver
 ```
+
+## v0.9.19-r2 — 真机反馈修正
+
+提交：`26ee64f` `fix(pveboss): map dialog, ammunition, and score-unit diagnostics`
+（地图设置只显示 2 张图 → 保留请求主题；无限子弹 ⇒ 撤回 ammoSupplyMode(16)；
+PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级包打印）
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | `544d080c206f433fabd425052bbba9f50cc0471fa980620a6825dbf729aa9c3a` |
+| `bfserver.exe`（包内） | `c6469b25da6718ecd0c7fd38ae5f2138f76af7a5bd1d94db7fb8c64c85b93c41` |
+| `bfserver-linux-amd64` | `ec0d2bf29c0e0ae2c6c9d2f82f660ae74c4a03c1c965c4aed6ef8e2b2b11fa93` |
 
 **这一版的单元测试**（14 个，`*_test.go` 不进版本库）留档在
 `~/.openclaw/workspace/artifacts/2026-11-14-pveboss/`。
