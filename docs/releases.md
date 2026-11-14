@@ -20,7 +20,7 @@
 | v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | 双人已验证（模式 16 定版） |
 | v0.9.19-r12 | 见下 | `v0.9.19-r12` | `bfserver-win64-v0.9.19-r12-20261114.zip` | 管理后台适配全部模式 |
 | v0.9.19-r13 | 见下 | `v0.9.19-r13` | `bfserver-win64-v0.9.19-r13-20261114.zip` | Info 收敛（7 条降至 Debug） |
-| v0.9.19-r14 | 见下 | `v0.9.19-r14` | `bfserver-win64-v0.9.19-r14-20261115.zip` | **补上地图传送点 `C948/S958`** |
+| v0.9.19-r14 | 见下 | `v0.9.19-r14` | `bfserver-win64-v0.9.19-r14-20261115.zip` | **补上地图传送点 `C948/S958`，真机已验证** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -96,6 +96,8 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
   `TestPortalMoveRejectsBadBodies`（截断/补齐/NaN 全拒）、`TestPortalMoveReachesEverySeat`、
   `TestPortalMoveOutsidePlayIsIgnored`
 - 文档：`docs/design.md` 新增「地图传送点（portal）」一节
+
+**真机结论（2026-11-14 23:38）**：传送点正常，单人落地后可正常传送。
 
 | 资产 | sha256 |
 | --- | --- |
