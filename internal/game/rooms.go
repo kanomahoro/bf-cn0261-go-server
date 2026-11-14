@@ -2054,14 +2054,14 @@ func (s *Server) cancelRound(room *Room) {
 	// name only existed for the round that just ended, and a room that did choose
 	// one keeps it.
 	if room.Setting.Game.Mode == pirateModeID && room.pirateRandom && room.pirateMarker != nil {
-		// The pirate room shows its all-random entry in the display slot and leaves
-		// the two map keys empty, which is the shape the reference's
-		// room_unchosen_map states. A name it cannot resolve is what crashed this
-		// client's map dialog: its room stage still holds the scene it just played,
-		// so the card must not name a second map (2026-11-14).
+		// The pirate room states its all-random entry exactly the way every other
+		// mode's random room does after a round: the display slot and the map key
+		// carry the marker while current_map is emptied. Writing the marker into
+		// current_map is what crashed this client's map dialog -- its room stage
+		// still holds the scene the round played (2026-11-14, fault 0x71DFE6).
 		room.Setting.Game.Strings16[0] = room.pirateMarker
 		room.Setting.Game.Strings16[1] = nil
-		room.Setting.Game.Strings16[3] = nil
+		room.Setting.Game.Strings16[3] = room.pirateMarker
 	} else if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
 		room.Setting.Game.Strings16[1] = nil
 	}
