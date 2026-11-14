@@ -10,7 +10,8 @@
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
 | v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | 已交付（第一轮真机） |
 | v0.9.19-r2 | `26ee64f` | `v0.9.19-r2` | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | 已交付 |
-| v0.9.19-r3 | `cb4333a` | `v0.9.19-r3` | `bfserver-win64-v0.9.19-pveboss-r3-20261114.zip` | **已交付，待第三轮真机** |
+| v0.9.19-r3 | `cb4333a` | `v0.9.19-r3` | `bfserver-win64-v0.9.19-pveboss-r3-20261114.zip` | 已交付 |
+| v0.9.19-r4 | `7c5d8f7` | `v0.9.19-r4` | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | **已交付，待第四轮真机** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -55,5 +56,16 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver.exe`（包内） | `038407a7987b5b7f929ce95798df98843001018551db8d20f26d9456460f8914` |
 | `bfserver-linux-amd64` | `ea245f6cb7bf606c9fcc6e4d71b5cc90d9264498739632d822b72febb2c2abcb` |
 
-**这一版的单元测试**（14 个，`*_test.go` 不进版本库）留档在
+## v0.9.19-r4 — 掉落与拾取（C728 → S711 → C707 → S712 + 715）
+
+提交：`7c5d8f7` `feat(pveboss): materialise the loot a mob drops`
+（真机日志里一局 44 次 C728，我们全丢 → 怪死了什么都不掉；HUB 的计次靠拾取）
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
+| `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
+| `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+**这一版的单元测试**（15 个，`*_test.go` 不进版本库）留档在
 `~/.openclaw/workspace/artifacts/2026-11-14-pveboss/`。
