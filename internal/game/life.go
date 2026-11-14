@@ -561,8 +561,7 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.npcRounds {
-		victimSlot, victimErr := l.find(event.Victim)
-		if victimErr != nil {
+		if _, victimErr := l.find(event.Victim); victimErr != nil {
 			// A bubble on an NPC is popped by a character, and the report names that
 			// character. A confirmed pop scores its pang; the weapon case is the same
 			// report a shot bubble uses, which the sniper battle scores as a special
@@ -575,19 +574,6 @@ func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (
 			}
 			return false, nil
 		}
-		// A mob popped the seat's bubble: no player scores for it, but the seat has to
-		// leave the bubble state, or it stays bubbled for the rest of the round and
-		// never takes its death.
-		if _, actorErr := l.find(event.Actor); actorErr != nil &&
-			(event.Kind == protocol.KickGotKicked || (event.Kind == protocol.KickConfirmed && event.Succeeded)) {
-			victim := &l.players[victimSlot]
-			if victim.state == stateBubbled {
-				victim.state = stateKicked
-				l.clearTransient(victim)
-				return true, nil
-			}
-		}
-		return false, nil
 	}
 	switch event.Kind {
 	case protocol.KickHumiliationStart, protocol.KickHumiliationEnd:
