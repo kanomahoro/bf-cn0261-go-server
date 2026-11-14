@@ -254,6 +254,18 @@ func (s *Server) handleRespawn(session *Session, packet protocol.Packet) error {
 	if request.ObjectID != objectID {
 		return fmt.Errorf("%w: respawn object mismatch", protocol.ErrInvalidPacket)
 	}
+	// A raid seat that already turned asks for the respawn the mode does not give: its
+	// own client stands it up on the repeated team notice, and a spawn offer with a
+	// battle-marker index left a real seat lying down for the rest of the round. The
+	// notice is repeated here instead of running the respawn machinery.
+	if room.PveBossRound() && life.Team(uint8(session.slot)) == pveZombieTeam {
+		if notice, err := protocol.CreateRoomTeamReply(uint32(session.slot), pveZombieTeam); err == nil {
+			room.Broadcast(notice)
+		}
+		s.log.Debug("[PveBoss] a zombie seat asked to respawn; its team notice is repeated",
+			"room", room.ID, "slot", session.slot, "id", packet.ID)
+		return nil
+	}
 	// The bomb mission allows each seat bombRevivesPerSubRound respawns per
 	// sub-round (master, 2026-11-10): the budget is spent by the respawn request
 	// itself, so a seat that has none left observes instead of coming back. The

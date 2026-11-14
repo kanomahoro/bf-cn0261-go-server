@@ -752,8 +752,13 @@ func (s *Server) pveBossRevival(session *Session, room *Room, packet protocol.Pa
 	}
 	room.mu.RUnlock()
 	if team != pveZombieTeam {
-		s.log.Debug("[PveBoss] revival request from a human seat ignored", "room", room.ID,
+		// At zero HP this mode's client asks for a revival. The raid answers by turning
+		// the seat, exactly as a death report does: a real two-player round showed the
+		// non-host seat asking more than two hundred times while its death event never
+		// reached the combat stream, so it stayed at zero HP and kept playing.
+		s.log.Debug("[PveBoss] revival request at zero HP turns the seat", "room", room.ID,
 			"slot", session.slot)
+		s.pveBossDeathSlot(room, session.slot)
 		return
 	}
 	// A zombie that fell comes back on the same team notice. The tracker has to go

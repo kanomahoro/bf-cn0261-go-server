@@ -16,7 +16,8 @@
 | v0.9.19-r6 | `812d1ae` | `v0.9.19-r6` | `bfserver-win64-v0.9.19-pveboss-r6-20261114.zip` | **作废**（含诊断日志，master 要求只留修复） |
 | v0.9.19-r7 | `1014d09` | `v0.9.19-r7` | `bfserver-win64-v0.9.19-pveboss-r7-20261114.zip` | **作废**（含中继解析器改动与日志清理，非必要） |
 | v0.9.19-r8 | 见下 | `v0.9.19-r8` | `bfserver-win64-v0.9.19-pveboss-r8-20261114.zip` | 已交付（HUB 不 +1，见 r9） |
-| v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | **已交付，待第四轮真机** |
+| v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | 单人已验证（两局，一胜） |
+| v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | **已交付，待双人复测** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -71,6 +72,43 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v0.9.19-r10 — 双人反馈的两处死亡/复活缺陷
+
+双人真机（`Server (15)`）报了两个问题，根因都在死亡与复活这条路上：
+
+### 1. 非房主 0 血不死、像无敌
+
+**现象**：第一局玩家 2（非房主）血条到 0 却继续行动，房主看他一直活着。
+
+**日志**：整局 `slot=1` 发了 **207 次 `C925 gcpPveUseRevival`**（一次 ≈1.5 s），却**没有一条死亡事件**
+（`32836 kind=5 victimState=dead` 全程只有 2 条，都是房主自己的）。我们的转换只认死亡事件，而
+`C925` 从人类座位发出时被直接忽略 → 服务端一直认为他还活着，客户端停在「0 血待复活」状态。
+
+**修法**：raid 里 `C925` 来自人类座位 = 该客户端在报「0 血要复活」，直接按死亡处理（转僵尸）。
+参考实现同一份注释也写着「modes 16 and 101 在 0 血发 gcpPveUseRevival」。
+
+### 2. 房主死后变僵尸，站起来又躺下、读人类复活条、卡死
+
+**现象**：房主死亡 → 立刻变僵尸（站起来）→ 随即又躺下 → 出现**人类**复活读条 → 读条走完仍躺着，
+无法操作。玩家 2 被爆炸炸死立即转阵营，随后整局失败。
+
+**日志**：房主 0 血时先发 `C925`，148 ms 后又发 `32904 gcpGameReqRespawn`。我们对 `32904` 走的是
+**通用复活流程**（`RequestRespawn` + 延迟后发「战点复活」的 spawn offer），而僵尸座位在 raid 里
+没有对应的战斗出生点 → 客户端拿到一个用不上的复活点 → 复活条走完也站不起来。
+
+**修法**：raid 里已转阵营（team 15）的座位请求复活时，**不再走通用复活**，改为重发一次
+team-15 通知（参考实现就是这样：僵尸靠「重复的队伍通知」自己站起来）。
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | `0563e1e3509e09c427c94402a865ad17c542650fc561b6e7d00feaf660514098` |
+| `bfserver.exe`（包内） | `3a544b28d69f176d4ccd7a6f097983dd3c1cb1002fc97e487e87171699a87ae0` |
+| `bfserver-linux-amd64` | `74a42272b9ec69e8420acf69378095a63628e2f363526d7c613999a5addf66cc` |
+
+代码改动：`pveBossRevival`（`internal/game/pveboss.go`）+ `handleRespawn` 的 raid 分支
+（`internal/game/battle.go`），两条都在 `room.PveBossRound()` 守卫内，老模式零改动。
+18 个用例全绿（新增 `TestPveBossZeroHpRevivalTurnsTheSeat`、`TestPveBossZombieRespawnRepeatsTheNotice`）。
 
 ## v0.9.19-r9 — 补 `S713 gspAddItemToSlot`：计数道具要「授予」才进 HUB
 
