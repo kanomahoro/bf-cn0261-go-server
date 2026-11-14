@@ -490,43 +490,14 @@ func (s *Server) handlePeerDamage(session *Session, packet protocol.Packet) erro
 
 // handlePeerNear validates C32773 against the frozen equipped weapon.
 func (s *Server) handlePeerNear(session *Session, packet protocol.Packet) error {
-	return s.handlePeerNearFrom(session, packet, false)
-}
-
-// handlePeerNearFrom validates one near attack. Relay traffic is not repeated: the
-// relay already carried it to every other seat.
-func (s *Server) handlePeerNearFrom(session *Session, packet protocol.Packet, fromRelay bool) error {
 	if session.room == nil {
 		return nil
 	}
 	if _, err := protocol.ReadPeerNearAttack(packet, uint8(session.slot), equippedWeaponDefinition(session)); err != nil {
 		return err
 	}
-	if fromRelay {
-		return nil
-	}
 	s.relayToRoom(session, packet, -1)
 	return nil
-}
-
-// pveBossNearAttack answers a near attack in a raid round. Its client reports the
-// NPCs' melee swings on the same id, with the NPC's own object instead of a seat's,
-// so a report that names no seat is consumed silently (the relay already forwarded
-// it) and only one that names a seat is validated as usual.
-func (s *Server) pveBossNearAttack(session *Session, packet protocol.Packet) error {
-	room := session.room
-	r := protocol.NewReader(packet.Payload)
-	objectID, err := r.Unsigned()
-	if err != nil {
-		return err
-	}
-	life := room.Life()
-	if life == nil || !life.BoundObject(objectID) {
-		s.log.Debug("[PveBoss] near attack from an NPC", "room", room.ID,
-			"slot", session.slot, "object", objectID)
-		return nil
-	}
-	return s.handlePeerNearFrom(session, packet, true)
 }
 
 // handlePeerPing echoes C32840 back to the sender, matching the original relay of

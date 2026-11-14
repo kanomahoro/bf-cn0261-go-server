@@ -288,13 +288,6 @@ func (s *Server) handleReturnToNormal(session *Session, packet protocol.Packet, 
 		return err
 	}
 	if objectID != objectFor(session.slot) {
-		// The raid's client reports an NPC's recovery on the same id; the round only
-		// tracks seats, so a foreign object is ignored rather than refused.
-		if room.PveBossRound() {
-			s.log.Debug("[PveBoss] return-to-normal for a foreign object", "room", room.ID,
-				"slot", session.slot, "object", objectID)
-			return nil
-		}
 		return fmt.Errorf("%w: return-to-normal object mismatch", protocol.ErrInvalidPacket)
 	}
 	life.ReturnToNormal(uint8(session.slot))

@@ -110,13 +110,7 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 	case protocol.IsPeerKick(packet.ID):
 		return s.handlePeerKick(session, packet, true)
 	case packet.ID == 32773:
-		// The raid's client also reports its NPCs' melee swings here; those name an
-		// object no seat owns and used to be rejected as "unsupported peer action"
-		// (2096 lines in one four-round log).
-		if room.PveBossRound() {
-			return s.pveBossNearAttack(session, packet)
-		}
-		return s.handlePeerNearFrom(session, packet, true)
+		return s.handlePeerAction(session, packet)
 	case packet.ID == 32813:
 		return s.handleReturnToNormal(session, packet, true)
 	case packet.ID == 2015 || packet.ID == 2017, packet.ID == 17:
