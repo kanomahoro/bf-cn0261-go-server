@@ -19,7 +19,8 @@
 | v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | 单人已验证（两局，一胜） |
 | v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | 双人已验证（模式 16 定版） |
 | v0.9.19-r12 | 见下 | `v0.9.19-r12` | `bfserver-win64-v0.9.19-r12-20261114.zip` | 管理后台适配全部模式 |
-| v0.9.19-r13 | 见下 | `v0.9.19-r13` | `bfserver-win64-v0.9.19-r13-20261114.zip` | **Info 里移走 7 条过程细节，行为不变** |
+| v0.9.19-r13 | 见下 | `v0.9.19-r13` | `bfserver-win64-v0.9.19-r13-20261114.zip` | Info 收敛（7 条降至 Debug） |
+| v0.9.19-r14 | 见下 | `v0.9.19-r14` | `bfserver-win64-v0.9.19-r14-20261115.zip` | **补上地图传送点 `C948/S958`** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -74,6 +75,33 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v0.9.19-r14 — 补上地图传送点：`C948 gcpPortalMove` → `S958 gspPortalMove`
+
+按 fantasy 的 `packets/portal.yaml` + `RoundFlow.Portal.cs` 对 cn-717 的实现补齐（此前仓库里 948/958 零命中，
+地图上的传送点踩了没反应）。
+
+| 方向 | 包 | 长度 | 结构 |
+| --- | --- | --- | --- |
+| C2S | `948 gcpPortalMove` | 14 | `x f32` `y f32` `z f32` `portal_id u16` |
+| S2C | `958 gspPortalMove` | 10 | `unknown_4 u32`(0 放行/−1 不移动) `portal_id u16` `seat u32` |
+
+行为与参考实现一致：只校验「正在对局中 + session 拥有该座位 + 坐标有限」，然后
+**广播给全房（含发起者）**；不校验区域号存在性、不接管位置权威。中继伴生帧
+`rcpPortalMove`(26)/`rcpPortalMoveAfter`(27) 按参考实现的结论**不授予移动**，只认游戏连接那条。
+
+- 新文件：`internal/protocol/portal.go`、`internal/game/portal.go`
+- 分派：`internal/game/server.go` 新增 `case 948`
+- 测试：`TestPortalMoveRoundTrip`（与参考实现同一段 hex，回复必须是 `00000000341205000000`）、
+  `TestPortalMoveRejectsBadBodies`（截断/补齐/NaN 全拒）、`TestPortalMoveReachesEverySeat`、
+  `TestPortalMoveOutsidePlayIsIgnored`
+- 文档：`docs/design.md` 新增「地图传送点（portal）」一节
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-r14-20261115.zip` | `fa0bdb1d00986ca8d931f9e816f1128920b6b447cb6783880ff2f1d800dcc132` |
+| `bfserver.exe`（包内） | `30929d07f66fceaba23ba2609dd5c7f47bd9dbaa957d33a2dbad49cbd25ec9ae` |
+| `bfserver-linux-amd64` | `6ce56b7078c2346c916cea9afbb8baa81cc8efe264aa5fb812278bd74a7425b6` |
 
 ## v0.9.19-r13 — Info 里移走 7 条过程细节（不新增开关）
 

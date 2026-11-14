@@ -497,6 +497,8 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handleCreateItem(session, packet)
 	case 744: // SwitchItemSlot
 		return s.handleSwitchItemSlot(session, packet)
+	case 948: // gcpPortalMove: the map-contact request of a portal
+		return s.handlePortalMove(session, packet)
 	case 801: // EnterShop
 		return s.handleShopEntry(session, packet)
 	case 802: // EnterInventory

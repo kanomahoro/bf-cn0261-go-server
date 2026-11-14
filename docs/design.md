@@ -53,6 +53,24 @@ spawn_index = team * 10 + teammate_ordinal * stride + respawn_count % stride + 1
 `spawn_index%10 ∈ [1,8]`，不合法时宁可不发 `S708`；这条校验是最后一道闸，正常路径下
 `NextSpawnIndex` 已经保证了范围。
 
+## 地图传送点（portal）
+
+客户端走进地图上的传送区时会发游戏连接的 `C948 gcpPortalMove`（14 字节：三个坐标 + 区域号 `u16`），
+等一条 `S958 gspPortalMove` 才播放传送动作。服务端的回答**只做放行 + 公告**：
+
+```
+C2S 948 gcpPortalMove : position_x f32 | position_y f32 | position_z f32 | portal_id u16
+S2C 958 gspPortalMove : unknown_4 u32 (0 放行 / -1 不移动) | portal_id u16 | seat u32
+```
+
+- 收包后只校验三件事：**正在对局中**、**这个 session 拥有该座位**、**坐标是有限浮点**；
+  通过就把 `{0, 同一区域号, 座位}` **广播给全房（含发起者自己）**
+- **不校验区域号是否存在、也不改服务端的位置状态**：位置权威一直在客户端，各客户端拿区域号
+  在自己地图数据里找传送点并执行移动。所以未知区域号不会让我们拒绝，只是对端解析不到东西
+- 同一次动作还有中继伴生帧 `rcpPortalMove`(26) / `rcpPortalMoveAfter`(27)：**它们不授予移动**，
+  参考实现只挂游戏连接那条请求，我们同样只认 `948`
+- 号必须按名字取：`958` 在 cn-774 / tw-454 上是 `gspRepRecheckMap`，cn-717 才是 `gspPortalMove`
+
 ## 结算与上限
 
 结算写库与结果界面（`S729`）共用同一个夹紧函数 `store.ClampGain`：
