@@ -142,11 +142,11 @@ type Room struct {
 	pirateWinner uint8
 	// pirateRandom records whether the pirate room's card names a Random entry, and
 	// pirateMarker is the marker it was created with (Random_Hot_Dif1..Dif3), which
-	// decides the next draw's difficulty. A round pins the map it drew into the card
-	// and the room puts the marker back when the round ends -- in the display slot
-	// only, with the map keys emptied, because this client resolves a card's map
-	// names against the scene its room stage still holds and a second name crashes
-	// its map dialog (2026-11-14: fault 0005 at 0x71DFE6, before the dialog opened).
+	// decides the next draw's difficulty. The marker is never written back into the
+	// card: a round pins the map it drew and the card keeps it, because this client's
+	// pirate room stage resolves current_map into the scene it renders and crashes
+	// its map dialog when that string is a Random marker or empty
+	// (2026-11-14: fault 0005 at 0x71DFE6, three card shapes tried).
 	pirateRandom bool
 	pirateMarker []uint16
 }
@@ -1447,8 +1447,8 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		}
 		if s.maps.IsHordeMap(mapName) {
 			// A marker in the card means the master never chose a map: keep the entry
-			// so every following round draws again (the round-end restore states it in
-			// the display slot, see cancelRound).
+			// so every following round draws again. The card itself keeps the map this
+			// round drew (see cancelRound).
 			if marker := protocol.FromU16(room.Setting.Game.Strings16[3]); strings.HasPrefix(marker, "Random") {
 				room.pirateMarker = room.Setting.Game.Strings16[3]
 				room.pirateRandom = true
