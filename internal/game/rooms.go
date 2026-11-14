@@ -2450,11 +2450,15 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			if stale {
 				return
 			}
-			// The reference restates the score data immediately before the result
-			// screen ("C724 -> S729 -> S705 ... S729 -> S733", capture 2026-11-14).
-			// The client builds the result table from that restatement.
-			if resultReply, err := protocol.CreateGameResultReply(teamScores, winner, rows); err == nil {
-				room.Broadcast(resultReply)
+			// The pirate battle's reference capture restates the score data immediately
+			// before the result screen ("C724 -> S729 -> S705 ... S729 -> S733",
+			// 2026-11-14), and that round's screen is built from the restatement. Only
+			// that mode is restated: every other mode settled the same way for months
+			// with a single scoreboard, and its sequence stays untouched.
+			if setting.Game.Mode == pirateModeID {
+				if resultReply, err := protocol.CreateGameResultReply(teamScores, winner, rows); err == nil {
+					room.Broadcast(resultReply)
+				}
 			}
 			room.Broadcast(protocol.Packet{ID: 733})
 			room.mu.Lock()
