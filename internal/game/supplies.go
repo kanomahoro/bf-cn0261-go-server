@@ -148,8 +148,10 @@ type supplyRound struct {
 	// refusal is set once a refused box is logged, so a client that keeps asking
 	// cannot flood the log.
 	refusal bool
-	// lootCreated counts the boxes a raid round's client asked for (mob loot).
+	// lootCreated counts the boxes a raid round's client asked for (mob loot), and
+	// lootTaken the ones a seat picked up.
 	lootCreated int
+	lootTaken   int
 }
 
 // itemMode reports whether the room runs the item battle.
@@ -539,8 +541,27 @@ func (s *Server) takeAmmoBox(room *Room, session *Session, objectID, kind uint32
 	// direct item effect for the immediate kinds, which is what these ammo boxes
 	// are), so that confirmation goes to that seat alone.
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
-	s.log.Debug("[Supplies] ammo box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)
+	// The raid's counted kinds are the item hub's ammunition: the client adds them to
+	// their slot count itself and only the immediate kinds (booster, supply grenade)
+	// are applied on pickup -- the reference sends gspPveItemUsed for those alone.
+	// Confirming a counted kind made every pickup fire the item at once.
+	apply := !room.PveBossRound() || !pveCountedKind(boxKind)
+	if apply {
+		_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
+	}
+	if room.PveBossRound() {
+		room.mu.Lock()
+		state.lootTaken++
+		first := state.lootTaken <= 5
+		count := state.lootTaken
+		room.mu.Unlock()
+		if first {
+			s.log.Info("[PveBoss] loot taken", "room", room.ID, "slot", seat, "kind", boxKind,
+				"object", objectID, "applied", apply, "count", count)
+		}
+	}
+	s.log.Debug("[Supplies] ammo box taken", "room", room.ID, "slot", seat, "kind", boxKind,
+		"object", objectID, "applied", apply)
 }
 
 // handleUseItem answers the held-item use (C708, empty body) by telling every

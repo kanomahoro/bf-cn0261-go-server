@@ -92,8 +92,24 @@ var pveMissionCounts = map[string][]uint32{
 }
 
 // pveCountedItemKinds are the three UI slots, in slot order: the medipack, the
-// bazooka and the air bomb the mode's ItemSpec enables (229/146/136).
+// bazooka and the air bomb the mode's ItemSpec enables (229/146/136). A pickup of
+// one of these adds to the hub's count; it is not used on the spot.
 var pveCountedItemKinds = []uint32{229, 146, 136}
+
+// pveImmediateItemKinds are applied the moment they are picked up: the booster and
+// the supply grenade (101 / 17), the reference's counted_immediate_item_kinds.
+var pveImmediateItemKinds = []uint32{101, 17}
+
+// pveCountedKind reports whether a dropped kind belongs to the item hub instead of
+// being used on the spot.
+func pveCountedKind(kind uint32) bool {
+	for _, counted := range pveCountedItemKinds {
+		if kind == counted {
+			return true
+		}
+	}
+	return false
+}
 
 // pvePointUnitValues is the score each reported unit index is worth. The table is
 // the legacy build's own (FighterConfig's score units 0..15).
