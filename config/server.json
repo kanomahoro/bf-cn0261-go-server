@@ -53,9 +53,6 @@
         "humanTurnMs": 12000,
         "zombiniTurnMs": 18000
     },
-    "pveBoss": {
-        "noInfection": false
-    },
     "admin": {
         "enabled": false,
         "listenAddress": "127.0.0.1",

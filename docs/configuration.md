@@ -151,21 +151,6 @@ INFO 只留一局一次的 `[Supplies] map report`。
 
 > 注意 `zombiniTurnMs` 里的 `zombini` 不是笔误 —— 字段从移植那天就这么拼，改它会破坏现有配置。
 
-## `pveBoss` — 僵尸袭击 BOSS 战（模式 16）的测试开关
-
-| 字段 | 默认 | 说明 |
-| --- | --- | --- |
-| `noInfection` | `false` | 打开后**死亡不会变成僵尸**，座位留在人类阵营。7 张图 MapMeta 的 `respawnEnable=1`，所以客户端走普通复活流程自己起来；单人测试时不会「一死就整局失败」。 |
-
-```json
-"pveBoss": {
-    "noInfection": false
-}
-```
-
-> 这是**测试开关**，不是玩法选项：打开后本局永远不可能因感染失败（超时/BOSS 结算仍然有效）。
-> 整个 `pveBoss` 段可以省略，缺省即关闭。
-
 ## `config/` 目录里的数据表
 
 | 文件 | 内容规模 | 管什么 |

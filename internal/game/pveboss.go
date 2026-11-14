@@ -748,14 +748,6 @@ func (s *Server) pveBossDeathSlot(room *Room, slot int) {
 		room.mu.Unlock()
 		return
 	}
-	// A practice run (config switch, off by default) leaves the dead seat on the human
-	// side: the maps declare respawnEnable 1, so the client's own respawn path brings
-	// it back, and a solo stage can be walked to its end without a single infection.
-	if s.cfg.PveBoss.NoInfection {
-		room.mu.Unlock()
-		s.log.Info("[PveBoss] practice: the seat stays human", "room", room.ID, "slot", slot)
-		return
-	}
 	if room.slots[slot].team == pveHumanTeam {
 		room.slots[slot].team = pveZombieTeam
 		convert = true
