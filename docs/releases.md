@@ -9,7 +9,8 @@
 | --- | --- | --- | --- | --- |
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
 | v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | 已交付（第一轮真机） |
-| v0.9.19-r2 | `26ee64f` | `v0.9.19-r2` | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | **已交付，待第二轮真机** |
+| v0.9.19-r2 | `26ee64f` | `v0.9.19-r2` | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | 已交付 |
+| v0.9.19-r3 | `cb4333a` | `v0.9.19-r3` | `bfserver-win64-v0.9.19-pveboss-r3-20261114.zip` | **已交付，待第三轮真机** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -42,6 +43,17 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | `544d080c206f433fabd425052bbba9f50cc0471fa980620a6825dbf729aa9c3a` |
 | `bfserver.exe`（包内） | `c6469b25da6718ecd0c7fd38ae5f2138f76af7a5bd1d94db7fb8c64c85b93c41` |
 | `bfserver-linux-amd64` | `ec0d2bf29c0e0ae2c6c9d2f82f660ae74c4a03c1c965c4aed6ef8e2b2b11fa93` |
+
+## v0.9.19-r3 — 实时计分表回显
+
+提交：`cb4333a` `fix(pveboss): echo the live score table the client asks for`
+（`C710`/`C2023` → `S729`；真机日志里客户端 2 分钟发了 140 次 C710，我们全丢了）
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r3-20261114.zip` | `9e21e4a4ad347d1c0283090c81f986793bf2b23ce189358ddf4239eb2a1251fc` |
+| `bfserver.exe`（包内） | `038407a7987b5b7f929ce95798df98843001018551db8d20f26d9456460f8914` |
+| `bfserver-linux-amd64` | `ea245f6cb7bf606c9fcc6e4d71b5cc90d9264498739632d822b72febb2c2abcb` |
 
 **这一版的单元测试**（14 个，`*_test.go` 不进版本库）留档在
 `~/.openclaw/workspace/artifacts/2026-11-14-pveboss/`。
