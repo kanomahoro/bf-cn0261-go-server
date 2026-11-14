@@ -140,10 +140,13 @@ type Room struct {
 	// pirates) and is read once by finishRound, like the bomb series' winner.
 	pirate       *pirateState
 	pirateWinner uint8
-	// pirateMarker is the Random marker a pirate room's map strings held when the
-	// round pinned the map it drew. The round puts it back into the second and fourth
-	// strings, so a room whose master never chose a map draws a fresh one next round
-	// (roundMap reads the fourth string) and its card shows the random entry again.
+	// pirateRandom records whether the pirate room's card names a Random entry, and
+	// pirateMarker is the marker it was created with (Random_Hot_Dif1..Dif3). The
+	// marker decides the next draw's difficulty; it is never written back into the
+	// card, because this client resolves the card's map strings while its room stage
+	// still holds the scene the last round played, and a name it cannot resolve
+	// crashes it (2026-11-14: the map dialog died before it opened).
+	pirateRandom bool
 	pirateMarker []uint16
 }
 
@@ -843,6 +846,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 		captains:       [3]int{captainNone, captainNone, captainNone},
 	}
 	room.SetPassword(request.Password)
+	room.setPirateMapChoice(game)
 	s.nextRoom++
 	if s.nextRoom == 0 {
 		s.nextRoom = 1
@@ -1215,6 +1219,7 @@ func (s *Server) handleGameSetting(session *Session, packet protocol.Packet) err
 	changed := !gameSettingEqual(current.Game, normalized)
 	current.Game = normalized
 	room.SetSetting(current)
+	room.setPirateMapChoice(normalized)
 
 	// A settings change clears every seat's ready flag in the reference server.
 	// The seats must be republished with it: without S503 the clients keep
@@ -1297,15 +1302,21 @@ func (s *Server) handlePartyChat(session *Session, packet protocol.Packet) error
 // draws a fresh one on every round, and the marker in the fourth setting string is
 // what says so: the second string only holds the name the round before pinned for
 // the client's relay report, so it cannot tell a choice from a leftover.
-func roundMap(maps world.Maps, setting protocol.SessionSetting) string {
+func roundMap(maps world.Maps, setting protocol.SessionSetting, pirateRandom bool, pirateMarker string) string {
+	if setting.Game.Mode == pirateModeID && pirateRandom {
+		// A pirate room keeps its Random entry in the room state, not in the card:
+		// the card hands the client the map the last round drew, so the next round
+		// still draws (pirateRandom) while the room stage shows a name it resolved.
+		theme := protocol.FromU16(setting.Game.Strings16[2])
+		candidates := maps.HordeCandidates(theme, pirateDifficulty(pirateMarker))
+		if len(candidates) > 0 {
+			return candidates[mathrand.Intn(len(candidates))].ResourceName
+		}
+		return maps.DefaultRulesMap
+	}
 	if strings.HasPrefix(protocol.FromU16(setting.Game.Strings16[3]), "Random") {
 		theme := protocol.FromU16(setting.Game.Strings16[2])
 		candidates := maps.Candidates(setting.Game.Mode, theme)
-		if setting.Game.Mode == pirateModeID {
-			// A pirate room's random entry also carries the difficulty the client's
-			// own Random_Hot_DifN marker asked for.
-			candidates = maps.HordeCandidates(theme, pirateDifficulty(protocol.FromU16(setting.Game.Strings16[3])))
-		}
 		if len(candidates) > 0 {
 			return candidates[mathrand.Intn(len(candidates))].ResourceName
 		}
@@ -1401,7 +1412,8 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 		}
 	}
 
-	mapName := roundMap(s.maps, settingNow)
+	pirateRandom, pirateMarker := room.pirateChoice()
+	mapName := roundMap(s.maps, settingNow, pirateRandom, pirateMarker)
 	// The bomb mission only runs its own six maps: a competitive map would be
 	// loaded by a mode that has no round rules for it, which crashes the client.
 	// Refusing the start keeps the room open so the host can pick another map.
@@ -1433,12 +1445,12 @@ func (s *Server) enterGame(session *Session, room *Room, start protocol.GameStar
 			room.Setting.Game.Strings16[1] = protocol.U16String(stage)
 		}
 		if s.maps.IsHordeMap(mapName) {
-			// Remember the random marker before the round replaces it: roundMap reads
-			// that string to tell a drawn map from a chosen one.
+			// A marker in the card means the master never chose a map: keep the entry
+			// so every following round draws again. The card itself is replaced by the
+			// map this round drew and never shows the marker again (see pirateRandom).
 			if marker := protocol.FromU16(room.Setting.Game.Strings16[3]); strings.HasPrefix(marker, "Random") {
 				room.pirateMarker = room.Setting.Game.Strings16[3]
-			} else {
-				room.pirateMarker = nil
+				room.pirateRandom = true
 			}
 			room.Setting.Game.Strings16[3] = protocol.U16String(mapName)
 			// The Lua difficulty follows the map the round actually drew: a plain Random
@@ -2043,7 +2055,6 @@ func (s *Server) cancelRound(room *Room) {
 	if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
 		room.Setting.Game.Strings16[1] = nil
 	}
-	room.restorePirateMap()
 	room.life = nil
 	room.pings = nil
 	room.supplies = nil
@@ -2126,7 +2137,6 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	pirateDecided := room.pirateWinner != 0
 	room.pirate = nil
 	room.pirateWinner = 0
-	room.restorePirateMap()
 	if pirateDecided {
 		// A cooperative round has no team totals of its own: the waves decide. The
 		// result screen still reads them, and an all-zero line has shown a cleared
@@ -2477,17 +2487,30 @@ func roomIDTracking(room *Room) int {
 	return room.tracking
 }
 
-// restorePirateMap puts the Random marker back into a pirate room's three map
-// strings after a round replaced them with the map it drew. The create shape of a
-// room whose master never chose a map carries that marker in all three
-// (packets/builds.yaml: a mode-101 create names Random_Hot_Dif1 there), so the room
-// goes back to exactly that and the next round draws again. Called under the room
-// lock wherever a round ends.
-func (r *Room) restorePirateMap() {
-	if r.Setting.Game.Mode != pirateModeID || r.pirateMarker == nil {
+// setPirateMapChoice records what a pirate room's card says about the map: a
+// Random entry keeps its marker for the next draw's difficulty, a named map clears
+// it. Called wherever a client request rewrites the room's setting.
+func (r *Room) setPirateMapChoice(game protocol.GameSetting) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if game.Mode != pirateModeID {
+		r.pirateRandom = false
+		r.pirateMarker = nil
 		return
 	}
-	r.Setting.Game.Strings16[1] = r.pirateMarker
-	r.Setting.Game.Strings16[3] = r.pirateMarker
+	marker := protocol.FromU16(game.Strings16[3])
+	if strings.HasPrefix(marker, "Random") {
+		r.pirateRandom = true
+		r.pirateMarker = game.Strings16[3]
+		return
+	}
+	r.pirateRandom = false
 	r.pirateMarker = nil
+}
+
+// pirateChoice reports the room's Random entry and the marker it carries.
+func (r *Room) pirateChoice() (bool, string) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.pirateRandom, protocol.FromU16(r.pirateMarker)
 }
