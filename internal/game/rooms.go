@@ -2053,16 +2053,12 @@ func (s *Server) cancelRound(room *Room) {
 	// A room whose map was never chosen shows the random entry again: the pinned
 	// name only existed for the round that just ended, and a room that did choose
 	// one keeps it.
-	if room.Setting.Game.Mode == pirateModeID && room.pirateRandom && room.pirateMarker != nil {
-		// The pirate room states its all-random entry exactly the way every other
-		// mode's random room does after a round: the display slot and the map key
-		// carry the marker while current_map is emptied. Writing the marker into
-		// current_map is what crashed this client's map dialog -- its room stage
-		// still holds the scene the round played (2026-11-14, fault 0x71DFE6).
-		room.Setting.Game.Strings16[0] = room.pirateMarker
-		room.Setting.Game.Strings16[1] = nil
-		room.Setting.Game.Strings16[3] = room.pirateMarker
-	} else if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
+	// A pirate round's room stage resolves current_map into the scene it renders, and
+	// it crashes the client's map dialog when that string is a Random marker or
+	// empty (2026-11-14, fault 0x71DFE6; three shapes tried, only the scene worked).
+	// Its card therefore keeps the map the round drew, the way another mode's card
+	// keeps the map it played; pirateRandom still makes the next round draw again.
+	if strings.HasPrefix(protocol.FromU16(room.Setting.Game.Strings16[3]), "Random") {
 		room.Setting.Game.Strings16[1] = nil
 	}
 	room.life = nil
