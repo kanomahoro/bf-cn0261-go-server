@@ -59,7 +59,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 20 | 队长战 | 开局点名（S982）、阵亡转交（泡封中不接任）、队长 ULTRA | v0.5.0 | 定稿 · 已在 `main` | [`CAPTAIN.md`](CAPTAIN.md) |
 | 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | **定稿** | [`BOMB.md`](BOMB.md) |
 | 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 | [`TUTORIAL.md`](TUTORIAL.md) |
-| 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算（不发奖励）、弹药箱 | v0.9.0 | **首次实现 · 待真机** | [`PIRATE.md`](PIRATE.md) |
+| 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算（不发奖励）、弹药箱、结算面板计分（泡封/击爆/营救） | v0.9.0 | **单人+双人真机通过**（v0.9.18 定版） | [`PIRATE.md`](PIRATE.md) |
 | 16 | 僵尸 BOSS（PVE 救援） | — | 未做 | 待做 | — |
 
 `main` 之后（v0.6.0 → v0.9.0）修掉的问题逐条记在 [`CHANGELOG.md`](CHANGELOG.md)：每条都有现象、
@@ -214,15 +214,18 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 默认 `info`，文件在 `Logs/Server.log`（5 MB 自动轮转，保留 3 份）。一局通常只写十几行，
 适合直接贴给作者定位问题。
 
-- **级别**：`info` 只有开局/结算/退房这类骨架；`warn` 是玩家能感觉到的问题；`debug` 才是逐包细节
-- **子系统前缀**：`[Round]` `[Room]` `[Plaza]` `[Channel]` `[Life]` `[Respawn]` `[Supplies]`
-  `[Zombie]` `[Relay]` `[Network]` `[Login]` `[Authentication]` `[Admin]` `[Sniper]`
+- **级别**：`info` 只有开局/结算/退房这类骨架（每局个位数）；`warn` 是**预期外的降级**但服务端已兜底、
+  玩家基本无感；`debug` 才是逐包逐帧细节
+- **子系统前缀**（`Info`/`Warn`/`Error` 一律带）：`[Application]` `[Database]` `[Round]` `[Room]` `[Plaza]`
+  `[Channel]` `[Session]` `[Login]` `[Authentication]` `[Relay]` `[Supplies]` `[Defense]` `[Zombie]`
+  `[Bomb]` `[Pirate]` `[Tutorial]` `[Captain]` `[Shop]` `[Admin]`
 - **该 grep 哪几句**：
-  - `[Round] started` / `[Round] ended` —— 一局的起止（带比分、时长、结束原因）
-  - `relay transport lost` / `[Relay] registration timeout` —— 中继链路出问题
-  - `loading timed out` —— 有人卡在加载，回合被取消
+  - `[Round] started` / `[Round] ended` —— 一局的起止（带比分、结束原因）
+  - `[Relay] transport lost` / `[Relay] registration timeout` —— 中继链路出问题
+  - `loading timed out` —— 有人卡在加载，回合被取消（`[Round]` / `[Bomb]` 两种前缀）
   - `[Round] settlement clamped` —— 满级或钱包到上限，属正常
-  - `game result packet rejected` —— 结算包被拒，通常是角色数据异常
+  - `[Round] result packet rejected` —— 结算包被拒，通常是角色数据异常
+  - `[Defense] seeds forced without every character report` —— 有座位没报角色，防御种子被迫提前下发
 
 分级原则（哪些事件走 Info、哪些只能 Debug）见 [`docs/logging.md`](docs/logging.md)；
 各段默认值与轮转行为见 [`docs/configuration.md`](docs/configuration.md)。
