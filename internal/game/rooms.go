@@ -1857,7 +1857,10 @@ func (s *Server) startRound(room *Room, tracking int) {
 // mission rather than by a team total, and this client drops a few seconds after
 // the packet arrives (sub-rounds 2026-11-10, the settled match 2026-11-11).
 func sendsWinnerAnnouncement(mode uint32) bool {
-	return mode != bombModeID
+	// The bomb series and the pirate battle decide their result without the two team
+	// totals: the reference's own pirate settlement sends no S732 at all (captured
+	// 2026-11-14: C724 -> S729 -> S705, then S729 -> S733 -> S110).
+	return mode != bombModeID && mode != pirateModeID
 }
 
 // roundClockExpired ends the round the clock ran out on. The bomb mission decides
@@ -2464,6 +2467,12 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			room.mu.Unlock()
 			if stale {
 				return
+			}
+			// The reference restates the score data immediately before the result
+			// screen ("C724 -> S729 -> S705 ... S729 -> S733", capture 2026-11-14).
+			// The client builds the result table from that restatement.
+			if resultReply, err := protocol.CreateGameResultReply(teamScores, winner, rows); err == nil {
+				room.Broadcast(resultReply)
 			}
 			room.Broadcast(protocol.Packet{ID: 733})
 			room.mu.Lock()
