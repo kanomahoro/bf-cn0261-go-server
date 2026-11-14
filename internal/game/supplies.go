@@ -148,6 +148,8 @@ type supplyRound struct {
 	// refusal is set once a refused box is logged, so a client that keeps asking
 	// cannot flood the log.
 	refusal bool
+	// lootCreated counts the boxes a raid round's client asked for (mob loot).
+	lootCreated int
 }
 
 // itemMode reports whether the room runs the item battle.
@@ -184,8 +186,14 @@ func ammoSupplyMode(mode uint32) bool {
 // keeps their kinds in its two item slots; an ammo mode only hands out
 // ammunition, and in the zombie battle either side may take a box (a zombie that
 // takes one denies it to the humans, which is part of the mode).
+//
+// The raid is in here for a different reason: its client materialises a mob's loot
+// by asking the server to create the box (C728), and takes it with the ordinary
+// pickup (C707). Without the mode the boxes are never created, which is exactly
+// what the first real-machine run showed -- no drop ever appeared, and the counted
+// item HUD never moved.
 func (s *Server) supplyMode(room *Room) bool {
-	return s.itemMode(room) || ammoSupplyMode(room.SettingCopy().Game.Mode)
+	return s.itemMode(room) || ammoSupplyMode(room.SettingCopy().Game.Mode) || room.PveBossRound()
 }
 
 // suppliesPlaying reports whether the room is in play, which is when the item
@@ -327,7 +335,10 @@ func (s *Server) handleEatItem(session *Session, packet protocol.Packet) error {
 		return nil
 	}
 	seat := session.slot
-	if ammoSupplyMode(room.SettingCopy().Game.Mode) {
+	// The raid takes its loot through the same path as an ammo box: the box was
+	// created on the client's own request, so the round only removes it for everyone
+	// and confirms the kind to the taker -- which is what moves the counted HUD.
+	if ammoSupplyMode(room.SettingCopy().Game.Mode) || room.PveBossRound() {
 		s.takeAmmoBox(room, session, objectID, kind)
 		return nil
 	}
@@ -574,7 +585,13 @@ func (s *Server) handleUseItem(session *Session, packet protocol.Packet) error {
 // creation envelope the client's box handler expects.
 func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) error {
 	room := session.room
-	if room == nil || !seated(session) || !s.itemMode(room) || !suppliesPlaying(room) {
+	if room == nil || !seated(session) || !suppliesPlaying(room) {
+		return nil
+	}
+	// The raid's client asks for the box a mob just dropped; the item battle asks for
+	// the box a seat threw. Every other ammo mode ignores the request.
+	raid := room.PveBossRound()
+	if !s.itemMode(room) && !raid {
 		return nil
 	}
 	request, err := protocol.ReadSupplyDrop(packet)
@@ -587,7 +604,10 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	// it does: that is the box the player finds at the spawn point in its team's
 	// colour. So a random box is only honoured inside the respawn window.
 	boxTeam := uint32(0)
-	if request.Kind == 0 {
+	// The respawn-box rule below belongs to the item battle: its client asks for a
+	// random box on every knock-down. The raid's requests are loot, so every one of
+	// them is honoured as asked.
+	if request.Kind == 0 && !raid {
 		room.mu.RLock()
 		back := room.respawnAt[session.slot]
 		team := room.slots[session.slot].team
@@ -628,7 +648,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	// is occupied, refuses every later pickup and the player cannot use what it does
 	// not know about.
 	thrownSlot := -1
-	if request.Kind != 0 {
+	if request.Kind != 0 && !raid {
 		if held := state.held[session.slot]; held != nil {
 			if slot, ok := held.remove(request.Kind); ok {
 				thrownSlot = slot
@@ -643,9 +663,23 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 	room.Broadcast(protocol.CreateSupplyCreate(objectID, class, protocol.SupplyReportPoint{
 		X: request.X, Y: request.Y, Z: request.Z, Kind: request.Kind, Team: boxTeam,
 	}))
-	s.log.Debug("[Supplies] box created", "room", room.ID, "slot", session.slot,
-		"kind", request.Kind, "object", objectID, "class", class,
-		"team", boxTeam, "thrown_slot", thrownSlot)
+	if raid {
+		// Loot: the first few creations are logged at Info so a run shows whether the
+		// client materialises drops at all and which kinds they carry.
+		room.mu.Lock()
+		state.lootCreated++
+		first := state.lootCreated <= 5
+		count := state.lootCreated
+		room.mu.Unlock()
+		if first {
+			s.log.Info("[PveBoss] loot box created", "room", room.ID, "slot", session.slot,
+				"kind", request.Kind, "object", objectID, "class", class, "count", count)
+		}
+	} else {
+		s.log.Debug("[Supplies] box created", "room", room.ID, "slot", session.slot,
+			"kind", request.Kind, "object", objectID, "class", class,
+			"team", boxTeam, "thrown_slot", thrownSlot)
+	}
 	return nil
 }
 
