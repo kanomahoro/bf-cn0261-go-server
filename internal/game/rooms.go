@@ -2412,6 +2412,12 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			won := member.Team == decided
 			s.log.Info("[Round] seat outcome", "room", room.ID, "slot", member.Slot,
 				"team", member.Team, "decided", decided, "won", won)
+			if setting.Game.Mode == pirateModeID {
+				// The pirate battle states which side won (2 blue / 3 red), not the
+				// recipient's own result: the client compares it with its local team.
+				_ = member.Session.Send(protocol.CreateHordeOutcomeReply(member.Team, won))
+				continue
+			}
 			_ = member.Session.Send(protocol.CreateGameOutcomeReply(won))
 		}
 	} else {
