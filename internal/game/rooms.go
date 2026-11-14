@@ -252,11 +252,16 @@ func (r *Room) ReserveSlot(session *Session, capacity int) (int, uint8, error) {
 		return -1, 0, errRoomFull
 	}
 	// Balance by count like the reference's ChooseTeam: the smaller team takes the
-	// newcomer, so a four player room ends up 1,2,1,2 instead of 1,2,2,2. The
-	// pirate battle is cooperative: every seat fights the waves, so no seat is ever
-	// moved to the second team there.
+	// newcomer, so a four player room ends up 1,2,1,2 instead of 1,2,2,2. A pirate
+	// room is cooperative and puts every seat on the seats' own team instead.
 	team := uint8(1)
-	if r.Setting.Game.Mode != pirateModeID {
+	if r.Setting.Game.Mode == pirateModeID {
+		// The pirate battle is cooperative and its own seat records carry team 2: the
+		// client copies the local seat's team onto the mission's friendly NPCs and
+		// reads its own team from the seat records it joined through, so the card
+		// states it from the start rather than only once the round begins.
+		team = pirateSeatTeam
+	} else {
 		first, second := 0, 0
 		for _, entry := range r.slots {
 			if entry.session == nil {
@@ -856,7 +861,11 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	s.rooms[room.ID] = room
 	s.mu.Unlock()
 
-	if err := room.Add(0, session, 1); err != nil {
+	creatorTeam := uint8(1)
+	if room.Setting.Game.Mode == pirateModeID {
+		creatorTeam = pirateSeatTeam
+	}
+	if err := room.Add(0, session, creatorTeam); err != nil {
 		s.mu.Lock()
 		delete(s.rooms, room.ID)
 		s.mu.Unlock()
@@ -1221,6 +1230,7 @@ func (s *Server) handleGameSetting(session *Session, packet protocol.Packet) err
 	current.Game = normalized
 	room.SetSetting(current)
 	room.setPirateMapChoice(normalized)
+	room.applyPirateSeatTeams(normalized.Mode)
 
 	// A settings change clears every seat's ready flag in the reference server.
 	// The seats must be republished with it: without S503 the clients keep
@@ -2521,6 +2531,25 @@ func (r *Room) setPirateMapChoice(game protocol.GameSetting) {
 	}
 	r.pirateRandom = false
 	r.pirateMarker = nil
+}
+
+// applyPirateSeatTeams puts every seated member on the pirate battle's own team when
+// the room runs that mode, and back on the first team when it does not. The client
+// reads its team from the seat records it is sent, so the room states the mode's
+// team before the round rather than only at its start.
+func (r *Room) applyPirateSeatTeams(mode uint32) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for slot := range r.slots {
+		if r.slots[slot].session == nil {
+			continue
+		}
+		if mode == pirateModeID {
+			r.slots[slot].team = pirateSeatTeam
+		} else if r.slots[slot].team == pirateSeatTeam {
+			r.slots[slot].team = 1
+		}
+	}
 }
 
 // pirateChoice reports the room's Random entry and the marker it carries.
