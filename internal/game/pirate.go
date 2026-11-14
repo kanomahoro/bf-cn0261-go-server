@@ -294,8 +294,13 @@ func (s *Server) pirateAllWaves(session *Session, room *Room, packet protocol.Pa
 		s.log.Debug("[Pirate] a repeated cleared report", "room", room.ID)
 		return
 	}
-	_ = session.Send(protocol.Packet{ID: 906})
-	s.log.Info("[Pirate] every wave cleared", "room", room.ID, "wave", state.wave)
+	// Every seat's wave manager holds its clear until this reply arrives, and only the
+	// host reports the waves: a seat that never receives it keeps the round unfinished
+	// and shows the failed banner on its own client (2026-11-14, two-seat round: the
+	// reporting host showed the cleared result, the other seat the failed one).
+	room.Broadcast(protocol.Packet{ID: 906})
+	s.log.Info("[Pirate] every wave cleared", "room", room.ID, "wave", state.wave,
+		"seats", room.Occupied())
 }
 
 // pirateStageResult handles the host's stage result (724): word 1 is a cleared
