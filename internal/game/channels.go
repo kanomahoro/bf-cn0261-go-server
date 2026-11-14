@@ -410,7 +410,11 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// rewriting it to, say, Village left the dialog on that tab and the host saw
 		// three maps until the "all" tab refreshed the six.
 		themeSlot := chosen.Theme
-		if request.Mode == bombModeID || request.Mode == pirateModeID {
+		if request.Mode == bombModeID || request.Mode == pirateModeID || request.Mode == pveBossModeID {
+			// The raid has the same shape as the bomb mission and the pirate battle:
+			// its own map rows belong to several themes, and a card that states the
+			// chosen map's theme opens the dialog on that tab with one or two maps
+			// until the host clicks the all tab (bomb mission, 2026-11-11).
 			themeSlot = theme
 		}
 		setting.Strings16 = [4][]uint16{

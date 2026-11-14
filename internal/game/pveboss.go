@@ -1,6 +1,7 @@
 package game
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -134,6 +135,15 @@ type pveBossState struct {
 	// stageDone records the master's stage word, so a repeated report cannot settle
 	// the round twice.
 	stageDone bool
+	// unitReports counts the score-unit reports (C923) and unitScored those that paid
+	// points. Both are printed when the stage settles: a run whose ranking stays at
+	// zero is answered by these two numbers (a client that sends nothing looks
+	// different from one whose units carry no value).
+	unitReports int
+	unitScored  int
+	// unknownLogged counts the room-level packets a raid round did not claim and the
+	// log has already printed, so a client that repeats one cannot flood the log.
+	unknownLogged int
 }
 
 // beginPveBossRound installs the raid round state and puts every seat on the
@@ -416,6 +426,25 @@ func (state *pveBossState) rankRowsLocked(room *Room) []protocol.PveRankRow {
 	return rows
 }
 
+// notePveUnknown prints a room-level packet a raid round did not claim. The mode's
+// score-unit report is the one opcode this build's catalog only *infers* (gcpPvePangUnit
+// at 923), so a run whose PVE ranking stays at zero has to show what the client
+// actually sent. Bounded to the first few per round.
+func (s *Server) notePveUnknown(room *Room, session *Session, packet protocol.Packet, preview []byte) {
+	room.mu.Lock()
+	state := room.pveBoss
+	if state == nil || state.unknownLogged >= 30 {
+		room.mu.Unlock()
+		return
+	}
+	state.unknownLogged++
+	count := state.unknownLogged
+	room.mu.Unlock()
+	s.log.Info("[PveBoss] unclaimed room packet", "room", room.ID, "session", session.ID,
+		"id", packet.ID, "len", len(packet.Payload), "hex", fmt.Sprintf("%x", preview),
+		"count", count)
+}
+
 // pveBossPacketID reports whether an id belongs to a raid round's traffic. The
 // numbers are shared with other modes, so the room's mode decides.
 func pveBossPacketID(id uint16) bool {
@@ -535,15 +564,12 @@ func (s *Server) pveBossPoints(session *Session, room *Room, packet protocol.Pac
 		s.log.Debug("[PveBoss] unreadable score unit", "session", session.ID, "error", err)
 		return
 	}
-	// A unit of -1 is an NPC spawned without a score row; it scores nothing.
-	if unit == ^uint32(0) || unit >= uint32(len(pvePointUnitValues)) {
-		s.log.Debug("[PveBoss] score unit without a value", "room", room.ID, "unit", unit)
-		return
-	}
 	var (
 		amount uint32
 		seat   int
 		rows   []protocol.PveRankRow
+		logIt  bool
+		reason string
 	)
 	room.mu.Lock()
 	state := room.pveBoss
@@ -553,17 +579,40 @@ func (s *Server) pveBossPoints(session *Session, room *Room, packet protocol.Pac
 		room.mu.Unlock()
 		return
 	}
-	// Converted seats fight the humans now; their kills do not score the raid.
-	if room.slots[slot].team != pveHumanTeam {
-		room.mu.Unlock()
-		return
+	state.unitReports++
+	// The first few reports are logged at Info so a single test run answers whether
+	// the client reports units at all and what they carry; the rest stays in debug.
+	logIt = state.unitReports <= 5
+	switch {
+	case unit == ^uint32(0) || unit >= uint32(len(pvePointUnitValues)):
+		// A unit of -1 is an NPC spawned without a score row; it pays nothing.
+		reason = "no value"
+	case room.slots[slot].team != pveHumanTeam:
+		// Converted seats fight the humans now; their kills do not score the raid.
+		reason = "reporter turned"
+	default:
+		amount = pvePointUnitValues[unit]
+		state.points[slot] += amount
+		state.unitScored++
+		seat = slot
+		rows = state.rankRowsLocked(room)
 	}
-	amount = pvePointUnitValues[unit]
-	state.points[slot] += amount
-	seat = slot
-	rows = state.rankRowsLocked(room)
 	room.mu.Unlock()
 
+	if reason != "" {
+		if logIt {
+			s.log.Info("[PveBoss] score unit ignored", "room", room.ID, "slot", slot,
+				"unit", unit, "reason", reason)
+		} else {
+			s.log.Debug("[PveBoss] score unit ignored", "room", room.ID, "slot", slot,
+				"unit", unit, "reason", reason)
+		}
+		return
+	}
+	if logIt {
+		s.log.Info("[PveBoss] score unit accepted", "room", room.ID, "slot", seat,
+			"unit", unit, "amount", amount)
+	}
 	if point, err := protocol.CreateNotifyGamePointReply(uint32(seat), 0, amount); err == nil {
 		room.Broadcast(point)
 	}
@@ -822,7 +871,14 @@ func (s *Server) pveBossStageResult(session *Session, room *Room, packet protoco
 		s.log.Debug("[PveBoss] a repeated stage result", "room", room.ID, "completed", completed)
 		return
 	}
-	s.log.Info("[PveBoss] stage reported", "room", room.ID, "completed", completed, "winner", winner)
+	room.mu.RLock()
+	reports, scored := 0, 0
+	if state := room.pveBoss; state != nil {
+		reports, scored = state.unitReports, state.unitScored
+	}
+	room.mu.RUnlock()
+	s.log.Info("[PveBoss] stage reported", "room", room.ID, "completed", completed, "winner", winner,
+		"score_unit_reports", reports, "score_units_scored", scored)
 	s.finishRound(room, false)
 }
 

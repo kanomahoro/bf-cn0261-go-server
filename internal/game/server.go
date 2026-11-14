@@ -581,6 +581,12 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 	if len(preview) > 48 {
 		preview = preview[:48]
 	}
+	// A raid round leaves this net only for the numbers it does not claim; printing
+	// them is how a run tells "the client never reports score units" from "it reports
+	// them under another opcode" (see notePveUnknown).
+	if room := session.room; room != nil && packet.ID < 1000 && room.PveBossRound() {
+		s.notePveUnknown(room, session, packet, preview)
+	}
 	s.log.Debug("unhandled packet", "session", session.ID, "id", packet.ID,
 		"len", len(packet.Payload), "hex", fmt.Sprintf("%x", preview))
 	return nil
