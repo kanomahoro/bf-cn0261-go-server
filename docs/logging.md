@@ -19,16 +19,30 @@
 | `[Bomb] no load report … counting down anyway` | Info | 已知常态（子局不重报 C701） |
 | `[Tutorial] select` / `stage opened` / `stage started` / `stage ended` / `back to …` | Info | 一次教程每关一次 |
 | `[Tutorial] stage list` / `goal counted` / `spawn group echo` / `wave table echoed` | **Debug** | 过程细节，`goal counted` 每击杀一条 |
-| `[Tutorial] wave` | Info | 波次推进，prologue 只有几条 |
+| `[Tutorial] wave` | **Debug** | 逐波推进，属过程（营救/波次排查才看） |
 | `[Supplies] map report` | Info | 每局一次，记录点数与刷新间隔 |
 | `[Supplies] 具体转发/拾取` | Debug | 高频 |
-| `countdown ended without every defense seed confirmation` | Info | 客户端常不回种子确认，不是故障 |
-| `defense seeds forced without every character report` | Info | 同上 |
+| `[Defense] countdown ended without every seed confirmation` | Warn | 有座位没到种子确认，已兜底但值得看一眼 |
+| `[Defense] seeds forced without every character report` | Warn | 同上 |
+| `[Pirate] the run starts` / `wave` / `wave table` / `every wave cleared` / `stage reported` | Info | 每局/每波一条，多人结算排查靠它 |
+| `[Pirate] round start packet` / `[Pirate] spawn frame from the host` / `[Pirate] drop traffic ignored` | **Debug** | 逐波逐帧的过程细节（含 hex） |
 | `loading timed out` / `[Bomb] the match settlement was dropped` / `[Bomb] the armed bomb was never reported` | Warn | 真异常，但已有兜底 |
 | `[Plaza] dropping a seat whose session is gone` | Debug | 断线清理的常态 |
 | `[Channel] move refused: single channel` | Debug | 客户端会重复请求，否则刷屏 |
 | `inbound` / `outbound` / `[Relay] inbound` / `[Relay] consumed` | Debug | 协议排查的基石，量大 |
 | `peer life` / `peer kick` / `[Life] event dropped` | Debug | 计分排查用（`accepted` / `special` / `direct` 都在里） |
+
+## 输出格式
+
+- 每条 `Info` / `Warn` / `Error` 的消息都以 `[子系统]` 前缀开头：`[Round]`、`[Pirate]`、`[Bomb]`、
+  `[Tutorial]`、`[Zombie]`、`[Captain]`、`[Supplies]`、`[Defense]`、`[Relay]`、`[Session]`、`[Login]`、
+  `[Authentication]`、`[Admin]`、`[Shop]`、`[Database]`、`[Application]`、`[Room]`、`[Plaza]`、`[Channel]`
+- 结构化字段一律 `key=value`（slog 的 `TextHandler` 输出），键用小写驼峰：`room`、`slot`、`session`、
+  `map`、`winner`、`bytes`、`hex`、`error`
+- `Debug` 的协议日志保留裸消息（`inbound` / `outbound` / `[Relay] inbound` / `[Relay] consumed`），
+  它们本身就是「id + len」的机器可读行，加前缀反而不好 grep
+- 一个事件只打一条：`.Info` 里不再重复 Debug 已经写过的细节（例：结算只打 `[Round] ended`，
+  逐座位的结果字留在 Debug）
 
 ## 别做的事
 
