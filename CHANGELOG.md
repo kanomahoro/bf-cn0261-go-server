@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.9.19-r13（2026-11-14，Info 级别收敛）
+
+真实两局日志里 Info 有 80 余条，其中 70 多条是过程细节。把 7 条降到 Debug，**不新增任何开关**：
+
+- `[PveBoss] unclaimed room packet`（该局 60 条）
+- `[PveBoss] score unit accepted` / `score unit ignored`
+- `[PveBoss] loot box created`
+- `[PveBoss] the raid starts`（与 `the round starts` 重复）
+- `[PveBoss] a zombie seat came back`
+- `[Pirate] spawn group from the host`
+
+保留 Info 的仍是一局个位数的里程碑（回合开始/结束、任务、转队、通关、波次、地图上报）。
+移走后同一局 Info 约 25 条。行为零改动。
+
 ## v0.9.19-r12（2026-11-14，管理后台补齐全部模式）
 
 游玩逻辑零改动，只修管理后台：

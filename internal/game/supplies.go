@@ -681,7 +681,7 @@ func (s *Server) handleCreateItem(session *Session, packet protocol.Packet) erro
 		count := state.lootCreated
 		room.mu.Unlock()
 		if first {
-			s.log.Info("[PveBoss] loot box created", "room", room.ID, "slot", session.slot,
+			s.log.Debug("[PveBoss] loot box created", "room", room.ID, "slot", session.slot,
 				"kind", request.Kind, "object", objectID, "class", class, "count", count)
 		}
 	} else {

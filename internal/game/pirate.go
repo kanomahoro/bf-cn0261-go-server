@@ -171,7 +171,7 @@ func (s *Server) handlePiratePacket(session *Session, packet protocol.Packet) bo
 		if word, err := pirateWaveWord(packet); err == nil {
 			group = word
 		}
-		s.log.Info("[Pirate] spawn group from the host", "room", room.ID,
+		s.log.Debug("[Pirate] spawn group from the host", "room", room.ID,
 			"group", group, "bytes", len(packet.Payload),
 			"hex", fmt.Sprintf("%x", packet.Payload))
 	case 32920:

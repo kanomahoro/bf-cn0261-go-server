@@ -271,7 +271,7 @@ func (s *Server) startPveBossSchedule(room *Room, generation int) {
 	room.mu.Unlock()
 
 	s.broadcastPveRanks(room, rows)
-	s.log.Info("[PveBoss] the raid starts", "room", room.ID, "map", mapKey,
+	s.log.Debug("[PveBoss] the raid starts", "room", room.ID, "map", mapKey,
 		"missions", missions, "points_units", len(pvePointUnitValues),
 		"round_ms", pveRoundLimitMs)
 	s.armPveBossTimer(room, generation, pveMissionStartMs[0])
@@ -451,7 +451,7 @@ func (s *Server) notePveUnknown(room *Room, session *Session, packet protocol.Pa
 	state.unknownLogged++
 	count := state.unknownLogged
 	room.mu.Unlock()
-	s.log.Info("[PveBoss] unclaimed room packet", "room", room.ID, "session", session.ID,
+	s.log.Debug("[PveBoss] unclaimed room packet", "room", room.ID, "session", session.ID,
 		"id", packet.ID, "len", len(packet.Payload), "hex", fmt.Sprintf("%x", preview),
 		"count", count)
 }
@@ -620,7 +620,7 @@ func (s *Server) pveBossPoints(session *Session, room *Room, packet protocol.Pac
 
 	if reason != "" {
 		if logIt {
-			s.log.Info("[PveBoss] score unit ignored", "room", room.ID, "slot", slot,
+			s.log.Debug("[PveBoss] score unit ignored", "room", room.ID, "slot", slot,
 				"unit", unit, "reason", reason)
 		} else {
 			s.log.Debug("[PveBoss] score unit ignored", "room", room.ID, "slot", slot,
@@ -629,7 +629,7 @@ func (s *Server) pveBossPoints(session *Session, room *Room, packet protocol.Pac
 		return
 	}
 	if logIt {
-		s.log.Info("[PveBoss] score unit accepted", "room", room.ID, "slot", seat,
+		s.log.Debug("[PveBoss] score unit accepted", "room", room.ID, "slot", seat,
 			"unit", unit, "amount", amount)
 	}
 	if point, err := protocol.CreateNotifyGamePointReply(uint32(seat), 0, amount); err == nil {
@@ -771,7 +771,7 @@ func (s *Server) pveBossRevival(session *Session, room *Room, packet protocol.Pa
 	if notice, err := protocol.CreateRoomTeamReply(uint32(session.slot), pveZombieTeam); err == nil {
 		room.Broadcast(notice)
 	}
-	s.log.Info("[PveBoss] a zombie seat came back", "room", room.ID, "slot", session.slot)
+	s.log.Debug("[PveBoss] a zombie seat came back", "room", room.ID, "slot", session.slot)
 }
 
 // pveBossDeathReport answers the client's native team-change request during a

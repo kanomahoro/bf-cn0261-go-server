@@ -18,7 +18,8 @@
 | v0.9.19-r8 | 见下 | `v0.9.19-r8` | `bfserver-win64-v0.9.19-pveboss-r8-20261114.zip` | 已交付（HUB 不 +1，见 r9） |
 | v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | 单人已验证（两局，一胜） |
 | v0.9.19-r10 | 见下 | `v0.9.19-r10` | `bfserver-win64-v0.9.19-pveboss-r10-20261114.zip` | 双人已验证（模式 16 定版） |
-| v0.9.19-r12 | 见下 | `v0.9.19-r12` | `bfserver-win64-v0.9.19-r12-20261114.zip` | **管理后台适配全部模式，行为同 r10** |
+| v0.9.19-r12 | 见下 | `v0.9.19-r12` | `bfserver-win64-v0.9.19-r12-20261114.zip` | 管理后台适配全部模式 |
+| v0.9.19-r13 | 见下 | `v0.9.19-r13` | `bfserver-win64-v0.9.19-r13-20261114.zip` | **Info 里移走 7 条过程细节，行为不变** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -73,6 +74,33 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v0.9.19-r13 — Info 里移走 7 条过程细节（不新增开关）
+
+按真实日志（`Server (16)`，两局 9 分钟）核对了 Info 的实际条数，把过程细节降到 Debug：
+
+| 行 | 该局条数 | 为什么降级 |
+| --- | --- | --- |
+| `[PveBoss] unclaimed room packet` | **60** | 诊断用，每局封顶 30 条，仍是最占量的 Info |
+| `[PveBoss] score unit accepted` | 10 | 每局前 5 条，同数据已有 `[PveBoss] points`（Debug） |
+| `[PveBoss] loot box created` | 10 | 每局前 5 条，拾取侧另有 `ammo box taken` |
+| `[PveBoss] score unit ignored` | 0 | 同上，属每次上报的细节 |
+| `[PveBoss] the raid starts` | 0 | 与 `the round starts`（已含 seats）重复，后者保留 Info |
+| `[PveBoss] a zombie seat came back` | 0 | 客户端每发一次复活请求就一条，可被重复触发 |
+| `[Pirate] spawn group from the host` | 0 | 每个刷怪组一条，含 hex |
+
+保留在 Info 的仍是「一局个位数」的里程碑：`[Round] started/ended/cancelled`、`[PveBoss] the round starts /
+mission started·cleared·timed out·failed / seat turned / nobody is left / stage reported / the boss phase is due /
+the map ships no mission groups`、`[Pirate] wave / wave table / every wave cleared / stage reported`、
+`[Supplies] map report`。
+
+没有新增配置项：只把级别从 Info 改成 Debug。移走后同一局 Info 由 80 余条降到约 25 条。
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-r13-20261114.zip` | `5bc249334a048dd3b1cce9ff57337fd41d9afb48d0fa93eda5f665ab5e2c1046` |
+| `bfserver.exe`（包内） | `df1b156920e06c3cef33653a0eed1ce2dbdca71b3473631f10c5d18dd300e08c` |
+| `bfserver-linux-amd64` | `7c10f22a8d1c7cbd3b2ee56002053e28ee7ca3f59bb035bf58d5dc8dd40e6bd3` |
 
 ## v0.9.19-r12 — 管理后台补齐全部模式
 

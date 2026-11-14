@@ -25,9 +25,9 @@
 | `[Defense] countdown ended without every seed confirmation` | Warn | 有座位没到种子确认，已兜底但值得看一眼 |
 | `[Defense] seeds forced without every character report` | Warn | 同上 |
 | `[Pirate] the run starts` / `wave` / `wave table` / `every wave cleared` / `stage reported` | Info | 每局/每波一条，多人结算排查靠它 |
-| `[Pirate] round start packet` / `[Pirate] spawn frame from the host` / `[Pirate] drop traffic ignored` | **Debug** | 逐波逐帧的过程细节（含 hex） |
-| `[PveBoss] the raid starts` / `mission started` / `mission cleared` / `mission timed out` / `mission failed: the citizen died` / `seat turned` / `stage reported` | Info | 每局/每任务/每次转队一条，BOSS 战排查靠它 |
-| `[PveBoss] points` / `counted item used` / `mob life point` / `drop traffic ignored` | **Debug** | 每次加分/道具/血量上报一条，量大 |
+| `[Pirate] round start packet` / `spawn frame from the host` / `spawn group from the host` / `drop traffic ignored` | **Debug** | 逐波逐帧的过程细节（含 hex） |
+| `[PveBoss] the round starts` / `the map ships no mission groups` / `mission started` / `mission cleared` / `mission timed out` / `mission failed: the citizen died` / `seat turned` / `nobody is left on the human side` / `stage reported` | Info | 每局/每任务/每次转队一条，BOSS 战排查靠它 |
+| `[PveBoss] points` / `score unit accepted` / `score unit ignored` / `counted item used` / `mob life point` / `loot box created` / `unclaimed room packet` / `a zombie seat came back` / `the raid starts` / `drop traffic ignored` | **Debug** | 每次加分/道具/血量/未认领包一条，量大（见文末实测） |
 | `loading timed out` / `[Bomb] the match settlement was dropped` / `[Bomb] the armed bomb was never reported` | Warn | 真异常，但已有兜底 |
 | `[Plaza] dropping a seat whose session is gone` | Debug | 断线清理的常态 |
 | `[Channel] move refused: single channel` | Debug | 客户端会重复请求，否则刷屏 |
@@ -51,3 +51,22 @@
 - **不要在 Info 里打每个包**：`inbound/outbound` 必须留在 Debug
 - **不要为「已预期」的情况打 Warn**：警告要能对上「需要人看一眼」的语义
 - **同一事件不要同时打两条**（例：`sub-round decided` 已经包含胜负，`results sent` 只在 Debug 留）
+
+
+## 2026-11-14 复核：Info 里移走的七条
+
+一次两局的真实日志（`Server (16)`，9 分钟）里 Info 一共 22 类，其中三条就占了 74 行：
+
+| 行 | 条数 | 处理 |
+| --- | --- | --- |
+| `[PveBoss] unclaimed room packet` | **60**（每局封顶 30） | → Debug |
+| `[PveBoss] score unit accepted` | 10（每局前 5 条） | → Debug（`[PveBoss] points` 已有同数据） |
+| `[PveBoss] loot box created` | 10（每局前 5 条） | → Debug（拾取侧另有 `ammo box taken`） |
+| `[PveBoss] score unit ignored` | 0（本局） | → Debug |
+| `[PveBoss] the raid starts` | 0（无任务图，不会发） | → Debug（`the round starts` 已是里程碑） |
+| `[PveBoss] a zombie seat came back` | 0（本局） | → Debug（僵尸座位每发一次复活请求就一条，客户端可重复触发） |
+| `[Pirate] spawn group from the host` | 0（本局是 raid） | → Debug（每个刷怪组一条，含 hex） |
+
+移走后同样这局只剩 **9 条** Info（启动 9 条 + `[Round] started/ended/cancelled` 6 条 + `the round starts` 2 条 +
+`the map ships no mission groups` 2 条 + `seat turned` 3 条 + `stage reported` 1 条 + `nobody is left` 1 条 +
+`[Supplies] map report` 2 条）。**没有新增任何开关**，只是级别调整。
