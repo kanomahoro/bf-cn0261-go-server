@@ -16,6 +16,10 @@ func (s *Server) bindLife(room *Room) error {
 	// Only the sniper battle reports a bubble popped by a weapon as a special
 	// kick; the report scores a pang there and is refused everywhere else.
 	life.specialKickScores = room.Setting.Game.Mode == sniperModeID
+	// The pirate battle's bubbles sit on its mobs, and its mobs knock the seats: both
+	// reports name objects this tracker never binds, so that round needs the NPC
+	// branches (see BattleLife.npcRounds).
+	life.npcRounds = room.Setting.Game.Mode == pirateModeID
 	for slot := range room.slots {
 		entry := room.slots[slot]
 		if entry.session == nil {
@@ -177,7 +181,7 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 		s.captainsAfterChange(room)
 		// The bomb mission is decided by the objective, never by a kill total: its
 		// score limit must not end a sub-round, the series decides the match.
-		if s.broadcastScores(room) && !room.BombRound() {
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() {
 			s.finishRound(room, false)
 			return nil
 		}
@@ -221,7 +225,7 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 		"succeeded", event.Succeeded, "special", event.SpecialKick, "style", event.Style,
 		"room", room.ID)
 	if accepted {
-		if s.broadcastScores(room) && !room.BombRound() {
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() {
 			s.log.Debug("score limit reached", "room", room.ID)
 			s.finishRound(room, false)
 		}

@@ -66,6 +66,12 @@ type BattleLife struct {
 	// side, so the team comparisons below must not treat a shared zero team as
 	// friendly, and no seat can rescue another.
 	teamless bool
+	// npcRounds marks a round whose victims and attackers are not only seats: the
+	// pirate battle runs its mobs on the host's client, so a bubble on a mob and a
+	// mob knocking a seat are reported with object ids this tracker never bound.
+	// Those reports score for the character they name, or change the seat's state
+	// when the attacker is a mob (2026-11-14: bubbles, pops and rescues counted 0).
+	npcRounds bool
 	// specialKickScores marks the round whose client reports a bubble popped by a
 	// weapon as a special kick: the sniper battle, the one mode where that report
 	// was seen (2026-11-11). Any other round keeps refusing it, so a mode that
@@ -276,6 +282,9 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 	defer l.mu.Unlock()
 	victimSlot, err := l.find(event.VictimObject)
 	if err != nil {
+		if l.npcRounds {
+			return l.applyNpcVictim(event)
+		}
 		return false, err
 	}
 
@@ -343,6 +352,9 @@ func (l *BattleLife) Apply(sourceSlot uint8, event protocol.PeerLifeEvent, allow
 
 	actorSlot, err := l.find(event.ActorObject)
 	if err != nil {
+		if l.npcRounds {
+			return l.applyNpcActor(sourceSlot, victimSlot, event)
+		}
 		return false, err
 	}
 	reporter := victimSlot
@@ -548,6 +560,21 @@ func (l *BattleLife) opposes(a, b uint8) bool { return l.teamless || a != b }
 func (l *BattleLife) ApplyKick(sourceSlot uint8, event protocol.PeerKickEvent) (bool, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.npcRounds {
+		if _, victimErr := l.find(event.Victim); victimErr != nil {
+			// A bubble on an NPC is popped by a character, and the report names that
+			// character. A confirmed pop scores its pang; the weapon case is the same
+			// report a shot bubble uses, which the sniper battle scores as a special
+			// kick, so nothing here depends on a pending kick request.
+			if event.Kind == protocol.KickConfirmed && event.Succeeded {
+				if actorSlot, err := l.find(event.Actor); err == nil {
+					increment(&l.players[actorSlot].score.PangCount)
+					return true, nil
+				}
+			}
+			return false, nil
+		}
+	}
 	switch event.Kind {
 	case protocol.KickHumiliationStart, protocol.KickHumiliationEnd:
 		if _, err := l.find(event.Actor); err != nil {
@@ -764,5 +791,43 @@ func (l *BattleLife) CompleteRespawn(slot uint8, objectID, spawnIndex uint32) (b
 	player.deadReported = false
 	player.respawnAsked = nil
 	l.clearTransient(player)
+	return true, nil
+}
+
+// applyNpcVictim handles a life event whose victim is an NPC: only the character the
+// report names as the actor can be scored. A pirate round's mobs live on the host's
+// client, so these reports carry object ids this tracker never bound and used to be
+// refused before they could count (2026-11-14).
+func (l *BattleLife) applyNpcVictim(event protocol.PeerLifeEvent) (bool, error) {
+	actorSlot, err := l.find(event.ActorObject)
+	if err != nil {
+		return false, nil
+	}
+	switch event.Kind {
+	case protocol.LifeKnocked:
+		increment(&l.players[actorSlot].score.BubbleCount)
+		return true, nil
+	}
+	return false, nil
+}
+
+// applyNpcActor handles a life event whose actor is an NPC: a mob knocked a seat into
+// its bubble, so the seat changes state and nobody is credited. Without this the seat
+// never reaches the bubbled state and the rescue that follows can never score.
+func (l *BattleLife) applyNpcActor(sourceSlot uint8, victimSlot uint8, event protocol.PeerLifeEvent) (bool, error) {
+	if event.Kind != protocol.LifeKnocked {
+		return false, nil
+	}
+	if sourceSlot != victimSlot {
+		return false, fmt.Errorf("life event was not sent by its authenticated reporter")
+	}
+	victim := &l.players[victimSlot]
+	if !hittable(victim.state) {
+		return false, nil
+	}
+	victim.state = stateBubbled
+	victim.bubbleSettled = false
+	victim.deadReported = false
+	l.clearTransient(victim)
 	return true, nil
 }

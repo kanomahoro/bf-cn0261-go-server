@@ -79,6 +79,15 @@ func (r *Room) beginPirateRound() {
 	r.pirate = &pirateState{generation: r.generation + 1, difficulty: difficulty}
 }
 
+// PirateRound reports whether the room runs the pirate battle. Its round is decided
+// by its waves, never by a personal score limit: the mode's kill limit word belongs
+// to the room card, and a seat's pang count can reach it long before the last wave.
+func (r *Room) PirateRound() bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.Setting.Game.Mode == pirateModeID
+}
+
 // pirateSeatTeam is the team a pirate round's seats play on, and pirateOtherTeam the
 // side that wins when the waves are not cleared.
 const (
