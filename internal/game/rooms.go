@@ -2387,6 +2387,8 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 	}
 	// S729 must reach every client before S705: the S705 handler reads the
 	// frozen ScoreData snapshot.
+	s.log.Info("[Round] result header", "room", room.ID, "mode", setting.Game.Mode,
+		"winner", winner, "first", teamScores[0], "second", teamScores[1], "rows", len(rows))
 	if resultReply, err := protocol.CreateGameResultReply(teamScores, winner, rows); err == nil {
 		room.Broadcast(resultReply)
 	} else {
@@ -2403,7 +2405,14 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			if !member.Occupied || member.Session == nil {
 				continue
 			}
-			_ = member.Session.Send(protocol.CreateGameOutcomeReply(member.Team == decided))
+			// The seat's own team decides its outcome word, so both values are logged:
+			// a seat that settled on the wrong team shows up here (2026-11-14, a
+			// two-seat pirate round reported success on one client and failure on the
+			// other).
+			won := member.Team == decided
+			s.log.Info("[Round] seat outcome", "room", room.ID, "slot", member.Slot,
+				"team", member.Team, "decided", decided, "won", won)
+			_ = member.Session.Send(protocol.CreateGameOutcomeReply(won))
 		}
 	} else {
 		room.Broadcast(protocol.CreateGameEndReply(timeExpired))
