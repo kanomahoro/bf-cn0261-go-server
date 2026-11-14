@@ -154,7 +154,24 @@ master 指出：**海盗模式的分数一直是同步正常的**，而我在 r3
 - 所以 `C710`/`C2023` **不需要任何回包**。r5 已把回显删掉，两个号只保留「认领 + Debug 记录」，
   避免它们占满 `unclaimed room packet` 的 30 条配额。
 
-### 13. 验证
+### 13. r8：只保留修复（master 2026-11-14 18:15 决定）
+
+从 r5 起只留**真正修复问题**的改动，其余全部回退。相对 r5 的全部差异只有一处：
+
+```go
+// internal/game/supplies.go — takeAmmoBox
+if !room.PveBossRound() || !pveCountedKind(boxKind) {
+	_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
+}
+```
+
+raid 房拾到 **229/146/136**（HUB 三槽）只广播 `S712`，客户端自己计次 +1，玩家按键使用；
+**101/17 与所有非 raid 模式照旧回 `715`**。
+
+回退掉的非修复项（曾在 r6/r7 出现）：`loot taken` 诊断日志与计数器、`knownCarriedKind` 的 PvE 白名单、
+中继 `32773` 解析器改动、raid 里 `32813` 外部对象忽略。
+
+### 14. 验证
 
 - `go build` / `go vet` / `gofmt` 全过；共 14 个 `_test.go` 用例（开局队伍通知、下发顺序、任务成功/失败、
   点数、道具只回使用者、转队、僵尸复活恢复生命状态、三条计分路径、道具/点数表、弹药开关、
