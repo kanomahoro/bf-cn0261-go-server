@@ -2,6 +2,7 @@ package game
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
@@ -30,7 +31,12 @@ func (s *Server) HandleRelayPacket(roomID uint16, slot uint8, packet protocol.Pa
 	// connection's idle timer.
 	session.Touch()
 	if err := s.handleRelayPacket(session, packet); err != nil {
-		s.log.Debug("relay packet rejected", "session", session.ID, "id", packet.ID, "error", err)
+		// The body decides who an NPC-directed life event belongs to: a rejected
+		// event names an object this round never initialized, and the same bytes are
+		// what a mode that runs NPCs needs in order to attribute it (2026-11-14,
+		// pirate round: bubbles, pops and rescues scored nothing).
+		s.log.Debug("relay packet rejected", "session", session.ID, "id", packet.ID,
+			"error", err, "hex", fmt.Sprintf("%x", packet.Payload))
 	}
 }
 
