@@ -181,15 +181,11 @@ func (s *Server) handlePiratePacket(session *Session, packet protocol.Packet) bo
 			"bytes", len(packet.Payload))
 
 	case 32862, 32892, 32866, 32873:
-		// The match relay carries a gpp frame to the other seats itself. A one-seat
-		// round has no peer feed, and the reference's legacy handler answers the AI
-		// object and the spawn-group member to their sender there, so the same two
-		// are answered here (a mob replay stays peer-only).
+		// Concrete NPC frames are not repeated by the round on this build: the match
+		// relay carries a gpp frame to the other seats itself, and echoing it here
+		// would create every mob twice.
 		s.log.Debug("[Pirate] spawn frame from the host", "room", room.ID,
 			"id", packet.ID, "bytes", len(packet.Payload))
-		if packet.ID == 32862 || packet.ID == 32892 {
-
-		}
 	case 724:
 		s.pirateStageResult(session, room, packet)
 	case 736, 2021, 735:
