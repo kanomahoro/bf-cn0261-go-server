@@ -420,10 +420,12 @@ func (s *Server) resultsCSV(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="matches.csv"`)
 	writer := csv.NewWriter(w)
 	defer writer.Flush()
-	_ = writer.Write([]string{"id", "completed_at", "mode", "map", "first_score", "second_score", "winner", "end_reason"})
+	_ = writer.Write([]string{"id", "completed_at", "mode", "mode_name", "map",
+		"first_score", "second_score", "winner", "end_reason"})
 	for _, row := range rows {
 		_ = writer.Write([]string{
 			row.ID, row.CompletedAt.Format("2006-01-02 15:04:05"), strconv.Itoa(int(row.Mode)),
+			modeName(row.Mode),
 			row.MapName, strconv.Itoa(int(row.FirstScore)), strconv.Itoa(int(row.SecondScore)),
 			strconv.Itoa(int(row.Winner)), strconv.Itoa(int(row.EndReason)),
 		})
