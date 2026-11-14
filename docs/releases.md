@@ -15,7 +15,8 @@
 | v0.9.19-r5 | `3e3974f` | `v0.9.19-r5` | `bfserver-win64-v0.9.19-pveboss-r5-20261114.zip` | 已交付 |
 | v0.9.19-r6 | `812d1ae` | `v0.9.19-r6` | `bfserver-win64-v0.9.19-pveboss-r6-20261114.zip` | **作废**（含诊断日志，master 要求只留修复） |
 | v0.9.19-r7 | `1014d09` | `v0.9.19-r7` | `bfserver-win64-v0.9.19-pveboss-r7-20261114.zip` | **作废**（含中继解析器改动与日志清理，非必要） |
-| v0.9.19-r8 | 见下 | `v0.9.19-r8` | `bfserver-win64-v0.9.19-pveboss-r8-20261114.zip` | **已交付，待第四轮真机** |
+| v0.9.19-r8 | 见下 | `v0.9.19-r8` | `bfserver-win64-v0.9.19-pveboss-r8-20261114.zip` | 已交付（HUB 不 +1，见 r9） |
+| v0.9.19-r9 | 见下 | `v0.9.19-r9` | `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | **已交付，待第四轮真机** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -70,6 +71,30 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v0.9.19-r9 — 补 `S713 gspAddItemToSlot`：计数道具要「授予」才进 HUB
+
+真机（r8）：捡到 229/146/136 **不再自动使用**（对），但**道具直接消失、HUB 不 +1**。
+
+**从参考实现抄到的答案**（`RoundFlow.Supplies.cs` 的 `HandleSupplyPickupAsync` +
+`Dialect.Rooms/SupplyBinding.cs` 的 `RoundSupplyPicked` 发送器）：一次拾取要发**两个**包：
+
+1. `S712 gspItemEaten`（seat, object_id）—— 所有客户端把箱子删掉
+2. 若 `ItemKind > 0`：`S713 gspAddItemToSlot`（seat, kind, item_slot）—— 这才是「你现在持有这件道具」的确认
+
+其中计数类（counted）**item_slot 固定 0**：参考实现里 `slotted && !counted` 才分配原生槽位，
+计数类不进原生槽，只让客户端的 HUB 计数 +1。即时类则是 `ItemKind = 0` → 不发 713，改发 `S715 gspPveItemUsed`。
+
+r8 只做了「不回 715」，漏了 713 → 客户端收到 S712 把箱子删了，却没人告诉它「你拿到了」 → 消失且不计数。
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r9-20261114.zip` | `f6c48995b887da4c6cc1bf34c96d802235e3a69b6c38cc34fbe29bf5ca7d2803` |
+| `bfserver.exe`（包内） | `d07dcea2e1ca9ed307d809f8046994fb0e7faf7a6def8fc6f45d2060a73eb322` |
+| `bfserver-linux-amd64` | `df15480a17ed8257e0a45081d19791328196669d6a0da391772ba74dc26bd8bc` |
+
+相对 r8 的唯一改动：`takeAmmoBox` 里计数类改成 `room.Broadcast(S713(seat, kind, 0))`（不再发 715）；
+即时类与非 raid 模式仍是 715。16 个用例全绿（新增 `TestPveBossCountedLootIsGranted`）。
 
 ## v0.9.19-r8 — 只保留修复：HUB 道具拾取后计次（相对 r5 唯一改动）
 

@@ -539,11 +539,14 @@ func (s *Server) takeAmmoBox(room *Room, session *Session, objectID, kind uint32
 	// direct item effect for the immediate kinds, which is what these ammo boxes
 	// are), so that confirmation goes to that seat alone.
 	room.Broadcast(protocol.CreateSupplyPicked(uint32(seat), objectID))
-	// The raid's counted kinds are the item hub's ammunition: the client adds them to
-	// its slot count itself and only the immediate kinds (booster, supply grenade) are
-	// applied on pickup -- the reference sends gspPveItemUsed for those alone.
-	// Confirming a counted kind made every pickup fire the item at once.
-	if !room.PveBossRound() || !pveCountedKind(boxKind) {
+	// The raid's counted kinds are the item hub's ammunition. Eating the box alone
+	// makes it vanish: the client adds to its hub only when it is granted the kind,
+	// and the reference grants counted kinds with no native slot (S713, slot 0).
+	// The immediate kinds (booster, supply grenade) get the direct-effect reply
+	// instead; confirming a counted kind with it made every pickup fire at once.
+	if room.PveBossRound() && pveCountedKind(boxKind) {
+		room.Broadcast(protocol.CreateSupplyGranted(uint32(seat), boxKind, 0))
+	} else {
 		_ = session.Send(protocol.CreatePveItemUsedReply(uint32(seat), boxKind))
 	}
 	s.log.Debug("[Supplies] ammo box taken", "room", room.ID, "slot", seat, "kind", boxKind, "object", objectID)

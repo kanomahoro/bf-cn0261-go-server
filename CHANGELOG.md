@@ -154,7 +154,25 @@ master 指出：**海盗模式的分数一直是同步正常的**，而我在 r3
 - 所以 `C710`/`C2023` **不需要任何回包**。r5 已把回显删掉，两个号只保留「认领 + Debug 记录」，
   避免它们占满 `unclaimed room packet` 的 30 条配额。
 
-### 13. r8：只保留修复（master 2026-11-14 18:15 决定）
+### 13. r9：计数道具要发 S713 才进 HUB
+
+r8 真机：捡到 229/146/136 不再自动使用，但**道具消失、HUB 不 +1**。
+
+参考实现（`RoundFlow.Supplies.cs` `HandleSupplyPickupAsync` + `SupplyBinding.SendAsync`）一次拾取发两个包：
+
+| 包 | 内容 | 何时 |
+| --- | --- | --- |
+| `S712 gspItemEaten` | seat, object_id | 总是（所有客户端删箱子） |
+| `S713 gspAddItemToSlot` | seat, kind, item_slot | `ItemKind > 0` 时；**计数类 item_slot = 0** |
+| `S715 gspPveItemUsed` | seat, kind, 0 | 即时类（`ItemKind = 0`） |
+
+计数类在参考实现里不进原生槽（`slotted && !counted` 才分配槽位），所以 slot 发 0，只让 HUB 计数 +1。
+r8 只掐了 715、没补 713 → 箱子被删掉但没人告诉客户端「拿到了」。
+
+修法：`takeAmmoBox` 计数类改为 `room.Broadcast(protocol.CreateSupplyGranted(seat, kind, 0))`；
+即时类与非 raid 模式保持 715。新增用例 `TestPveBossCountedLootIsGranted`（5 个 kind 全覆盖）。
+
+### 14. r8：只保留修复（master 2026-11-14 18:15 决定）
 
 从 r5 起只留**真正修复问题**的改动，其余全部回退。相对 r5 的全部差异只有一处：
 
