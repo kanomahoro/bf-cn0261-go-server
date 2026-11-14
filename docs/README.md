@@ -12,6 +12,7 @@
 | [`database.md`](database.md) | 表结构、迁移脚本、结算落库的字段来源 |
 | [`admin.md`](admin.md) | 管理后台（房间、封禁、在线玩家、日志查询） |
 | [`release.md`](release.md) | 发布流程：编译参数（`-s -w`）、打 tag、上传资产、版本号冻结策略 |
+| [`releases.md`](releases.md) | **本地交付记录**：每个交付包对应的 commit / tag / sha256，回退用 |
 
 > **打包参数固定**：`CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w"`。
 > 漏掉 `-s -w` 会让 exe 从 ~9.3 MB 涨到 ~13.3 MB（符号表 + DWARF）。
