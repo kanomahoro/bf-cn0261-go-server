@@ -13,7 +13,8 @@
 | v0.9.19-r3 | `cb4333a` | `v0.9.19-r3` | `bfserver-win64-v0.9.19-pveboss-r3-20261114.zip` | 已交付 |
 | v0.9.19-r4 | `7c5d8f7` | `v0.9.19-r4` | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | 已交付 |
 | v0.9.19-r5 | `3e3974f` | `v0.9.19-r5` | `bfserver-win64-v0.9.19-pveboss-r5-20261114.zip` | 已交付（掉落可捡） |
-| v0.9.19-r6 | `812d1ae` | `v0.9.19-r6` | `bfserver-win64-v0.9.19-pveboss-r6-20261114.zip` | **已交付，待第五轮真机** |
+| v0.9.19-r6 | `812d1ae` | `v0.9.19-r6` | `bfserver-win64-v0.9.19-pveboss-r6-20261114.zip` | 已交付 |
+| v0.9.19-r7 | `1014d09` | `v0.9.19-r7` | `bfserver-win64-v0.9.19-pveboss-r7-20261114.zip` | **已交付，待第五轮真机** |
 
 ## v0.9.19 — 僵尸袭击 BOSS 战（mode 16）
 
@@ -91,5 +92,16 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver.exe`（包内） | `61d8ef4e6e01fb5ef45ca6e8e244b61251eab5e11e2aac4fbbc4a2134b2e3899` |
 | `bfserver-linux-amd64` | `76f9084ab2ded6fd5bdabfa3bbca5598191cbe32dbf23b486ddaa43bef1bc5a6` |
 
-**这一版的单元测试**（15 个，`*_test.go` 不进版本库）留档在
+## v0.9.19-r7 — 中继误拒修正（含 r6 的 HUB 修复）
+
+提交：`1014d09` `fix(relay): stop refusing the raid's NPC melee and stun reports`
+（32773 走 `handlePeerNearFrom`、NPC 近身/眩晕上报在 raid 里消费不报错、`knownCarriedKind` 认识 PvE 五个 kind）
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-win64-v0.9.19-pveboss-r7-20261114.zip` | `c6e6c3057f34226cc85f968314a96658e7806958ed930ccc713c93f923203ecc` |
+| `bfserver.exe`（包内） | `7222c48d16e7af534055e035f03f36e8af5aeb2d58a7ddac1bef3dc69da848eb` |
+| `bfserver-linux-amd64` | `5cbfa1388a125779c43602ab62647bddebb9f0fceaae141adb987673747a69c3` |
+
+**这一版的单元测试**（16 个，`*_test.go` 不进版本库）留档在
 `~/.openclaw/workspace/artifacts/2026-11-14-pveboss/`。
