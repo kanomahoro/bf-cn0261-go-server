@@ -8,20 +8,20 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.9.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v0.9.18-blue?style=flat-square)
 
 Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.9.0**：竞技（1）+ 道具战（3）+ 僵尸（8）+ 狙击（12）+ 热血个人（13）+ 热血团队（14）+ 热血狙击（18）
-+ 爆破（19）+ 队长战（20）+ 海盗（101），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环
-（海盗模式为首次实现，逻辑已就绪、**等真机验收**）。客户端的 11 个可选模式里只剩僵尸 BOSS（16）未做。
+当前版本 **v0.9.18**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗模式的单人局与双人局均已在真机验收）。客户端的 11 个可选模式里只剩僵尸 BOSS（16）未做。
 
 > 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
 > `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
 
+- **v0.9.18** 海盗多人收尾：双人结算（`906` 广播全房）、结算序列对齐参考实现（不发 `S732`、`S733` 前重发 `S729`）、
+  结算面板计分（泡封 / 击爆三条路径 / 营救）、随机图回房间的卡片闪退修复；日志前缀与级别统一（见 `docs/logging.md`）
 - **v0.9.0** 单人教程（25 关）入版、海盗模式（101）落地（首次实现，待真机）；修掉爆破整场结算掉线、爆破地图没有弹药箱、狙击射爆泡封不计分；
   日志级别按 `docs/logging.md` 重新梳理；单元测试移出版本库
 - **v0.8.5** relay 改动收敛到爆破：预留期回到 2 分钟、同 key 接管只对标记可复用的 key 生效
@@ -91,7 +91,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 
 - **数据库：MariaDB 10.11**（只在 MariaDB 上验证过，MySQL 未测试）
 - **Go 1.27+**（仅构建需要，运行只要二进制）
-- **客户端：Bubble Fighter CN0261(cn-717)**（泡泡战士 2015 国服版）—— 需自备，本仓库不提供
+- **客户端：Bubble Fighter CN0261(cn-717)**（BubbleFighter 2015 国服版）—— 需自备，本仓库不提供
 - 依赖只有两个：`go-sql-driver/mysql`、`golang.org/x/crypto/scrypt`
 - 验证环境：Debian 12 x86_64 / MariaDB 10.11.19 / 2 vCPU 2 GB（对局与压测均在此规格下跑通）
 
