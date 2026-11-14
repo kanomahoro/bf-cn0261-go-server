@@ -7,6 +7,7 @@
 
 | 版本 | commit | tag | 交付包 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.0.0 | 见下 | `v1.0.0` | `bfserver-linux-amd64-v1.0.0.tar.gz` 等 5 个资产 | **正式发布**（11 个模式全部验收） |
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
 | v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | 已交付（第一轮真机） |
 | v0.9.19-r2 | `26ee64f` | `v0.9.19-r2` | `bfserver-win64-v0.9.19-pveboss-r2-20261114.zip` | 已交付 |
@@ -77,6 +78,19 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v1.0.0 — 第一个正式版本
+
+`v0.9.19` 之后累积的修复与收尾（r2~r14）全部合入；r11 / r15 两版已回退，仅留 tag 存档。
+改动范围：模式 16 定版（r2~r10）、地图传送点（r14）、管理后台模式适配（r12）、Info 日志收敛（r13）＋文档。
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-linux-amd64-v1.0.0.tar.gz` | 见 `SHA256SUMS`（随 Release 上传） |
+| `bfserver-linux-arm64-v1.0.0.tar.gz` | 同上 |
+| `bfserver-android-arm64-v1.0.0.tar.gz` | 同上 |
+| `bfserver-windows-amd64-v1.0.0.zip` | 同上 |
+| `bfserver-windows-arm64-v1.0.0.zip` | 同上 |
 
 ## v0.9.19-r14 — 补上地图传送点：`C948 gcpPortalMove` → `S958 gspPortalMove`
 

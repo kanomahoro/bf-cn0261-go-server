@@ -8,14 +8,14 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v0.9.19-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v1.0.0-blue?style=flat-square)
 
 Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v0.9.19**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗与僵尸 BOSS 战的单人局、双人局均已在真机验收）。**客户端 11 个可选模式至此全部实现。**
+当前版本 **v1.0.0**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗与僵尸 BOSS 战的单人局、双人局均已在真机验收）。**客户端 11 个可选模式至此全部实现。**
 
 > 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
 > `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
@@ -47,7 +47,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 ## 模式一览
 
 客户端一共只提供 11 个可选模式（多出来的那些是别的版本才有的，**不要拿参考实现的配置当客户端能力证据**）。
-「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 与最新 tag 都是 `v0.9.19`**，
+「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 与最新 tag 都是 `v1.0.0`**，
 下表中已完成的模式全部随主线发布。
 
 | 模式 | 名称 | 服务端负责的部分 | 加入版本 | 状态 | 文档 |
@@ -63,7 +63,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | **定稿 · 已发布** | [`BOMB.md`](BOMB.md) |
 | 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 · 已发布（真机通过） | [`TUTORIAL.md`](TUTORIAL.md) |
 | 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算（不发奖励）、弹药箱、结算面板计分（泡封/击爆/营救） | v0.9.0 | **单人+双人真机通过 · 已发布**（v0.9.18） | [`PIRATE.md`](PIRATE.md) |
-| 16 | 僵尸袭击 BOSS 战（PVE 救援） | 7 张 `rel_zombie*` 图、1–4 人合作、救援任务闹钟、PVE 点数/排行、三格计数道具、感染转队、结算（不发奖励） | v0.9.19 | **单人+双人真机通过 · 定版**（本地 `v0.9.19-r14`） | [`PVEBOSS.md`](PVEBOSS.md) |
+| 16 | 僵尸袭击 BOSS 战（PVE 救援） | 7 张 `rel_zombie*` 图、1–4 人合作、救援任务闹钟、PVE 点数/排行、三格计数道具、感染转队、结算（不发奖励） | v0.9.19 | **单人+双人真机通过 · 定版**（`v1.0.0`） | [`PVEBOSS.md`](PVEBOSS.md) |
 
 逐条修复（现象 / 根因 / 改法 / 真机结论）记在 [`CHANGELOG.md`](CHANGELOG.md)，最新是 **v0.9.19**；
 本表只列模式与里程碑，不重复细节。
@@ -143,7 +143,7 @@ go build -o bin/bfserver ./cmd/bfserver
 # 发布构建（-s -w 不能省：否则 exe 多出约 4 MB 符号表与 DWARF）
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v0.9.19  By:rurudoo
+# BubbleFighter CN0261 Go Server v1.0.0  By:rurudoo
 
 # 版本号写在 cmd/bfserver/main.go 的 Version 变量里；需要出号时再改，
 # 不要用 -X main.Version 在命令行覆盖（会与 CHANGELOG/发布包不一致）

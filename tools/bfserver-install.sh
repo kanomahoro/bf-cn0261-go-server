@@ -12,10 +12,10 @@
 # ============================================================================
 set -Eeuo pipefail
 
-VERSION="0.4.0"
+VERSION="1.0.0"
 REPO="kanomahoro/bf-cn0261-go-server"
 BIN_ASSET="bfserver-linux-amd64-v${VERSION}.tar.gz"
-BIN_SHA256="a33188f2581783a9ba5cc0585e9e9a6c1af800d70d1953aa9512e6f1ad0270f8"
+BIN_SHA256="034cb68aea3f1d4d50e5a594f06fa68248f60bdf921540aedf59896f7e9b7b76"
 PREFIX="/opt/bfserver"
 SERVICE="bfserver"
 DB_NAME="bubblefighter_cn0261"
