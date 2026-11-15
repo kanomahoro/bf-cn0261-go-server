@@ -175,7 +175,7 @@ SELECT 101552, '时空等离子推进器', 16, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101552);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101552, 116127, 11967
+SELECT 101552, 134283264, 11967
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101552);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
