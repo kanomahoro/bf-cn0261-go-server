@@ -253,6 +253,27 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 - 表按用途分组：账号与角色、房间与对局（`game_results*`）、商店与背包、聊天与社交
 - 详细表结构、初始化校验与手工建库步骤：见 [`docs/database.md`](docs/database.md)
 
+## 商店数据补丁（可选）
+
+上架用的 SQL 补丁在 [`shop-patches/`](shop-patches/)（数据库热更新，执行到库里即完成）：
+
+| 文件 | 内容 | 件数 |
+|---|---|---|
+| `clothes-patch.sql` | HC 五件套 8 套（帽/上衣/裤/手套/鞋） | 40 |
+| `weapons-patch.sql` | 武器 | 31 |
+| `misc-items-patch.sql` | 能量水晶 4 + 起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 |
+| `grant-starter-cards.sql` | 全服补发角色卡（皮蛋 / 黑妞），维护脚本 | 2 张 |
+
+```bash
+mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/clothes-patch.sql
+```
+
+- **执行完即生效**，不用重启服务端；每条 INSERT 幂等，重复执行无副作用；每个文件自带回退脚本
+- **HC 装扮的作用是激活能量水晶**（客户端 `PPAequipCheckValue = 5`：穿满 5 件 HC 才触发）
+- **角色卡不在商店出售**，用补发脚本直接进背包（真永久、幂等）
+- ⚠️ 武器包有已知定价问题（HC 版与普通版数值相同但更便宜；16 件货币与客户端不一致），尚未修正
+- 细节与回退方法：见 [`shop-patches/README.md`](shop-patches/README.md)
+
 ## 目录结构
 
 ```
@@ -267,6 +288,7 @@ database/          迁移脚本
 docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布、日志约定）
 launcher/          登录器（Python）
 tools/             一键安装脚本
+shop-patches/      商店数据补丁（数据库热更新）
 ZOMBIE.md          僵尸模式规则与真机验收记录
 CAPTAIN.md         队长战（mode 20）规则、协议证据与真机验收记录
 BOMB.md            爆破模式（mode 19）规则、协议证据与真机验收记录
