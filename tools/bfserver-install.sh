@@ -8,6 +8,16 @@
 #     bash bfserver-install.sh --dry-run    # 只看会做什么，不改系统
 #     bash bfserver-install.sh --uninstall  # 卸载（保留数据库，会再问一次）
 #
+#  离线安装（国内拉不动 GitHub 时用）：
+#     bash bfserver-install.sh --offline \
+#          --bin ./bfserver-linux-amd64-v1.0.0.tar.gz \
+#          --src ./v1.0.0.tar.gz
+#     --bin <路径>   用本地二进制包代替 GitHub Release 下载
+#     --src <路径>   用本地源码包代替 GitHub 归档下载
+#     --offline      两个都用本地包（此时必须同时给 --bin 和 --src）
+#     --no-sha256    跳过二进制包哈希校验（自己编译的包用）
+#     注意：离线模式不联网，MariaDB 等系统依赖需事先用本地源装好。
+#
 #  面向 Linux 新手：每一步都有中文提示，出错会告诉你下一步做什么。
 # ============================================================================
 set -Eeuo pipefail
@@ -27,6 +37,10 @@ UNIT="/etc/systemd/system/${SERVICE}.service"
 FORCE_YES=0
 DRY_RUN=0
 DO_UNINSTALL=0
+OFFLINE=0
+NO_SHA256=0
+BIN_LOCAL=""
+SRC_LOCAL=""
 STEP=0
 
 # ----------------------------------------------------------------------------
@@ -59,17 +73,45 @@ trap on_error ERR
 # ----------------------------------------------------------------------------
 # 参数
 # ----------------------------------------------------------------------------
-for arg in "$@"; do
-  case "$arg" in
-    --yes|-y)     FORCE_YES=1 ;;
-    --dry-run)    DRY_RUN=1 ;;
-    --uninstall)  DO_UNINSTALL=1 ;;
+abspath() { # 相对路径 → 绝对路径（后面会 cd，路径必须提前定死）
+  local p="$1"
+  case "$p" in /*) ;; *) p="$PWD/$p" ;; esac
+  readlink -f -- "$p" 2>/dev/null || printf '%s' "$p"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --yes|-y)     FORCE_YES=1; shift ;;
+    --dry-run)    DRY_RUN=1; shift ;;
+    --uninstall)  DO_UNINSTALL=1; shift ;;
+    --offline)    OFFLINE=1; shift ;;
+    --no-sha256)  NO_SHA256=1; shift ;;
+    --bin)
+      [ $# -ge 2 ] || die "--bin 后面要跟本地二进制包的路径"
+      BIN_LOCAL=$(abspath "$2"); shift 2 ;;
+    --bin=*)      BIN_LOCAL=$(abspath "${1#*=}"); shift ;;
+    --src)
+      [ $# -ge 2 ] || die "--src 后面要跟本地源码包的路径"
+      SRC_LOCAL=$(abspath "$2"); shift 2 ;;
+    --src=*)      SRC_LOCAL=$(abspath "${1#*=}"); shift ;;
     --help|-h)
       awk 'NR>2 && /^# =====/{exit} NR>2{sub(/^# ?/,""); print}' "$0"
       exit 0 ;;
-    *)            die "未知参数：$arg（用 --help 查看用法）" ;;
+    *)            die "未知参数：$1（用 --help 查看用法）" ;;
   esac
 done
+
+# 本地包提前检查：别等装完 apt、建完库才发现路径写错了
+for f in "$BIN_LOCAL" "$SRC_LOCAL"; do
+  [ -z "$f" ] && continue
+  [ -f "$f" ] || die "找不到本地包：$f"
+  [ -r "$f" ] || die "本地包没有读权限：$f"
+done
+
+if [ "$OFFLINE" = "1" ]; then
+  [ -n "$BIN_LOCAL" ] || die "--offline 需要同时指定 --bin（本地二进制包路径）"
+  [ -n "$SRC_LOCAL" ] || die "--offline 需要同时指定 --src（本地源码包路径）"
+fi
 
 # ----------------------------------------------------------------------------
 # 工具
@@ -263,16 +305,26 @@ info "模式：$([ "$MODE" = "fresh" ] && echo 全新安装 || echo 更新)"
 # ============================================================================
 # 3. 安装依赖
 # ============================================================================
-step 3 "安装系统依赖（MariaDB、curl、openssl、python3）"
-if [ "$DRY_RUN" = "1" ]; then
-  say "    [dry-run] apt-get update && apt-get install -y mariadb-server python3 curl tar openssl ca-certificates"
+step 3 "检查并安装系统依赖（MariaDB、python3、tar、openssl）"
+MISSING_PKGS=""
+for p in mariadb-server mariadb-client python3 curl tar openssl ca-certificates; do
+  dpkg -s "$p" >/dev/null 2>&1 || MISSING_PKGS="$MISSING_PKGS $p"
+done
+if [ -z "$MISSING_PKGS" ]; then
+  ok "系统依赖已就绪，跳过 apt（不用联网）"
+elif [ "$DRY_RUN" = "1" ]; then
+  say "    [dry-run] apt-get update && apt-get install -y${MISSING_PKGS}"
+elif [ "$OFFLINE" = "1" ]; then
+  die "离线模式下缺少系统依赖：${MISSING_PKGS# }
+    请先用本地源或离线 deb 装好这些包（apt-get install 会联网）。
+    已经能联网的话，去掉 --offline 让脚本自己装。"
 else
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq >>"$LOG_FILE" 2>&1 || die "apt update 失败。换一个软件源或稍后重试，日志：${LOG_FILE}"
   apt-get install -y -qq mariadb-server mariadb-client python3 curl tar openssl ca-certificates >>"$LOG_FILE" 2>&1 \
     || die "安装 MariaDB 失败，日志：${LOG_FILE}"
+  ok "依赖就绪"
 fi
-ok "依赖就绪"
 
 # migrate.sh 需要 mysql 命令，Debian 新版客户端叫 mariadb
 if [ "$DRY_RUN" = "0" ]; then
@@ -289,9 +341,9 @@ fi
 [ "$DRY_RUN" = "1" ] && info "[dry-run] 启动并设为开机自启" || ok "MariaDB 已运行"
 
 # ============================================================================
-# 4. 下载
+# 4. 准备安装包（在线下载 或 本地文件）
 # ============================================================================
-step 4 "从 GitHub 下载 v${VERSION}（二进制 + 源码）"
+step 4 "准备 v${VERSION} 的二进制包与源码包"
 TMP=$(mktemp -d /tmp/bfserver-install.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
 
@@ -307,25 +359,68 @@ fetch() { # fetch <url> <输出文件>
        -o "$2" "$1" >>"$LOG_FILE" 2>&1
 }
 
-fetch "$BIN_URL" "$TMP/bin.tar.gz"
-fetch "$SRC_URL" "$TMP/src.tar.gz"
-ok "下载完成"
+take_local() { # take_local <名称> <本地文件> <目标文件>：只写临时目录，dry-run 下也真做
+  local name="$1" from="$2" to="$3"
+  cp -f "$from" "$to" || die "${name}复制失败：${from}"
+  info "${name}：${from}（本地包，$(du -h "$to" | awk '{print $1}')）"
+}
 
-if [ "$DRY_RUN" = "0" ]; then
+if [ -n "$BIN_LOCAL" ]; then
+  take_local "二进制包" "$BIN_LOCAL" "$TMP/bin.tar.gz"
+else
+  fetch "$BIN_URL" "$TMP/bin.tar.gz"
+fi
+if [ -n "$SRC_LOCAL" ]; then
+  take_local "源码包" "$SRC_LOCAL" "$TMP/src.tar.gz"
+else
+  fetch "$SRC_URL" "$TMP/src.tar.gz"
+fi
+ok "安装包就绪"
+
+# 校验：本地包一定校验（dry-run 也校验）；下载包只在真跑时才存在
+if [ -f "$TMP/bin.tar.gz" ]; then
   ACTUAL=$(sha256sum "$TMP/bin.tar.gz" | awk '{print $1}')
-  if [ "$ACTUAL" != "$BIN_SHA256" ]; then
+  if [ "$ACTUAL" = "$BIN_SHA256" ]; then
+    ok "SHA256 校验通过"
+  elif [ -n "$BIN_LOCAL" ] && [ "$NO_SHA256" = "1" ]; then
+    warn "本地二进制包与官方 v${VERSION} 哈希不同，已按 --no-sha256 跳过校验"
+  elif [ -n "$BIN_LOCAL" ]; then
+    die "本地二进制包和官方 v${VERSION} 的哈希对不上。
+    期望 ${BIN_SHA256}
+    实际 ${ACTUAL}
+    请确认选的是 v${VERSION} 的发布包；自己编译的包请加 --no-sha256。"
+  else
     die "二进制包校验失败（可能是下载被截断）。
     期望 ${BIN_SHA256}
     实际 ${ACTUAL}
-    请重试；反复失败可在本地下载后手动上传。"
+    请重试；反复失败可以手动下载后用 --bin 指定本地文件。"
   fi
-  ok "SHA256 校验通过"
 fi
 
-run "tar xzf '$TMP/bin.tar.gz' -C '$TMP'"
-SRC_DIR=$(tar tzf "$TMP/src.tar.gz" 2>/dev/null | head -1 | cut -d/ -f1 || true)
-run "tar xzf '$TMP/src.tar.gz' -C '$TMP'"
-[ -n "$SRC_DIR" ] || SRC_DIR="bf-cn0261-go-server-${VERSION}"
+# 解包：本地包在 dry-run 下也真解（只解到临时目录），提前暴露坏包
+if [ -f "$TMP/bin.tar.gz" ]; then
+  tar xzf "$TMP/bin.tar.gz" -C "$TMP" || die "二进制包解不开：${BIN_LOCAL:-下载得到的 bin.tar.gz}"
+  [ -f "$TMP/bfserver" ] || die "二进制包里没有 bfserver，请确认是官方发布包（--no-sha256 也不认其他结构）"
+  chmod 0755 "$TMP/bfserver" 2>/dev/null || true
+  ok "二进制包已解压"
+else
+  say "    [dry-run] 解压二进制包 → bfserver"
+fi
+
+SRC_ROOT="$TMP/bf-cn0261-go-server-${VERSION}"
+if [ -f "$TMP/src.tar.gz" ]; then
+  tar tzf "$TMP/src.tar.gz" > "$TMP/src.list" 2>/dev/null || die "源码包解不开：${SRC_LOCAL:-下载得到的 src.tar.gz}"
+  tar xzf "$TMP/src.tar.gz" -C "$TMP" || die "源码包解压失败：${SRC_LOCAL:-下载得到的 src.tar.gz}"
+  FIRST=$(head -1 "$TMP/src.list" | cut -d/ -f1)
+  SRC_ROOT=""
+  for cand in "$TMP/$FIRST" "$TMP"; do   # GitHub 归档有顶层目录；自己打的包可能没有
+    if [ -d "$cand/config" ] && [ -d "$cand/database" ]; then SRC_ROOT="$cand"; break; fi
+  done
+  [ -n "$SRC_ROOT" ] || die "源码包里找不到 config/ 和 database/ 目录，请确认是 v${VERSION} 的源码包"
+  ok "源码包已解压：${SRC_ROOT}"
+else
+  say "    [dry-run] 解压源码包 → $SRC_ROOT"
+fi
 
 # ============================================================================
 # 5. 创建数据库
@@ -357,8 +452,8 @@ step 6 "部署文件并初始化表结构"
 run "mkdir -p '$PREFIX'"
 run "install -m 0755 '$TMP/bfserver' '$PREFIX/bfserver'"
 run "rm -rf '$PREFIX/config' '$PREFIX/database'"
-run "cp -r '$TMP/$SRC_DIR/config' '$PREFIX/config'"
-run "cp -r '$TMP/$SRC_DIR/database' '$PREFIX/database'"
+run "cp -r '$SRC_ROOT/config' '$PREFIX/config'"
+run "cp -r '$SRC_ROOT/database' '$PREFIX/database'"
 run "mkdir -p '$PREFIX/Logs'"
 
 # 迁移：仓库自带的 migrate.sh 按 schema_migrations 版本号排序
