@@ -341,7 +341,7 @@ class RegisterDialog(tk.Toplevel):
 class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('泡泡战士 CN0261 登录器 v1.0.0 By:rurudoo')
+        self.title('泡泡战士 CN0261 登录器 v1.1.0 By:rurudoo')
         self.geometry('540x372')
         self.resizable(False, False)
 
@@ -514,7 +514,7 @@ if __name__ == '__main__':
             ctypes.windll.user32.MessageBoxW(
                 None,
                 '未检测到 BubbleFighter.exe。\n\n请把本程序放到客户端安装目录内运行。',
-                '泡泡战士 CN0261 登录器 v1.0.0 By:rurudoo',
+                '泡泡战士 CN0261 登录器 v1.1.0 By:rurudoo',
                 64,
             )
         except Exception:

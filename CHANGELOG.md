@@ -1,6 +1,6 @@
 # Changelog
 
-## 未发版（2026-11-16，本地累积，待出号时归并）
+## v1.1.0（未发布，待打 tag）
 
 - **数量类商品购买修复**：客户端 `ShopItem.durationType = count` 的 90 件商品以前按天卖——买「50 个」只到手
   1 个还带 50 天过期。现在 `shop_items.duration_type` 在启动时补齐并回填（`EnsureShopUnits`，幂等），
