@@ -2517,7 +2517,13 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 			if !member.Occupied || member.Session == nil {
 				continue
 			}
-			_ = member.Session.Send(protocol.CreateGameOutcomeReply(member.Team == decided))
+			won := member.Team == decided
+			if setting.Game.Mode == pveBossModeID && decided == pveHumanTeam {
+				// The raid is cooperative: clearing the stage wins it for the whole
+				// team, and a turned seat still belongs to the human side.
+				won = true
+			}
+			_ = member.Session.Send(protocol.CreateGameOutcomeReply(won))
 		}
 	} else {
 		room.Broadcast(protocol.CreateGameEndReply(timeExpired))
