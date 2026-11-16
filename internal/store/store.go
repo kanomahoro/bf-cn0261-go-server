@@ -401,6 +401,17 @@ func insertCharacter(ctx context.Context, tx *sql.Tx, accountID uint32, nickname
 		 ON DUPLICATE KEY UPDATE quantity = quantity`, characterID, characterType); err != nil {
 		return 0, mapError(err)
 	}
+	// Both starter character cards go into the bag whichever model was picked: the
+	// chosen one already wears slot 63 above, and this adds the other one unworn
+	// (the duplicate row only refreshes its quantity, so the worn slot stays). No
+	// expiry row is written, which is what makes them permanent.
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO character_items (character_id, item_id, quantity, equipped_slot, created_at, updated_at)
+		 SELECT ?, a.item_id, 1, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
+		 FROM character_appearances a WHERE a.character_type IN (1, 2)
+		 ON DUPLICATE KEY UPDATE quantity = quantity`, characterID); err != nil {
+		return 0, mapError(err)
+	}
 	return characterID, nil
 }
 
