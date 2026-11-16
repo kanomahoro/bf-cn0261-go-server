@@ -25,6 +25,11 @@
       "durationMilliseconds": 7000
     },
     {
+      "id": 7,
+      "durationMilliseconds": 7000,
+      "reductionMilliseconds": 0
+    },
+    {
       "id": 8,
       "durationMilliseconds": 7000
     },
@@ -43,6 +48,11 @@
     {
       "id": 14,
       "durationMilliseconds": 7000
+    },
+    {
+      "id": 19,
+      "durationMilliseconds": 7000,
+      "reductionMilliseconds": 0
     }
   ],
   "items": [
