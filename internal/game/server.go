@@ -163,17 +163,20 @@ func (s *Session) Send(p protocol.Packet) error {
 
 // Server owns every room and dispatches client packets.
 type Server struct {
-	cfg        config.Config
-	db         *store.DB
-	svc        *features.Service
-	accounts   *features.Accounts
-	maps       world.Maps
-	weapons    world.Weapons
-	characters world.Characters
-	defense    world.Defense
-	respawn    world.Respawn
-	prog       world.Progression
-	log        *slog.Logger
+	cfg      config.Config
+	db       *store.DB
+	svc      *features.Service
+	accounts *features.Accounts
+	maps     world.Maps
+	weapons  world.Weapons
+	// weaponsBySlot is weapons.BySlot() computed once: peer reports are validated
+	// per packet, so rebuilding the map on every one would be waste.
+	weaponsBySlot map[uint32][]uint32
+	characters    world.Characters
+	defense       world.Defense
+	respawn       world.Respawn
+	prog          world.Progression
+	log           *slog.Logger
 
 	mu        sync.Mutex
 	chatMu    sync.Mutex
@@ -217,23 +220,24 @@ func New(cfg config.Config, db *store.DB, log *slog.Logger) (*Server, error) {
 		return nil, err
 	}
 	return &Server{
-		cfg:        cfg,
-		db:         db,
-		svc:        features.NewService(db, prog),
-		accounts:   features.NewAccounts(db),
-		maps:       maps,
-		weapons:    weapons,
-		characters: characters,
-		defense:    defense,
-		respawn:    respawn,
-		prog:       prog,
-		log:        log,
-		rooms:      map[uint16]*Room{},
-		nextRoom:   1,
-		startedAt:  time.Now(),
-		online:     map[uint32]*Session{},
-		channels:   NewChannelDirectory(nil),
-		plazas:     NewPlazaDirectory(),
+		cfg:           cfg,
+		db:            db,
+		svc:           features.NewService(db, prog),
+		accounts:      features.NewAccounts(db),
+		maps:          maps,
+		weapons:       weapons,
+		weaponsBySlot: weapons.BySlot(),
+		characters:    characters,
+		defense:       defense,
+		respawn:       respawn,
+		prog:          prog,
+		log:           log,
+		rooms:         map[uint16]*Room{},
+		nextRoom:      1,
+		startedAt:     time.Now(),
+		online:        map[uint32]*Session{},
+		channels:      NewChannelDirectory(nil),
+		plazas:        NewPlazaDirectory(),
 	}, nil
 }
 

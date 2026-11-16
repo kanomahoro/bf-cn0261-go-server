@@ -136,7 +136,7 @@ mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_mig
 
 ```
 [Database] checking connection and schema version   ← 连库并校验 14 份迁移
-[Database] ensuring the grenade item definition     ← 补齐新手手雷（物品 205003）
+[Database] ensuring the shop quantity flags        ← 补齐 shop_items.duration_type（数量类商品标记）
 [Database] purging expired login tickets            ← 清理过期登录票据
 [Relay] listening            port=26104
 [Authentication] listening   port=26102
@@ -144,6 +144,14 @@ mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_mig
 ```
 
 看到 `[Application] ready` 就是**初始化全部完成**，可以直接跑第 5 步建号登录。
+
+三种投掷物（手雷 / 粘稠手雷 / 感应地雷）是商店商品，需要单独导入一次补丁：
+
+```bash
+mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/grenades-patch.sql
+```
+
+补丁是幂等的，重复导入没有副作用；回退用同目录的 `grenades-rollback.sql`（会回收玩家已买的）。
 
 排障对应关系：
 

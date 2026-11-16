@@ -202,11 +202,22 @@ type Weapons struct {
 	Weapons []Weapon `json:"weapons"`
 }
 
-// DefinitionIDs returns the slot-ordered definition ids used by peer validation.
+// DefinitionIDs returns every definition id in the catalog, in file order.
 func (w Weapons) DefinitionIDs() []uint32 {
 	out := make([]uint32, 0, len(w.Weapons))
 	for _, weapon := range w.Weapons {
 		out = append(out, weapon.DefinitionID)
+	}
+	return out
+}
+
+// BySlot groups the definition ids by weaponSlot. Peer reports carry the slot the
+// client fired from, so validation must look the weapon up inside that slot
+// rather than index a flat list with it.
+func (w Weapons) BySlot() map[uint32][]uint32 {
+	out := make(map[uint32][]uint32, 4)
+	for _, weapon := range w.Weapons {
+		out[weapon.WeaponSlot] = append(out[weapon.WeaponSlot], weapon.DefinitionID)
 	}
 	return out
 }

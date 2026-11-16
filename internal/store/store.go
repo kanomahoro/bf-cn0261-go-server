@@ -27,29 +27,27 @@ var ErrNotFound = errors.New("store: not found")
 // CharacterSlot is the equipment slot that holds the worn character item.
 const CharacterSlot = 63
 
-// Grenade item and its special-weapon slot. The CN0261 client defines exactly
-// one grenade (weapon definition 5003, item id 200000+5003) and reads the worn
-// item in slot 21 of a character to decide how many grenades a round carries.
-const (
-	GrenadeItemID      = 205003
-	GrenadeSlot        = 21
-	StarterGrenades    = 100
-	grenadeOccupiedBit = 1 << GrenadeSlot
-)
-
-// specialWeapons is every special-weapon item the catalogue keeps, in the order
-// they were added. The item id is always 200000 + the weapon definition, so 5003
-// is the hand grenade, 5004 the sticky grenade and 5009 the proximity mine. The
-// ids are the build's own: its item table names 205004 "粘稠手雷 E01-S" and 205009
-// "液态地雷SF01", the sensing mine. A character wears one at a time: slot 21 is
-// exclusive.
-var specialWeapons = []struct {
-	ID   uint32
-	Name string
-}{
-	{GrenadeItemID, "手雷"},
-	{205004, "粘性手雷"},
-	{205009, "感应地雷"},
+// countSaleItems lists the catalogue entries the client sells by quantity
+// (ShopItem.durationType = "count", 90 entries in the cn-717 table). For these
+// rows shop_stocks.duration_days is a piece count, not a day count, so a
+// purchase adds that many to the bag instead of starting an expiry countdown.
+//
+// The list is embedded rather than read from client data because the server
+// ships without the client archive; EnsureShopUnits applies it at startup and is
+// idempotent, so a database that already carries the flags is left untouched.
+var countSaleItems = []uint32{
+	100001, 100002, 100064, 100065, 100066, 100067, 100079, 100080,
+	100081, 100082, 100090, 100091, 100104, 100178, 100179, 100180,
+	100251, 100252, 100382, 100383, 100384, 100385, 100386, 100425,
+	100443, 100473, 100482, 100483, 100484, 100485, 100507, 100508,
+	100509, 100547, 100548, 100598, 100622, 100623, 100624, 100625,
+	100626, 100627, 100628, 100629, 100640, 100641, 100643, 100644,
+	100650, 100652, 100657, 100819, 100976, 101050, 101062, 101164,
+	101291, 120520, 190051, 190069, 190071, 190074, 190075, 190083,
+	190085, 190086, 205002, 205003, 205004, 205005, 205006, 205009,
+	205010, 205012, 205015, 205017, 205029, 205030, 205031, 205034,
+	205035, 205040, 205041, 205044, 205045, 205048, 205050, 205051,
+	205052, 205054,
 }
 
 // ErrDuplicate reports a unique-constraint violation.
@@ -403,35 +401,6 @@ func insertCharacter(ctx context.Context, tx *sql.Tx, accountID uint32, nickname
 		 ON DUPLICATE KEY UPDATE quantity = quantity`, characterID, characterType); err != nil {
 		return 0, mapError(err)
 	}
-	// Grenade comes last so it cannot disturb the starter grants above: every
-	// new character carries the free grenades worn in the special weapon slot.
-	// The SELECT form keeps character creation working (zero rows, no error) on
-	// a database whose catalogue lacks the definition, instead of failing on the
-	// foreign key.
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO character_items (character_id, item_id, quantity, equipped_slot, created_at, updated_at)
-		 SELECT ?, d.id, ?, d.equipment_slot, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
-		 FROM item_definitions d WHERE d.id = ? AND d.equipment_slot = ?
-		 ON DUPLICATE KEY UPDATE quantity = quantity`,
-		characterID, StarterGrenades, GrenadeItemID, GrenadeSlot); err != nil {
-		return 0, mapError(err)
-	}
-	// The other special weapons arrive in the same transaction but unworn: slot
-	// 21 holds one item at a time, so the extra ones wait in the bag and the
-	// player switches them in from the equipment screen.
-	for _, weapon := range specialWeapons {
-		if weapon.ID == GrenadeItemID {
-			continue
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO character_items (character_id, item_id, quantity, equipped_slot, created_at, updated_at)
-			 SELECT ?, d.id, ?, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6)
-			 FROM item_definitions d WHERE d.id = ? AND d.equipment_slot = ?
-			 ON DUPLICATE KEY UPDATE quantity = quantity`,
-			characterID, StarterGrenades, weapon.ID, GrenadeSlot); err != nil {
-			return 0, mapError(err)
-		}
-	}
 	return characterID, nil
 }
 
@@ -521,40 +490,37 @@ func (db *DB) CreateAccountWithCharacter(name, scheme, salt, hash, nickname stri
 	return character, nil
 }
 
-// EnsureGrenadeItems makes the special weapons' catalogue rows exist. It runs at
-// server startup instead of a schema migration because CheckSchema pins the
-// migration list exactly; the statements are idempotent so a database that
-// already holds the rows (hand-seeded or created by an earlier start) is left
-// untouched.
+// EnsureShopUnits adds shop_items.duration_type and flags the quantity-sold
+// entries. It runs at server startup instead of a schema migration because
+// CheckSchema pins the migration list exactly (versions 1..14); every statement
+// here is idempotent so an existing database keeps its data.
 //
-// The character mask is taken from the appearance table so every character type
-// this build can actually create may wear them; the fallback covers types 1
-// through 12 when the table is empty.
-func (db *DB) EnsureGrenadeItems() error {
+// MariaDB commits DDL implicitly, so the ALTER runs outside the transaction and
+// the backfill follows in one of its own.
+func (db *DB) EnsureShopUnits() error {
 	ctx, cancel := db.ctx()
 	defer cancel()
+	if _, err := db.sql.ExecContext(ctx,
+		`ALTER TABLE shop_items
+		   ADD COLUMN IF NOT EXISTS duration_type ENUM('day','count') NOT NULL DEFAULT 'day'
+		   COMMENT 'day: shop_stocks.duration_days is days; count: it is a piece count'
+		   AFTER max_duration_days`); err != nil {
+		return mapError(err)
+	}
 	tx, err := db.sql.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	for _, weapon := range specialWeapons {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
-			 SELECT ?, ?, ?, FALSE
-			 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = ?)`,
-			weapon.ID, weapon.Name, GrenadeSlot, weapon.ID); err != nil {
-			return mapError(err)
-		}
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-			 SELECT ?, ?,
-			        COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-			                  FROM character_appearances), 4095)
-			 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = ?)`,
-			weapon.ID, grenadeOccupiedBit, weapon.ID); err != nil {
-			return mapError(err)
-		}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(countSaleItems)), ",")
+	args := make([]any, 0, len(countSaleItems))
+	for _, id := range countSaleItems {
+		args = append(args, id)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE shop_items SET duration_type = 'count'
+		 WHERE duration_type <> 'count' AND item_id IN (`+placeholders+`)`, args...); err != nil {
+		return mapError(err)
 	}
 	return tx.Commit()
 }
@@ -1046,6 +1012,12 @@ type ShopCard struct {
 	// Preview marks a card the client only shows: shop_preview_items entries are
 	// display-only, so the purchase path refuses their stocks.
 	Preview bool
+	// DurationType says how a stock's duration is read: "day" is a rental length,
+	// "count" is a piece count (shop_items.duration_type).
+	DurationType string
+	// Maximum is shop_items.max_duration_days: the longest rental or, for a
+	// quantity-sold entry, the largest quantity a bag may hold.
+	Maximum uint32
 	Stocks  []ShopStock
 }
 
@@ -1083,7 +1055,8 @@ func (db *DB) ShopCatalog() ([]ShopCard, []ShopCategory, error) {
 	cards := []ShopCard{}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT i.item_id, d.name, i.display_order, i.sub_category_id, s.main_category_id,
-		        i.sale_starts_at, i.sale_ends_at, i.currency, p.item_id
+		        i.sale_starts_at, i.sale_ends_at, i.currency, p.item_id,
+		        i.duration_type, i.max_duration_days
 		 FROM shop_items i
 		 JOIN item_definitions d ON d.id = i.item_id
 		 JOIN shop_sub_categories s ON s.id = i.sub_category_id
@@ -1101,7 +1074,7 @@ func (db *DB) ShopCatalog() ([]ShopCard, []ShopCategory, error) {
 		var previewItem sql.NullInt64
 		if err := rows.Scan(&card.ItemID, &card.Name, &card.DisplayOrder, &card.SubCategory,
 			&card.MainCategory, &card.SaleStart, &card.SaleEnd, &card.Currency,
-			&previewItem); err != nil {
+			&previewItem, &card.DurationType, &card.Maximum); err != nil {
 			rows.Close()
 			return nil, nil, err
 		}
@@ -1259,9 +1232,12 @@ func (db *DB) SpendLucci(characterID, amount uint32) error {
 	return nil
 }
 
-// PurchaseItem spends currency, grants the item and records the audit row in a
-// single transaction so a failure cannot take payment without delivery.
-func (db *DB) PurchaseItem(characterID, stockID, itemID, price, days uint32, cash bool) error {
+// PurchaseItem spends the price, grants quantity pieces and, for a rental
+// (days > 0), starts the expiry countdown. A quantity-sold entry passes days 0:
+// the stack is permanent and any stale expiry row for the same item is dropped,
+// so a timed copy can never expire a counted one. It runs in a single transaction
+// so a failure cannot take payment without delivery.
+func (db *DB) PurchaseItem(characterID, stockID, itemID, price, quantity, days uint32, cash bool) error {
 	ctx, cancel := db.ctx()
 	defer cancel()
 	tx, err := db.sql.BeginTx(ctx, nil)
@@ -1284,11 +1260,14 @@ func (db *DB) PurchaseItem(characterID, stockID, itemID, price, days uint32, cas
 		return ErrNotFound
 	}
 
+	if quantity == 0 {
+		quantity = 1
+	}
 	insert, err := tx.ExecContext(ctx,
 		`INSERT INTO character_items (character_id, item_id, quantity, equipped_slot, created_at, updated_at)
-		 VALUES (?, ?, 1, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
-		 ON DUPLICATE KEY UPDATE quantity = quantity + 1, updated_at = UTC_TIMESTAMP(6)`,
-		characterID, itemID)
+		 VALUES (?, ?, ?, NULL, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
+		 ON DUPLICATE KEY UPDATE quantity = quantity + ?, updated_at = UTC_TIMESTAMP(6)`,
+		characterID, itemID, quantity, quantity)
 	if err != nil {
 		return mapError(err)
 	}
@@ -1296,15 +1275,15 @@ func (db *DB) PurchaseItem(characterID, stockID, itemID, price, days uint32, cas
 	if err != nil {
 		return err
 	}
-	if days > 0 {
-		target := uint64(rowID)
-		if target == 0 {
-			if err := tx.QueryRowContext(ctx,
-				`SELECT id FROM character_items WHERE character_id = ? AND item_id = ?`,
-				characterID, itemID).Scan(&target); err != nil {
-				return err
-			}
+	target := uint64(rowID)
+	if target == 0 {
+		if err := tx.QueryRowContext(ctx,
+			`SELECT id FROM character_items WHERE character_id = ? AND item_id = ?`,
+			characterID, itemID).Scan(&target); err != nil {
+			return err
 		}
+	}
+	if days > 0 {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO character_item_expirations (character_item_id, expires_at)
 			 VALUES (?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? DAY))
@@ -1312,11 +1291,14 @@ func (db *DB) PurchaseItem(characterID, stockID, itemID, price, days uint32, cas
 			target, days, days); err != nil {
 			return mapError(err)
 		}
+	} else if _, err := tx.ExecContext(ctx,
+		`DELETE FROM character_item_expirations WHERE character_item_id = ?`, target); err != nil {
+		return mapError(err)
 	}
 	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO shop_purchases (character_id, stock_id, lucci_spent, expires_at, created_at)
-		 VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? DAY), UTC_TIMESTAMP(6))`,
-		characterID, stockID, price, days); err != nil {
+		 VALUES (?, ?, ?, IF(? > 0, DATE_ADD(UTC_TIMESTAMP(6), INTERVAL ? DAY), NULL), UTC_TIMESTAMP(6))`,
+		characterID, stockID, price, days, days); err != nil {
 		return mapError(err)
 	}
 	// The weapon-preset expansion opens the third slot, but only the permanent
@@ -1336,6 +1318,24 @@ func (db *DB) PurchaseItem(characterID, stockID, itemID, price, days uint32, cas
 		}
 	}
 	return tx.Commit()
+}
+
+// ItemQuantity reports how many pieces of one item a character holds, zero when
+// the bag has no row. The quantity limit is enforced against this value.
+func (db *DB) ItemQuantity(characterID, itemID uint32) (uint32, error) {
+	ctx, cancel := db.ctx()
+	defer cancel()
+	var quantity uint32
+	err := db.sql.QueryRowContext(ctx,
+		`SELECT quantity FROM character_items WHERE character_id = ? AND item_id = ?`,
+		characterID, itemID).Scan(&quantity)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, mapError(err)
+	}
+	return quantity, nil
 }
 
 // RecordPurchase stores a shop purchase audit row.

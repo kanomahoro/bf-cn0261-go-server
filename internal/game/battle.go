@@ -356,7 +356,7 @@ func (s *Server) handlePeerAction(session *Session, packet protocol.Packet) erro
 	if room == nil {
 		return nil
 	}
-	if _, err := protocol.ReadPeerActionObject(packet, uint8(session.slot), s.weapons.DefinitionIDs()); err != nil {
+	if _, err := protocol.ReadPeerActionObject(packet, uint8(session.slot), s.weaponsBySlot); err != nil {
 		return err
 	}
 	room.Each(func(slot int, other *Session) {

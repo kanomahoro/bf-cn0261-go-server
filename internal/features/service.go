@@ -258,18 +258,18 @@ func oleDate(value time.Time) float64 {
 // purchasableStock finds the stock a purchase refers to. Cards the client only
 // previews carry no buyable stock, mirroring NOT EXISTS (SELECT 1 FROM
 // shop_preview_items ...) in the original's purchase statement.
-func purchasableStock(cards []store.ShopCard, stockID uint32) (*store.ShopStock, uint32) {
+func purchasableStock(cards []store.ShopCard, stockID uint32) (*store.ShopCard, *store.ShopStock) {
 	for i := range cards {
 		if cards[i].Preview {
 			continue
 		}
 		for j := range cards[i].Stocks {
 			if cards[i].Stocks[j].ID == stockID {
-				return &cards[i].Stocks[j], cards[i].ItemID
+				return &cards[i], &cards[i].Stocks[j]
 			}
 		}
 	}
-	return nil, 0
+	return nil, nil
 }
 
 // Purchase buys a stock option and returns the wire result.
@@ -281,10 +281,11 @@ func (s *Service) Purchase(characterID, stockID uint32) (protocol.PurchaseResult
 	if err != nil {
 		return protocol.PurchaseFailed, err
 	}
-	stock, itemID := purchasableStock(cards, stockID)
+	card, stock := purchasableStock(cards, stockID)
 	if stock == nil {
 		return protocol.PurchaseUnavailable, nil
 	}
+	itemID := card.ItemID
 	// Currency decides which "insufficient" code the client shows.
 	lucci, cashBalance, err := s.db.Balance(characterID)
 	if err != nil {
@@ -297,7 +298,21 @@ func (s *Service) Purchase(characterID, stockID uint32) (protocol.PurchaseResult
 	if useCash && cashBalance < stock.SellPrice {
 		return protocol.PurchaseInsufficientCash, nil
 	}
-	if err := s.db.PurchaseItem(characterID, stockID, itemID, stock.SellPrice, stock.Duration, useCash); err != nil {
+	// A quantity-sold entry turns its stock duration into a piece count: the bag
+	// grows by that many and the stack never expires. It is bounded by
+	// max_duration_days, which the catalogue reads as the quantity limit.
+	quantity, days := uint32(1), stock.Duration
+	if card.DurationType == "count" {
+		owned, err := s.db.ItemQuantity(characterID, itemID)
+		if err != nil {
+			return protocol.PurchaseFailed, err
+		}
+		if card.Maximum > 0 && owned+stock.Duration > card.Maximum {
+			return protocol.PurchaseCapacityLimit, nil
+		}
+		quantity, days = stock.Duration, 0
+	}
+	if err := s.db.PurchaseItem(characterID, stockID, itemID, stock.SellPrice, quantity, days, useCash); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			if useCash {
 				return protocol.PurchaseInsufficientCash, nil

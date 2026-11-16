@@ -1,5 +1,22 @@
 # Changelog
 
+## 未发版（2026-11-16，本地累积，待出号时归并）
+
+- **数量类商品购买修复**：客户端 `ShopItem.durationType = count` 的 90 件商品以前按天卖——买「50 个」只到手
+  1 个还带 50 天过期。现在 `shop_items.duration_type` 在启动时补齐并回填（`EnsureShopUnits`，幂等），
+  购买路径按个数累加到 `character_items.quantity`、不写过期行；超过商品上限（`max_duration_days`）
+  返回 `PurchaseCapacityLimit(22)`，不扣钱
+- **投掷物改为商店商品**：`shop-patches/grenades-patch.sql` 上架 7 件（205003 / 205004 / 205005 / 205009 /
+  205015 / 205017 / 205054，子类 307、槽位 21、20 条库存档，按个数卖）；服务端启动时不再注入手雷定义，
+  `EnsureGrenadeItems` 删除
+- **新建角色不再赠送手雷**：三件各 100 颗的预置全部移除（投掷物改为商城购买）
+- **32810 武器槽校验修正**：`ReadPeerActionObject` 原先把扁平的 `DefinitionIDs()` 当槽位索引查（恒假，
+  一旦走游戏连接就会断），改成 `Weapons.BySlot()` 的槽位内成员判断。全 relay 模式下该包只转发不解析，
+  线上行为不变
+- **`config/game_weapons.json` 精简**：删掉后加的 5004 / 5009 两条定义，回到 466 条（与参考实现一致）
+- **`shop-patches/preview-cleanup.sql`**：把 38 件「只展示不售卖」的预览商品从商店整批清掉（不删道具定义，
+  玩家持有不受影响）
+
 ## v1.0.0（2026-11-15，第一个正式版本）
 
 客户端 11 个可选模式全部实现并在真机验收，另含单人教程（25 关）。本版把 v0.9.19 之后累积的

@@ -9,10 +9,12 @@
 | `clothes-patch.sql` | 衣服补丁：HC 五件套 8 套（帽/上衣/裤/手套/鞋各 8 件） | 40 |
 | `weapons-patch.sql` | 武器补丁（步枪 10 / 散弹 9 / 近战 4 / 狙击 5 / 手枪 3） | 31 |
 | `misc-items-patch.sql` | 杂项：能量水晶 4 + 强制起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 |
+| `grenades-patch.sql` | 投掷物：手雷 / 粘稠手雷 / 地雷 7 件（子类 307，按个数卖） | 7 |
 | `grant-starter-cards.sql` | 维护脚本：全服补发角色卡「皮蛋 / 黑妞」（**不是商店补丁**） | 2 张卡 |
-| `*-rollback.sql` | 上面三个 patch 各自对应的回退 | — |
+| `preview-cleanup.sql` | 清理脚本：把 38 件「只展示不售卖」的预览商品从商店整批删掉 | -38 |
+| `*-rollback.sql` | 上面几个 patch 各自对应的回退（`preview-cleanup.sql` 不备份、无回退） | — |
 
-合计 **84 件道具、218 条库存档位**。
+合计 **91 件道具、238 条库存档位**（再加上 `preview-cleanup.sql` 的清理效果）。
 
 ## 导入
 
@@ -20,6 +22,9 @@
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-patch.sql
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < weapons-patch.sql
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < misc-items-patch.sql
+mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < grenades-patch.sql
+# 可选：清掉只展示不售卖的预览商品
+# mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < preview-cleanup.sql
 ```
 
 - 顺序随意，三者无依赖

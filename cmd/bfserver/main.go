@@ -173,9 +173,9 @@ func run(args []string) error {
 		if err := db.CheckSchema(); err != nil {
 			return err
 		}
-		// The -create-account path creates a character too, so it needs the
-		// special-weapon catalogue rows for the starter loadout to include them.
-		if err := db.EnsureGrenadeItems(); err != nil {
+		// The -create-account path creates a character too, so the shop schema
+		// must already be able to take a purchase afterwards.
+		if err := db.EnsureShopUnits(); err != nil {
 			return err
 		}
 		accounts := features.NewAccounts(db)
@@ -239,12 +239,12 @@ func run(args []string) error {
 	if err := db.CheckSchema(); err != nil {
 		return err
 	}
-	// The special weapons' catalogue rows are seeded here rather than by a
-	// migration: CheckSchema pins the applied migration list exactly, and the
-	// insert is idempotent so an already-seeded database is unaffected.
-	logger.Info("[Database] ensuring the special weapon item definitions")
-	if err := db.EnsureGrenadeItems(); err != nil {
-		logger.Error("[Database] special weapon definitions could not be ensured; new characters would start without grenades", "error", err)
+	// shop_items.duration_type is added here rather than by a migration:
+	// CheckSchema pins the applied migration list exactly, and the statement is
+	// idempotent so an already-migrated database is unaffected.
+	logger.Info("[Database] ensuring the shop quantity flags")
+	if err := db.EnsureShopUnits(); err != nil {
+		logger.Error("[Database] shop quantity flags could not be ensured; quantity-sold items would be granted as single timed copies", "error", err)
 		return err
 	}
 

@@ -3,6 +3,7 @@ package protocol
 import (
 	"fmt"
 	"math"
+	"slices"
 )
 
 // ShopStock is one purchase option of a shop card.
@@ -239,7 +240,9 @@ func ValidPeerObject(objectID uint32, slot uint8) bool {
 
 // ReadPeerActionObject parses the peer action packets and returns the source
 // object id.
-func ReadPeerActionObject(p Packet, sourceSlot uint8, weaponDefs []uint32) (uint32, error) {
+// weaponsBySlot maps a weapon slot to the definition ids that slot accepts;
+// a report is valid only when the id it carries belongs to the slot it claims.
+func ReadPeerActionObject(p Packet, sourceSlot uint8, weaponsBySlot map[uint32][]uint32) (uint32, error) {
 	if !IsPeerAction(p.ID) {
 		return 0, fmt.Errorf("%w: unsupported peer action %d", ErrInvalidPacket, p.ID)
 	}
@@ -264,7 +267,7 @@ func ReadPeerActionObject(p Packet, sourceSlot uint8, weaponDefs []uint32) (uint
 		if _, err := r.Unsigned(); err != nil {
 			return 0, err
 		}
-		if int(weaponSlot) >= len(weaponDefs) || weapon == 0 || weaponDefs[weaponSlot] != weapon {
+		if weapon == 0 || !slices.Contains(weaponsBySlot[weaponSlot], weapon) {
 			return 0, fmt.Errorf("%w: weapon not in equipped inventory", ErrInvalidPacket)
 		}
 		return source, r.RequireEnd()
