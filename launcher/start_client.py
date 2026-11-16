@@ -78,12 +78,15 @@ def transfer_identity(kernel, process, ticket):
                 break
             key = struct.unpack_from('<i', data, 12)[0]
             if key == 1004:
-                if data[16] in (0, 1):
-                    raise RuntimeError('Operator login configuration value is invalid')
+                mode = data[16]
+                if mode == 0:
+                    # 上一次启动已经把它写成 0，而客户端又把配置存回了盘（或者这一项
+                    # 本来就处于关闭状态）。这已经是想要的结果，直接继续，别再报错。
+                    return mode
                 write(node + 16, b'\x00')
                 if read(node + 16, 1) != b'\x00':
                     raise RuntimeError('Launcher login configuration verification failed')
-                return
+                return mode
             node = struct.unpack_from('<I', data, 0 if 1004 < key else 8)[0]
         raise RuntimeError('Verified CN0261 operator login configuration was not found')
 
@@ -107,12 +110,13 @@ def transfer_identity(kernel, process, ticket):
                     source_buffer = struct.unpack_from('<I', source)[0]
                     if read(source_buffer, len(encoded)) != encoded:
                         raise RuntimeError('Parsed client identity did not match the issued ticket')
-                    select_launcher_login()
+                    login_mode = select_launcher_login()
                     write(connection + 2440, source)
                     write(user + 36, destination)
                     if read(connection + 2440, 24) != source or read(user + 36, 24) != destination:
                         raise RuntimeError('Launcher identity handoff verification failed')
-                    return
+                    # 把读到的官方登录模式透出去：0 = 本来就是关闭状态
+                    return login_mode
                 finally:
                     if kernel.ResumeThread(process.thread) == 4294967295:
                         raise ctypes.WinError(ctypes.get_last_error())
@@ -278,8 +282,9 @@ def launch(image_path, instance, launcher_identity=False, resolution_extension=F
         # 身份搬运必须紧跟在互斥体改完之后（和没加分辨率功能时一模一样）：
         # 客户端解析 login.ini 的 id 是毫秒级的事，晚一步它就已经自己登录了，
         # 那时配置树里的官方登录开关已变，搬运会因为状态校验失败而中止。
+        login_mode = None
         if launcher_identity:
-            transfer_identity(kernel, process, ticket)
+            login_mode = transfer_identity(kernel, process, ticket)
 
         # 分辨率扩展放在搬运之后：客户端加壳，补丁点的明文要等解包才出现，
         # 而解包比登录慢得多。补丁出任何问题都只记状态，不影响已经启动的客户端。
@@ -319,6 +324,7 @@ def launch(image_path, instance, launcher_identity=False, resolution_extension=F
             'fileChanged': False,
             'launcherIdentityTransferred': launcher_identity,
             'operatorLoginDisabled': launcher_identity,
+            'operatorLoginMode': login_mode,
             'resolutionExtension': resolution_status,
         }
     finally:

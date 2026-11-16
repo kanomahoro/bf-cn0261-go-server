@@ -490,6 +490,8 @@ class Launcher(tk.Tk):
             self.log('认证成功，正在启动客户端……')
             result = start_game(host, response, hidpi_enabled)
             note = (result or {}).get('resolutionExtension')
+            if (result or {}).get('operatorLoginMode') == 0:
+                note = (note + ' ' if note else '') + '（官方登录已是关闭状态，未再改写）'
             self.log('客户端已启动。' + (' ' + note if note else ''))
         except socket.timeout:
             self.log('连接超时：请检查服务器 IP、端口和防火墙。')
