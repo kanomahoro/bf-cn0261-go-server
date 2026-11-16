@@ -26,6 +26,10 @@
       "healthDelta": 10.0
     },
     {
+      "id": 7,
+      "healthDelta": 10.0
+    },
+    {
       "id": 8,
       "healthDelta": 5.0
     },
@@ -44,6 +48,10 @@
     {
       "id": 14,
       "healthDelta": 10.0
+    },
+    {
+      "id": 19,
+      "healthDelta": 5.0
     }
   ],
   "channels": [

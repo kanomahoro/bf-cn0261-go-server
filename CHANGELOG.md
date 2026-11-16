@@ -20,6 +20,9 @@
 - **建号同时发放两张角色卡**：不管是注册还是创建角色、选皮蛋还是黑妞，背包里都会同时有
   300001 皮蛋 与 300002 黑妞（选中的那张穿在 63 槽，另一张不穿），都不写过期行 = 真永久。
   老角色需要补的仍用 `shop-patches/grant-starter-cards.sql`
+- **配置补齐**：`config/game_characters.json` 加回 type 7（葱头，hp +10）与 type 19（乖小爷，hp +5，
+  取自客户端 `FighterConfig` 的 `hp` 行）；`config/game_weapons.json` 补上商店在售的 6 个投掷物武器定义
+  （5004/5005/5009/5015/5017/5054，全为 slot 3），条目数 466 → 472，与商店内容一致
 - **`shop-patches/preview-cleanup.sql`**：把 38 件「只展示不售卖」的预览商品从商店整批清掉（不删道具定义，
   玩家持有不受影响）
 
