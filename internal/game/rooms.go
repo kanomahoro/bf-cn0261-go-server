@@ -2468,11 +2468,21 @@ func (s *Server) finishRound(room *Room, timeExpired bool) {
 		award := s.prog.EvaluateResult(player.Bubbles, player.Pangs, player.Rescues)
 		levelBefore, _, _ := s.prog.Level(before)
 		level, levelStart, nextLevel := s.prog.Level(after)
+		// The raid is cooperative: its result banner reads the seat team against the
+		// winner, and a seat that was turned still plays for the same side -- the
+		// conversion is the mode's respawn, not a change of sides. Clearing the stage
+		// therefore has to read as a win for every seat, turned or not. Only the wire
+		// row is adjusted; the settlement row keeps the team the round ran with, and
+		// the zombie battle (where turning really does lose) is untouched.
+		resultTeam := player.Team
+		if setting.Game.Mode == pveBossModeID {
+			resultTeam = pveHumanTeam
+		}
 		rows = append(rows, protocol.GameResultPlayer{
 			Slot:           player.Slot,
 			AccountID:      player.AccountID,
 			Nickname:       protocol.U16String(player.Nickname),
-			Team:           player.Team,
+			Team:           resultTeam,
 			Bubbles:        player.Bubbles,
 			Pangs:          player.Pangs,
 			Rescues:        player.Rescues,
