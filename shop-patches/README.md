@@ -43,6 +43,12 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-rollback.
 先预览谁买过 → 回收玩家持有 → 清商店侧数据 → 自检四个数归零。
 ⚠️ **不备份**，已买的道具会被直接没收。
 
+## 导入顺序
+
+`characters-patch.sql` 与 `clothes-patch.sql` **没有先后依赖**（实测两种顺序结果完全一致）：
+角色补丁里针对 HC 衣服的掩码校正，在衣服还没导入时是空操作；而改好后的 `clothes-patch.sql`
+自身写的就是客户端掩码，所以先导哪个都对。
+
 ## 角色卡补丁的特别说明（`characters-patch.sql`）
 
 新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并按客户端
