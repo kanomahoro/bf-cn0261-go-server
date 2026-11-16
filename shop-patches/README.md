@@ -10,11 +10,12 @@
 | `weapons-patch.sql` | 武器补丁（步枪 10 / 散弹 9 / 近战 4 / 狙击 5 / 手枪 3） | 31 |
 | `misc-items-patch.sql` | 杂项：能量水晶 4 + 强制起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 |
 | `grenades-patch.sql` | 投掷物：手雷 / 粘稠手雷 / 地雷 7 件（子类 307，按个数卖） | 7 |
+| `characters-patch.sql` | 角色卡：乖小爷(300019) / 葱头(300007)，含外观映射与装备掩码加宽 | 2 |
 | `grant-starter-cards.sql` | 维护脚本：全服补发角色卡「皮蛋 / 黑妞」（**不是商店补丁**） | 2 张卡 |
 | `preview-cleanup.sql` | 清理脚本：把 38 件「只展示不售卖」的预览商品从商店整批删掉 | -38 |
 | `*-rollback.sql` | 上面几个 patch 各自对应的回退（`preview-cleanup.sql` 不备份、无回退） | — |
 
-合计 **91 件道具、238 条库存档位**（再加上 `preview-cleanup.sql` 的清理效果）。
+合计 **93 件道具、244 条库存档位**（再加上 `preview-cleanup.sql` 的清理效果）。
 
 ## 导入
 
@@ -23,6 +24,7 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-patch.sql
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < weapons-patch.sql
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < misc-items-patch.sql
 mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < grenades-patch.sql
+mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < characters-patch.sql
 # 可选：清掉只展示不售卖的预览商品
 # mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < preview-cleanup.sql
 ```
@@ -40,6 +42,14 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-rollback.
 
 先预览谁买过 → 回收玩家持有 → 清商店侧数据 → 自检四个数归零。
 ⚠️ **不备份**，已买的道具会被直接没收。
+
+## 角色卡补丁的特别说明（`characters-patch.sql`）
+
+新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并把
+`item_equipment_rules.character_mask` 的 215 条存量规则加上新角色类型的位
+（乖小爷 `| 1<<18`、葱头 `| 1<<6`）。不加位的话，切成新角色后每次读背包
+（`NormalizeAppearance`）都会把非 63 槽装备脱光、武器预设也会被清。
+补丁只「加位」，对原有 11 种角色零影响；回退脚本会把位清回去。
 
 ## 三条要记住的
 

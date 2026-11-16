@@ -1,0 +1,50 @@
+-- ============================================================================
+--  回退脚本 · 新增的两名可售角色（乖小爷 300019 / 葱头 300007）
+--
+--  行为：撤掉商店侧数据、外观映射、装备规则、道具定义，并把掩码里加过的位清掉。
+--  ⚠ 会没收玩家已买的卡；若有角色正穿着这两张卡，会被一并脱掉（63 槽置空）。
+--  用法：mariadb --default-character-set=utf8mb4 <库名> < 本文件
+-- ============================================================================
+SET NAMES utf8mb4;
+
+-- 1) 预览：谁持有 / 谁正穿着
+SELECT ci.character_id, c.nickname, ci.item_id, d.name, ci.equipped_slot
+FROM character_items ci
+JOIN characters c ON c.id = ci.character_id
+LEFT JOIN item_definitions d ON d.id = ci.item_id
+WHERE ci.item_id IN (300019, 300007);
+
+START TRANSACTION;
+
+-- 2) 回收持有与过期行
+DELETE FROM character_item_expirations
+ WHERE character_item_id IN (SELECT id FROM character_items WHERE item_id IN (300019, 300007));
+DELETE FROM character_items WHERE item_id IN (300019, 300007);
+DELETE FROM character_weapon_preset_items WHERE item_id IN (300019, 300007);
+
+-- 3) 商店侧
+DELETE FROM shop_purchases
+ WHERE stock_id IN (SELECT id FROM shop_stocks WHERE item_id IN (300019, 300007));
+DELETE FROM shop_permanent_stocks
+ WHERE stock_id IN (SELECT id FROM shop_stocks WHERE item_id IN (300019, 300007));
+DELETE FROM shop_preview_items WHERE item_id IN (300019, 300007);
+DELETE FROM shop_stocks WHERE item_id IN (300019, 300007);
+DELETE FROM shop_items WHERE item_id IN (300019, 300007);
+
+-- 4) 规则 / 外观 / 定义（注意顺序：外观和规则都指向 item_definitions）
+DELETE FROM item_equipment_rules WHERE item_id IN (300019, 300007);
+DELETE FROM character_appearances WHERE item_id IN (300019, 300007);
+DELETE FROM item_definitions WHERE id IN (300019, 300007);
+
+-- 5) 掩码收回（只清这两个位；回到 11967 / 703 / 1727）
+UPDATE item_equipment_rules SET character_mask = character_mask & ~(CAST(1 AS UNSIGNED) << 18);
+UPDATE item_equipment_rules SET character_mask = character_mask & ~(CAST(1 AS UNSIGNED) << 6);
+
+COMMIT;
+
+-- 6) 自检：四个数都应为 0
+SELECT
+  (SELECT COUNT(*) FROM item_definitions WHERE id IN (300019, 300007))          AS defs_left,
+  (SELECT COUNT(*) FROM character_appearances WHERE item_id IN (300019, 300007)) AS appearances_left,
+  (SELECT COUNT(*) FROM shop_items WHERE item_id IN (300019, 300007))           AS shop_left,
+  (SELECT COUNT(*) FROM character_items WHERE item_id IN (300019, 300007))      AS bags_left;
