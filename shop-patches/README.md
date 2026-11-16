@@ -45,15 +45,22 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-rollback.
 
 ## 角色卡补丁的特别说明（`characters-patch.sql`）
 
-新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并给
-`item_equipment_rules.character_mask` 加新角色类型的位，否则换成新角色后每次读背包
-（`NormalizeAppearance`）都会把非 63 槽装备脱光、武器预设也会被清。
+新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并按客户端
+`ShopItem2.xml` 的 `allowChr` / `denyChr`（每件装备都写明允许哪些角色穿）校正
+`item_equipment_rules.character_mask`。不校正的话，换成新角色后每次读背包
+（`NormalizeAppearance` 在 `Items()` 里跑）会把不该脱的装备脱掉。
 
-**走保守方案**：只给「覆盖全部 11 种身体」那组（原掩码 11967，122 件）加
-`| 1<<18`、`| 1<<6`；`703`（88 件衣服）和 `1727`（BF冒险王 5 件）这两组原本就限定了身体，
-保持原样 —— 新角色穿这些限定款会被自动脱下。结果是新角色能穿：
-全部武器/饰品 + 通用那组装备 + **衣服只有 10 件**（飞影五件套、泡泡棒球队五件套）。
-补丁只「加位」，对原有 11 种角色零影响；回退脚本会把位清回去。
+按客户端数据换算（名字→类型：Dao=1 Dizni=2 Bazzi=3 Kephi=4 Uni=5 Mos=6 Ethi=7 Marid=8
+LXMarid=10 Leo=11 Lavi=12 Twotop=14 LXUni=19），存量 217 条规则里有 93 条要改：
+
+| 组 | 件数 | 结果掩码 | 含义 |
+|---|---|---|---|
+| 通用 | 122 | 274175 | 13 种身体全开放（全部武器/饰品/手雷） |
+| 衣服 A | 62 | 262911 | 葱头 + 乖小爷 都能穿（企鹅、小熊、夏威夷、中秋喜兔、万圣节、爱斯基摩、超级明星、红玫瑰、BF学校霸王、泡泡自由…） |
+| 衣服 B | 26 | 767 | 只有葱头能穿（朋克熊、金星训练、风帽训练、闪闪五星、红玫瑰部分…），客户端 allowChr 不含 LXUni |
+| BF冒险王 | 5 | 263935 | 五件套，两个角色都能穿 |
+
+13 种以外（Leo/Lavi/Twopup 等被 allowChr 排除的组合）保持客户端原样，没有放开。
 
 ## 三条要记住的
 

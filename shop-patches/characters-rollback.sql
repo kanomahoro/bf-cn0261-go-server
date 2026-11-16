@@ -36,9 +36,10 @@ DELETE FROM item_equipment_rules WHERE item_id IN (300019, 300007);
 DELETE FROM character_appearances WHERE item_id IN (300019, 300007);
 DELETE FROM item_definitions WHERE id IN (300019, 300007);
 
--- 5) 掩码收回（只清这两个位；回到 11967 / 703 / 1727）
-UPDATE item_equipment_rules SET character_mask = character_mask & ~(CAST(1 AS UNSIGNED) << 18);
-UPDATE item_equipment_rules SET character_mask = character_mask & ~(CAST(1 AS UNSIGNED) << 6);
+-- 5) 掩码回到补丁前：按当前值反推原来的三组（11967 / 703 / 1727）
+UPDATE item_equipment_rules SET character_mask = 11967 WHERE character_mask = 274175;
+UPDATE item_equipment_rules SET character_mask = 703   WHERE character_mask IN (262911, 767);
+UPDATE item_equipment_rules SET character_mask = 1727  WHERE character_mask = 263935;
 
 COMMIT;
 
