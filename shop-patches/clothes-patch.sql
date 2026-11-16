@@ -50,7 +50,7 @@ SELECT 100566, '僵尸斯坦头盔HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100566);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100566, 8589934592, 11967
+SELECT 100566, 8589934592, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100566);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -73,7 +73,7 @@ SELECT 100567, '僵尸王上衣HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100567);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100567, 549755813888, 11967
+SELECT 100567, 549755813888, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100567);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -96,7 +96,7 @@ SELECT 100568, '僵尸王下衣HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100568);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100568, 1099511627776, 11967
+SELECT 100568, 1099511627776, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100568);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -119,7 +119,7 @@ SELECT 100569, '僵尸王手套HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100569);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100569, 274877906944, 11967
+SELECT 100569, 274877906944, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100569);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -142,7 +142,7 @@ SELECT 100570, '僵尸王鞋子HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100570);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100570, 4398046511104, 11967
+SELECT 100570, 4398046511104, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100570);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -169,7 +169,7 @@ SELECT 100571, '法老王 发型 HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100571);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100571, 8589934592, 703
+SELECT 100571, 8589934592, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100571);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -192,7 +192,7 @@ SELECT 100572, '法老王 上衣 HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100572);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100572, 549755813888, 703
+SELECT 100572, 549755813888, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100572);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -215,7 +215,7 @@ SELECT 100573, '法老王下装 HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100573);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100573, 1099511627776, 703
+SELECT 100573, 1099511627776, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100573);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -238,7 +238,7 @@ SELECT 100574, '法老王 手套 HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100574);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100574, 274877906944, 703
+SELECT 100574, 274877906944, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100574);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -261,7 +261,7 @@ SELECT 100575, '法老王 鞋 HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100575);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100575, 4398046511104, 703
+SELECT 100575, 4398046511104, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100575);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -288,7 +288,7 @@ SELECT 100584, '恶魔战士 头盔Hc', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100584);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100584, 8589934592, 9919
+SELECT 100584, 8589934592, 272127
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100584);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -311,7 +311,7 @@ SELECT 100585, '恶魔战士 上衣Hc', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100585);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100585, 549755813888, 9919
+SELECT 100585, 549755813888, 272127
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100585);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -334,7 +334,7 @@ SELECT 100586, '恶魔战士 下衣Hc', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100586);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100586, 1099511627776, 9919
+SELECT 100586, 1099511627776, 272127
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100586);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -357,7 +357,7 @@ SELECT 100587, '恶魔战士 手套Hc', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100587);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100587, 274877906944, 9919
+SELECT 100587, 274877906944, 272127
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100587);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -380,7 +380,7 @@ SELECT 100588, '恶魔战士 鞋子Hc', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100588);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100588, 4398046511104, 9919
+SELECT 100588, 4398046511104, 272127
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100588);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -407,7 +407,7 @@ SELECT 100658, '犀利发型HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100658);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100658, 8589934592, 9277
+SELECT 100658, 8589934592, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100658);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -430,7 +430,7 @@ SELECT 100659, '犀利上衣HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100659);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100659, 549755813888, 9277
+SELECT 100659, 549755813888, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100659);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -453,7 +453,7 @@ SELECT 100660, '犀利下装HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100660);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100660, 1099511627776, 9277
+SELECT 100660, 1099511627776, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100660);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -476,7 +476,7 @@ SELECT 100661, '犀利手套HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100661);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100661, 274877906944, 9277
+SELECT 100661, 274877906944, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100661);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -499,7 +499,7 @@ SELECT 100662, '犀利鞋HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100662);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100662, 4398046511104, 9277
+SELECT 100662, 4398046511104, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100662);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -526,7 +526,7 @@ SELECT 100790, '流光绝影发型HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100790);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100790, 8589934592, 9277
+SELECT 100790, 8589934592, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100790);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -549,7 +549,7 @@ SELECT 100791, '流光绝影上衣HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100791);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100791, 549755813888, 9277
+SELECT 100791, 549755813888, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100791);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -572,7 +572,7 @@ SELECT 100792, '流光绝影下装HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100792);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100792, 1099511627776, 9277
+SELECT 100792, 1099511627776, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100792);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -595,7 +595,7 @@ SELECT 100793, '流光绝影手套HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100793);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100793, 274877906944, 9277
+SELECT 100793, 274877906944, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100793);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -618,7 +618,7 @@ SELECT 100794, '流光绝影鞋HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100794);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100794, 4398046511104, 9277
+SELECT 100794, 4398046511104, 271485
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100794);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -764,7 +764,7 @@ SELECT 100800, '圣战骑士头盔HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100800);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100800, 8589934592, 11967
+SELECT 100800, 8589934592, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100800);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -787,7 +787,7 @@ SELECT 100801, '圣战骑士上衣HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100801);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100801, 549755813888, 11967
+SELECT 100801, 549755813888, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100801);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -810,7 +810,7 @@ SELECT 100802, '圣战骑士下装HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100802);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100802, 1099511627776, 11967
+SELECT 100802, 1099511627776, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100802);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -833,7 +833,7 @@ SELECT 100803, '圣战骑士手套HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100803);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100803, 274877906944, 11967
+SELECT 100803, 274877906944, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100803);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -856,7 +856,7 @@ SELECT 100804, '圣战骑士靴子HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100804);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100804, 4398046511104, 11967
+SELECT 100804, 4398046511104, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100804);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -883,7 +883,7 @@ SELECT 101265, '爱斯基摩头发HC', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101265);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101265, 8589934592, 703
+SELECT 101265, 8589934592, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101265);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -906,7 +906,7 @@ SELECT 101266, '爱斯基摩上衣HC', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101266);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101266, 549755813888, 703
+SELECT 101266, 549755813888, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101266);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -929,7 +929,7 @@ SELECT 101267, '爱斯基摩下装HC', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101267);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101267, 1099511627776, 703
+SELECT 101267, 1099511627776, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101267);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -952,7 +952,7 @@ SELECT 101268, '爱斯基摩手套HC', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101268);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101268, 274877906944, 703
+SELECT 101268, 274877906944, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101268);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -975,7 +975,7 @@ SELECT 101269, '爱斯基摩靴子HC', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101269);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101269, 4398046511104, 703
+SELECT 101269, 4398046511104, 262911
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101269);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,

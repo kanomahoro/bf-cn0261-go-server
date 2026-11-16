@@ -72,6 +72,40 @@ UPDATE item_equipment_rules SET character_mask = 263935
  );
 
 -- ---------------------------------------------------------------------------
+--  1b) 昨天那套 HC 衣服补丁（clothes-patch.sql，8 套 40 件）的掩码同步校正
+--      它上线时我们只有 11 种角色，40 件里有 35 件只写了 11 种的位，
+--      按同一份客户端 allowChr 校对后这 35 件都允许 葱头(7) 与 乖小爷(19)：
+--      需要给它们补上这两位，否则换成新角色后这些 HC 会被 NormalizeAppearance 脱掉。
+--      剩下 5 件「流光艳影HC」客户端本身就只允许 黑妞/蓝蓝/蓝妹妹/拉比，保持不动。
+-- ---------------------------------------------------------------------------
+-- 274175：10 件 —— 僵尸王 / 圣战骑士 HC 五件套（客户端 allowChr 含 Ethi、LXUni）
+UPDATE item_equipment_rules SET character_mask = 274175
+ WHERE item_id IN (
+  100566, 100567, 100568, 100569, 100570, 100800, 100801, 100802,
+  100803, 100804
+ );
+
+-- 262911：10 件 —— 法老王 / 爱斯基摩 HC 五件套（allowChr 含 Ethi、LXUni）
+UPDATE item_equipment_rules SET character_mask = 262911
+ WHERE item_id IN (
+  100571, 100572, 100573, 100574, 100575, 101265, 101266, 101267,
+  101268, 101269
+ );
+
+-- 272127：5 件 —— 恶魔战士 HC 五件套（allowChr 含 Ethi、LXUni）
+UPDATE item_equipment_rules SET character_mask = 272127
+ WHERE item_id IN (
+  100584, 100585, 100586, 100587, 100588
+ );
+
+-- 271485：10 件 —— 犀利 / 流光绝影 HC 五件套（allowChr 含 Ethi、LXUni）
+UPDATE item_equipment_rules SET character_mask = 271485
+ WHERE item_id IN (
+  100658, 100659, 100660, 100661, 100662, 100790, 100791, 100792,
+  100793, 100794
+ );
+
+-- ---------------------------------------------------------------------------
 --  2) 道具定义（角色卡穿 63 槽）
 -- ---------------------------------------------------------------------------
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)

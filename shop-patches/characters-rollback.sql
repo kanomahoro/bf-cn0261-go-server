@@ -41,9 +41,31 @@ UPDATE item_equipment_rules SET character_mask = 11967 WHERE character_mask = 27
 UPDATE item_equipment_rules SET character_mask = 703   WHERE character_mask IN (262911, 767);
 UPDATE item_equipment_rules SET character_mask = 1727  WHERE character_mask = 263935;
 
+
+-- 6) 昨天那套 HC 衣服（clothes-patch.sql）的掩码回到它上线时的值
+UPDATE item_equipment_rules SET character_mask = 703
+ WHERE item_id IN (
+  100571, 100572, 100573, 100574, 100575, 101265, 101266, 101267,
+  101268, 101269
+ );
+UPDATE item_equipment_rules SET character_mask = 9277
+ WHERE item_id IN (
+  100658, 100659, 100660, 100661, 100662, 100790, 100791, 100792,
+  100793, 100794
+ );
+UPDATE item_equipment_rules SET character_mask = 9919
+ WHERE item_id IN (
+  100584, 100585, 100586, 100587, 100588
+ );
+UPDATE item_equipment_rules SET character_mask = 11967
+ WHERE item_id IN (
+  100566, 100567, 100568, 100569, 100570, 100800, 100801, 100802,
+  100803, 100804
+ );
+
 COMMIT;
 
--- 6) 自检：四个数都应为 0
+-- 7) 自检：四个数都应为 0
 SELECT
   (SELECT COUNT(*) FROM item_definitions WHERE id IN (300019, 300007))          AS defs_left,
   (SELECT COUNT(*) FROM character_appearances WHERE item_id IN (300019, 300007)) AS appearances_left,
