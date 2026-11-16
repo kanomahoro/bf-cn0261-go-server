@@ -9,10 +9,14 @@ import re
 from pathlib import Path
 import struct
 import subprocess
+import sys
+import threading
 import time
 
 import hidpi
 
+# gate=None 时的占位锁：让「只有一条线程挂起进程」的老路径保持原样。
+_NO_GATE = threading.Lock()
 EXPECTED_HASH = '4c16c49e4dcf90b3fb8422918dce7698acbe7f1c1e318eccddd71c444284ff4b'
 MUTEX_ADDRESS = 15364748
 ORIGINAL_MUTEX = b'Lambda\x00'
@@ -38,7 +42,7 @@ class ProcessInformation(ctypes.Structure):
     ]
 
 
-def transfer_identity(kernel, process, ticket):
+def transfer_identity(kernel, process, ticket, gate=None):
     """Move the client's own parsed string buffer into its empty connection identity.
 
     CN0261 VA 0x9878AD assigns login.ini id to UserInfo+36, while VA 0x6DAA80
@@ -100,7 +104,12 @@ def transfer_identity(kernel, process, ticket):
         if source and destination:
             length, capacity = struct.unpack_from('<II', source, 16)
             if length == len(ticket) and capacity >= length and capacity < 4096:
+                # 分辨率补丁在另一条线程里也会挂起/恢复这个线程：两边串行，
+                # 避免嵌套挂起导致恢复次数对不上。
+                gate_ctx = gate if gate is not None else _NO_GATE
+                gate_ctx.acquire()
                 if kernel.SuspendThread(process.thread) == 4294967295:
+                    gate_ctx.release()
                     raise ctypes.WinError(ctypes.get_last_error())
                 try:
                     if source != read(user + 36, 24) or destination != read(connection + 2440, 24):
@@ -118,13 +127,52 @@ def transfer_identity(kernel, process, ticket):
                     # 把读到的官方登录模式透出去：0 = 本来就是关闭状态
                     return login_mode
                 finally:
-                    if kernel.ResumeThread(process.thread) == 4294967295:
-                        raise ctypes.WinError(ctypes.get_last_error())
+                    raised = None
+                    try:
+                        if kernel.ResumeThread(process.thread) == 4294967295:
+                            raised = ctypes.WinError(ctypes.get_last_error())
+                    finally:
+                        gate_ctx.release()
+                    # 只有在 try 里没抛异常时才把「恢复线程失败」抛出去，
+                    # 否则会把真正的错误信息盖掉。
+                    if raised is not None and sys.exc_info()[0] is None:
+                        raise raised
         exit_code = wintypes.DWORD()
         if not kernel.GetExitCodeProcess(process.process, ctypes.byref(exit_code)) or exit_code.value != 259:
             raise RuntimeError('Client exited before launcher identity handoff')
         time.sleep(0.001)
     raise RuntimeError('Client identity handoff was not ready within 60 seconds')
+
+
+def apply_resolution_when_ready(kernel, process, gate, state):
+    """等客户端解包后打分辨率补丁（跑在独立线程里）。
+
+    客户端加壳，补丁点要等代码段解密；而票据注入必须紧跟互斥体改完之后。
+    两件事不能串行，所以分开跑，用 gate 串行化「挂起-改-恢复」这一段。
+    """
+    try:
+        ready = hidpi.image_ready(kernel, process.process)[0]
+        if not ready:
+            deadline = time.monotonic() + 10
+            while time.monotonic() < deadline:
+                if hidpi.image_ready(kernel, process.process)[0]:
+                    ready = True
+                    break
+                time.sleep(0.05)
+        if not ready:
+            state['status'] = '高分辨率扩展未启用：客户端代码段在 10 秒内没有解包完成'
+            return
+        with gate:
+            if kernel.SuspendThread(process.thread) == 4294967295:
+                raise ctypes.WinError(ctypes.get_last_error())
+            try:
+                _applied, status = hidpi.apply(kernel, process.process)
+            finally:
+                if kernel.ResumeThread(process.thread) == 4294967295:
+                    raise ctypes.WinError(ctypes.get_last_error())
+        state['status'] = status
+    except Exception as error:
+        state['status'] = '高分辨率扩展未启用：{}'.format(error)
 
 
 # Start the image suspended, swap the mutex bytes, then hand off the ticket.
@@ -279,40 +327,27 @@ def launch(image_path, instance, launcher_identity=False, resolution_extension=F
             raise ctypes.WinError(ctypes.get_last_error())
         suspended = False
 
-        # 身份搬运必须紧跟在互斥体改完之后（和没加分辨率功能时一模一样）：
-        # 客户端解析 login.ini 的 id 是毫秒级的事，晚一步它就已经自己登录了，
-        # 那时配置树里的官方登录开关已变，搬运会因为状态校验失败而中止。
+        # 分辨率补丁在后台线程里等解包（可能几秒），票据注入紧接着立刻执行：
+        # 前者不能拖慢后者；后者也不能等前者，否则客户端会在我们打补丁之前就把
+        # 存盘的分辨率判成非法并回退。
+        gate = threading.Lock()
+        resolution_state = {}
+        patch_thread = None
+        if resolution_extension:
+            patch_thread = threading.Thread(
+                target=apply_resolution_when_ready,
+                args=(kernel, process, gate, resolution_state),
+                daemon=True,
+            )
+            patch_thread.start()
+
         login_mode = None
         if launcher_identity:
-            login_mode = transfer_identity(kernel, process, ticket)
+            login_mode = transfer_identity(kernel, process, ticket, gate)
 
-        # 分辨率扩展放在搬运之后：客户端加壳，补丁点的明文要等解包才出现，
-        # 而解包比登录慢得多。补丁出任何问题都只记状态，不影响已经启动的客户端。
-        resolution_status = None
-        if resolution_extension:
-            ready = hidpi.image_ready(kernel, process.process)[0]
-            if not ready:
-                ready_deadline = time.monotonic() + 10
-                while time.monotonic() < ready_deadline:
-                    if hidpi.image_ready(kernel, process.process)[0]:
-                        ready = True
-                        break
-                    time.sleep(0.05)
-            if not ready:
-                resolution_status = '高分辨率扩展未启用：客户端代码段在 10 秒内没有解包完成'
-            else:
-                if kernel.SuspendThread(process.thread) == 4294967295:
-                    raise ctypes.WinError(ctypes.get_last_error())
-                suspended = True
-                try:
-                    # 任何异常都只记在状态里：补丁失败不能连累已经起来的客户端。
-                    _applied, resolution_status = hidpi.apply(kernel, process.process)
-                except Exception as error:
-                    resolution_status = '高分辨率扩展未启用：{}'.format(error)
-                finally:
-                    if kernel.ResumeThread(process.thread) == 4294967295:
-                        raise ctypes.WinError(ctypes.get_last_error())
-                    suspended = False
+        if patch_thread is not None:
+            patch_thread.join(timeout=20)
+        resolution_status = resolution_state.get('status')
 
         completed = True
         return {
