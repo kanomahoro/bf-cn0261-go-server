@@ -45,10 +45,14 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < clothes-rollback.
 
 ## 角色卡补丁的特别说明（`characters-patch.sql`）
 
-新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并把
-`item_equipment_rules.character_mask` 的 215 条存量规则加上新角色类型的位
-（乖小爷 `| 1<<18`、葱头 `| 1<<6`）。不加位的话，切成新角色后每次读背包
+新增角色不只是插商品：必须同时补 `character_appearances`（63 槽模型映射），并给
+`item_equipment_rules.character_mask` 加新角色类型的位，否则换成新角色后每次读背包
 （`NormalizeAppearance`）都会把非 63 槽装备脱光、武器预设也会被清。
+
+**走保守方案**：只给「覆盖全部 11 种身体」那组（原掩码 11967，122 件）加
+`| 1<<18`、`| 1<<6`；`703`（88 件衣服）和 `1727`（BF冒险王 5 件）这两组原本就限定了身体，
+保持原样 —— 新角色穿这些限定款会被自动脱下。结果是新角色能穿：
+全部武器/饰品 + 通用那组装备 + **衣服只有 10 件**（飞影五件套、泡泡棒球队五件套）。
 补丁只「加位」，对原有 11 种角色零影响；回退脚本会把位清回去。
 
 ## 三条要记住的

@@ -11,9 +11,13 @@
 --    1. character_appearances 决定「哪张卡 = 哪个角色身体」，缺行则 63 槽拿不到模型
 --    2. item_equipment_rules.character_mask 决定「这件东西能被哪些角色穿」。
 --       存量 215 行的掩码只有 11967 / 703 / 1727 三种，全都不含 type 7(1<<6=64)
---       与 type 19(1<<18=262144) 的位。不加位的话，切成新角色后每次读背包
---       （NormalizeAppearance 在 Items() 里跑）都会把非 63 槽装备全部脱下，
---       武器预设也会被清空。所以这里把 215 行都「只加位」，对原有 11 种角色零影响。
+--       与 type 19(1<<18=262144) 的位。不加位的话，换成新角色后每次读背包
+--       （NormalizeAppearance 在 Items() 里跑）都会把非 63 槽装备全部脱下。
+--
+--       **本补丁走保守方案**：只给「全角色通用」那组（原掩码 = 11967，122 件）加位。
+--       703（88 件衣服）与 1727（BF冒险王 5 件）这两组原本就限定了身体，
+--       多半是没有对应挂点，**保持原样不动** —— 所以新角色穿上它们会被自动脱下，
+--       这是刻意的语义：能穿通用装备，不能穿限定款。
 --
 --  用法：mariadb --default-character-set=utf8mb4 <库名> < 本文件
 --  幂等：INSERT 带 NOT EXISTS；UPDATE 带「位还没加」的判断，可重复执行
@@ -27,16 +31,15 @@ SET NAMES utf8mb4;
 START TRANSACTION;
 
 -- ---------------------------------------------------------------------------
---  1) 掩码加宽：存量 215 条规则加上 type 19 / type 7 的位（只加，不减）
---     对原有 11 种角色完全没有影响
+--  1) 掩码加宽（保守）：只给「覆盖全部 11 种身体」的那组加 type 19 / type 7 位
+--     判据 (character_mask & 11967) = 11967 —— 703 / 1727 这两组是子集，命中不了，
+--     它们保持原样（新角色穿不上，属于预期）。只加位，对原有 11 种角色零影响。
 -- ---------------------------------------------------------------------------
 UPDATE item_equipment_rules
-   SET character_mask = character_mask | CAST(1 AS UNSIGNED) << 18   -- type 19
- WHERE (character_mask & (CAST(1 AS UNSIGNED) << 18)) = 0;
-
-UPDATE item_equipment_rules
-   SET character_mask = character_mask | CAST(1 AS UNSIGNED) << 6    -- type 7
- WHERE (character_mask & (CAST(1 AS UNSIGNED) << 6)) = 0;
+   SET character_mask = character_mask | (CAST(1 AS UNSIGNED) << 18) | (CAST(1 AS UNSIGNED) << 6)
+ WHERE (character_mask & 11967) = 11967
+   AND (character_mask & ((CAST(1 AS UNSIGNED) << 18) | (CAST(1 AS UNSIGNED) << 6)))
+       <> ((CAST(1 AS UNSIGNED) << 18) | (CAST(1 AS UNSIGNED) << 6));
 
 -- ---------------------------------------------------------------------------
 --  2) 道具定义（角色卡穿 63 槽）
@@ -115,7 +118,8 @@ COMMIT;
 -- ---------------------------------------------------------------------------
 --  7) 自检
 --     · 两张卡：定义 / 外观 / 规则 / 商品 / 档位 都齐
---     · masked_rules 应等于 item_equipment_rules 总行数（每行都含 type19 与 type7 位）
+--     · masked_type19 / masked_type7 应等于「通用那组 + 两张新卡」= 124
+--       （703 组的 88 件衣服与 1727 组的 5 件 BF冒险王 故意不加位）
 -- ---------------------------------------------------------------------------
 SELECT i.item_id, d.name, a.character_type, r.character_mask, i.currency,
        i.max_duration_days, i.is_on_sale,
@@ -131,6 +135,8 @@ ORDER BY i.display_order;
 
 SELECT
   (SELECT COUNT(*) FROM item_equipment_rules)                                            AS rules_total,
+  (SELECT COUNT(*) FROM item_equipment_rules
+    WHERE (character_mask & 11967) = 11967)                                              AS universal_rules,
   (SELECT COUNT(*) FROM item_equipment_rules
     WHERE (character_mask & (CAST(1 AS UNSIGNED) << 18)) <> 0)                           AS masked_type19,
   (SELECT COUNT(*) FROM item_equipment_rules
