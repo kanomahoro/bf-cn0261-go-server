@@ -11,6 +11,8 @@ import struct
 import subprocess
 import time
 
+import hidpi
+
 EXPECTED_HASH = '4c16c49e4dcf90b3fb8422918dce7698acbe7f1c1e318eccddd71c444284ff4b'
 MUTEX_ADDRESS = 15364748
 ORIGINAL_MUTEX = b'Lambda\x00'
@@ -124,7 +126,7 @@ def transfer_identity(kernel, process, ticket):
 # Start the image suspended, swap the mutex bytes, then hand off the ticket.
 
 
-def launch(image_path, instance, launcher_identity=False):
+def launch(image_path, instance, launcher_identity=False, resolution_extension=False):
     image_path = image_path.resolve(strict=True)
     image_bytes = image_path.read_bytes()
     if hashlib.sha256(image_bytes).hexdigest() != EXPECTED_HASH:
@@ -236,6 +238,15 @@ def launch(image_path, instance, launcher_identity=False):
         else:
             raise RuntimeError('Verified client mutex bytes did not appear within 20 seconds')
 
+        # 客户端加壳：补丁点的明文要等解包后才出现。互斥体已经在了不代表代码段都已解密，
+        # 所以这里轮询到就绪为止（最多 10 秒）；没就绪也照常改互斥体，只是不启用高分辨率。
+        if resolution_extension and not hidpi.image_ready(kernel, process.process)[0]:
+            ready_deadline = time.monotonic() + 10
+            while time.monotonic() < ready_deadline:
+                if hidpi.image_ready(kernel, process.process)[0]:
+                    break
+                time.sleep(0.05)
+
         if kernel.SuspendThread(process.thread) == 4294967295:
             raise ctypes.WinError(ctypes.get_last_error())
         suspended = True
@@ -269,6 +280,15 @@ def launch(image_path, instance, launcher_identity=False):
         if copied.value != len(replacement) or observed.raw != replacement:
             raise RuntimeError('Process mutex verification failed')
 
+        # 分辨率扩展在同一段挂起窗口里打补丁：进程还没读到原生分辨率表。
+        # 补丁出任何问题都只记状态，不影响登录与启动。
+        resolution_status = None
+        if resolution_extension:
+            try:
+                _applied, resolution_status = hidpi.apply(kernel, process.process)
+            except Exception as error:
+                resolution_status = '高分辨率扩展未启用：{}'.format(error)
+
         if kernel.ResumeThread(process.thread) == 4294967295:
             raise ctypes.WinError(ctypes.get_last_error())
         suspended = False
@@ -286,6 +306,7 @@ def launch(image_path, instance, launcher_identity=False):
             'fileChanged': False,
             'launcherIdentityTransferred': launcher_identity,
             'operatorLoginDisabled': launcher_identity,
+            'resolutionExtension': resolution_status,
         }
     finally:
         if not completed:

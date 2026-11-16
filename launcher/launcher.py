@@ -41,6 +41,7 @@ DEFAULTS = {
     'host': '127.0.0.1',
     'auth_port': 26102,
     'account': '',
+    'hidpi': False,
 }
 
 
@@ -203,7 +204,7 @@ def running_clients():
             if CLIENT_IMAGE.lower() in line.lower()]
 
 
-def start_game(host, response):
+def start_game(host, response, resolution_extension=False):
     token = response['loginTicket']
     game_port = int(response['gamePort'])
     login_path = os.path.join(BASE, 'login.ini')
@@ -212,7 +213,8 @@ def start_game(host, response):
 
     letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
     instance = letters[len(running_clients()) % len(letters)]
-    return launch(Path(CLIENT_EXE), instance, launcher_identity=True)
+    return launch(Path(CLIENT_EXE), instance, launcher_identity=True,
+                  resolution_extension=resolution_extension)
 
 
 class RegisterDialog(tk.Toplevel):
@@ -339,8 +341,8 @@ class RegisterDialog(tk.Toplevel):
 class Launcher(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title('泡泡战士 CN0261 登录器 v0.1.0 By:rurudoo')
-        self.geometry('540x330')
+        self.title('泡泡战士 CN0261 登录器 v1.0.0 By:rurudoo')
+        self.geometry('540x372')
         self.resizable(False, False)
 
         self.cfg = load_config()
@@ -352,6 +354,7 @@ class Launcher(tk.Tk):
         self.var_account = tk.StringVar(value=self.cfg['account'])
         self.var_password = tk.StringVar()
         self.var_status = tk.StringVar()
+        self.var_hidpi = tk.BooleanVar(value=bool(self.cfg.get('hidpi')))
 
         frame = ttk.Frame(self, padding=20)
         frame.pack(fill='both', expand=True)
@@ -375,19 +378,23 @@ class Launcher(tk.Tk):
         password_entry.grid(row=3, column=1, columnspan=3, sticky='we', pady=5)
 
         actions = ttk.Frame(frame)
-        actions.grid(row=4, column=0, columnspan=4, sticky='we', pady=(16, 10))
+        actions.grid(row=5, column=0, columnspan=4, sticky='we', pady=(10, 10))
         actions.columnconfigure(0, weight=1)
         self.button = ttk.Button(actions, text='登录并启动游戏', command=self.submit)
         self.button.grid(row=0, column=0, sticky='we')
         self.register_button = ttk.Button(actions, text='注册新账号', command=self.open_register)
         self.register_button.grid(row=0, column=1, sticky='w', padx=(8, 0))
 
+        self.hidpi_check = ttk.Checkbutton(
+            frame, text='开启高分辨率扩展', variable=self.var_hidpi)
+        self.hidpi_check.grid(row=4, column=1, columnspan=3, sticky='w', pady=(6, 0))
+
         ttk.Label(frame, textvariable=self.var_status, wraplength=490, foreground='#555').grid(
-            row=5, column=0, columnspan=4, sticky='w')
+            row=6, column=0, columnspan=4, sticky='w')
         ttk.Label(frame,
                   text='账号可在本登录器注册；服务端地址填运行服务端那台机器的 IP。',
                   font=('Microsoft YaHei UI', 8),
-                  foreground='#888').grid(row=6, column=0, columnspan=4, sticky='w', pady=(10, 0))
+                  foreground='#888').grid(row=7, column=0, columnspan=4, sticky='w', pady=(10, 0))
 
         frame.columnconfigure(1, weight=1)
 
@@ -464,7 +471,8 @@ class Launcher(tk.Tk):
             self.var_status.set('密码须为 8 至 128 个字节。')
             return
 
-        self.cfg.update({'host': host, 'auth_port': port, 'account': account})
+        self.cfg.update({'host': host, 'auth_port': port, 'account': account,
+                         'hidpi': self.var_hidpi.get()})
         save_config(self.cfg)
         self.var_password.set('')
 
@@ -472,16 +480,17 @@ class Launcher(tk.Tk):
         self.var_status.set('正在连接 {}:{} ……'.format(host, port))
         threading.Thread(
             target=self.worker,
-            args=(host, port, account, password),
+            args=(host, port, account, password, self.var_hidpi.get()),
             daemon=True,
         ).start()
 
-    def worker(self, host, port, account, password):
+    def worker(self, host, port, account, password, hidpi_enabled):
         try:
             response = authenticate(host, port, account, password)
             self.log('认证成功，正在启动客户端……')
-            start_game(host, response)
-            self.log('客户端已启动。')
+            result = start_game(host, response, hidpi_enabled)
+            note = (result or {}).get('resolutionExtension')
+            self.log('客户端已启动。' + (' ' + note if note else ''))
         except socket.timeout:
             self.log('连接超时：请检查服务器 IP、端口和防火墙。')
         except ConnectionRefusedError:
@@ -503,7 +512,7 @@ if __name__ == '__main__':
             ctypes.windll.user32.MessageBoxW(
                 None,
                 '未检测到 BubbleFighter.exe。\n\n请把本程序放到客户端安装目录内运行。',
-                '泡泡战士 CN0261 登录器 v0.1.0 By:rurudoo',
+                '泡泡战士 CN0261 登录器 v1.0.0 By:rurudoo',
                 64,
             )
         except Exception:
