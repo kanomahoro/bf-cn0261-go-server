@@ -238,15 +238,6 @@ def launch(image_path, instance, launcher_identity=False, resolution_extension=F
         else:
             raise RuntimeError('Verified client mutex bytes did not appear within 20 seconds')
 
-        # 客户端加壳：补丁点的明文要等解包后才出现。互斥体已经在了不代表代码段都已解密，
-        # 所以这里轮询到就绪为止（最多 10 秒）；没就绪也照常改互斥体，只是不启用高分辨率。
-        if resolution_extension and not hidpi.image_ready(kernel, process.process)[0]:
-            ready_deadline = time.monotonic() + 10
-            while time.monotonic() < ready_deadline:
-                if hidpi.image_ready(kernel, process.process)[0]:
-                    break
-                time.sleep(0.05)
-
         if kernel.SuspendThread(process.thread) == 4294967295:
             raise ctypes.WinError(ctypes.get_last_error())
         suspended = True
@@ -280,21 +271,43 @@ def launch(image_path, instance, launcher_identity=False, resolution_extension=F
         if copied.value != len(replacement) or observed.raw != replacement:
             raise RuntimeError('Process mutex verification failed')
 
-        # 分辨率扩展在同一段挂起窗口里打补丁：进程还没读到原生分辨率表。
-        # 补丁出任何问题都只记状态，不影响登录与启动。
-        resolution_status = None
-        if resolution_extension:
-            try:
-                _applied, resolution_status = hidpi.apply(kernel, process.process)
-            except Exception as error:
-                resolution_status = '高分辨率扩展未启用：{}'.format(error)
-
         if kernel.ResumeThread(process.thread) == 4294967295:
             raise ctypes.WinError(ctypes.get_last_error())
         suspended = False
 
+        # 身份搬运必须紧跟在互斥体改完之后（和没加分辨率功能时一模一样）：
+        # 客户端解析 login.ini 的 id 是毫秒级的事，晚一步它就已经自己登录了，
+        # 那时配置树里的官方登录开关已变，搬运会因为状态校验失败而中止。
         if launcher_identity:
             transfer_identity(kernel, process, ticket)
+
+        # 分辨率扩展放在搬运之后：客户端加壳，补丁点的明文要等解包才出现，
+        # 而解包比登录慢得多。补丁出任何问题都只记状态，不影响已经启动的客户端。
+        resolution_status = None
+        if resolution_extension:
+            ready = hidpi.image_ready(kernel, process.process)[0]
+            if not ready:
+                ready_deadline = time.monotonic() + 10
+                while time.monotonic() < ready_deadline:
+                    if hidpi.image_ready(kernel, process.process)[0]:
+                        ready = True
+                        break
+                    time.sleep(0.05)
+            if not ready:
+                resolution_status = '高分辨率扩展未启用：客户端代码段在 10 秒内没有解包完成'
+            else:
+                if kernel.SuspendThread(process.thread) == 4294967295:
+                    raise ctypes.WinError(ctypes.get_last_error())
+                suspended = True
+                try:
+                    # 任何异常都只记在状态里：补丁失败不能连累已经起来的客户端。
+                    _applied, resolution_status = hidpi.apply(kernel, process.process)
+                except Exception as error:
+                    resolution_status = '高分辨率扩展未启用：{}'.format(error)
+                finally:
+                    if kernel.ResumeThread(process.thread) == 4294967295:
+                        raise ctypes.WinError(ctypes.get_last_error())
+                    suspended = False
 
         completed = True
         return {
