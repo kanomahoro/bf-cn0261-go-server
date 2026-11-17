@@ -21,7 +21,7 @@
 | `[Tutorial] stage list` / `goal counted` / `spawn group echo` / `wave table echoed` | **Debug** | 过程细节，`goal counted` 每击杀一条 |
 | `[Tutorial] wave` | **Debug** | 逐波推进，属过程（营救/波次排查才看） |
 | `[Supplies] map report` | Info | 每局一次，记录点数与刷新间隔 |
-| `[Supplies] 具体转发/拾取` | Debug | 高频 |
+| `[Supplies] 具体转发/拾取` | Debug | 高频；中继路径的转发现在只出现在中继自己的 `[Relay] inbound` 里 |
 | `[Defense] countdown ended without every seed confirmation` | Warn | 有座位没到种子确认，已兜底但值得看一眼 |
 | `[Defense] seeds forced without every character report` | Warn | 同上 |
 | `[Pirate] the run starts` / `wave` / `wave table` / `every wave cleared` / `stage reported` | Info | 每局/每波一条，多人结算排查靠它 |

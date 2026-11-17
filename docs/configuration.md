@@ -55,7 +55,7 @@
 | 字段 | 默认 | 说明 |
 | --- | --- | --- |
 | `host` / `port` | `127.0.0.1` / `3306` | 数据库地址 |
-| `databaseName` | `bubblefighter_cn0261` | 库名，迁移里写死，改名需同步改 SQL |
+| `databaseName` | `bubblefighter_cn0261` | 库名，任意非空值都可以（服务端不再限制名字）；对不对由启动时的表结构校验决定，改名前记得同步 `database/migrate.sh` 的目标库 |
 | `username` | `bfserver` | 运行账号 |
 | `password` | 空 | 留空则读环境变量 `BF_DATABASE_PASSWORD`（配置文件优先） |
 | `connectTimeoutSeconds` / `queryTimeoutSeconds` | `5` / `5` | 连接与查询超时 |
