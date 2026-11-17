@@ -10,8 +10,8 @@
 #
 #  离线安装（国内拉不动 GitHub 时用）：
 #     bash bfserver-install.sh --offline \
-#          --bin ./bfserver-linux-amd64-v1.0.0.tar.gz \
-#          --src ./v1.0.0.tar.gz
+#          --bin ./bfserver-linux-amd64-v1.1.0.tar.gz \
+#          --src ./v1.1.0.tar.gz
 #     --bin <路径>   用本地二进制包代替 GitHub Release 下载
 #     --src <路径>   用本地源码包代替 GitHub 归档下载
 #     --offline      两个都用本地包（此时必须同时给 --bin 和 --src）
@@ -22,10 +22,10 @@
 # ============================================================================
 set -Eeuo pipefail
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 REPO="kanomahoro/bf-cn0261-go-server"
 BIN_ASSET="bfserver-linux-amd64-v${VERSION}.tar.gz"
-BIN_SHA256="034cb68aea3f1d4d50e5a594f06fa68248f60bdf921540aedf59896f7e9b7b76"
+BIN_SHA256="a35680ef125d3dcba4a8df250348841d6872c5f7b38ce5db68c27c16b803d084"
 PREFIX="/opt/bfserver"
 SERVICE="bfserver"
 DB_NAME="bubblefighter_cn0261"

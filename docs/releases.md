@@ -7,6 +7,7 @@
 
 | 版本 | commit | tag | 交付包 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.1.0 | 见下 | `v1.1.0` | `bfserver-linux-amd64-v1.1.0.tar.gz` 等资产 | **待发布**（数据库基线 + 中继透传 + 结构校验） |
 | v1.0.0 | 见下 | `v1.0.0` | `bfserver-linux-amd64-v1.0.0.tar.gz` 等 5 个资产 | **正式发布**（11 个模式全部验收） |
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
 | v0.9.19 | `7de1f7e` | `v0.9.19` | `bfserver-win64-v0.9.19-pveboss-20261114.zip` | 已交付（第一轮真机） |
@@ -78,6 +79,25 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v1.1.0 — 数据库重构 + 中继对齐参考实现
+
+`v1.0.0` 之后的两条主线：
+
+1. **数据库**：14 份迁移 + 商店补丁合成单一 `database/baseline.sql`（schema revision 1）；
+   启动校验从「比对 revision」改成「比对表结构」（`internal/store/schema_expected.go`，127 列），
+   数据改动零影响；`shop-patches/` 删除；库名白名单删除；`migrate.sh` 重写（非空库拒绝、
+   `--force` 逐表清空、缺表检测）。
+2. **中继**：转发策略改为参考实现的 `round_feed_passthrough`——≥`0x8000` 的对局内帧原样转发，
+   只保留复活请求与延迟探测两个例外；道具族不再二次转发。
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-linux-amd64-v1.1.0.tar.gz` | `a35680ef125d3dcba4a8df250348841d6872c5f7b38ce5db68c27c16b803d084` |
+| `bfserver-linux-arm64-v1.1.0.tar.gz` | 见 `SHA256SUMS`（随 Release 上传） |
+| `bfserver-android-arm64-v1.1.0.tar.gz` | 同上 |
+| `bfserver-windows-amd64-v1.1.0.zip` | 同上 |
+| `bfserver-windows-arm64-v1.1.0.zip` | 同上 |
 
 ## v1.0.0 — 第一个正式版本
 
