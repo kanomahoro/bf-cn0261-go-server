@@ -154,7 +154,8 @@ sudo bash bfserver-install.sh --ip 203.0.113.10        # 不安参数时交互�
 > 安装脚本只从**仓库**（main 或某个 tag）取，**不随 Release 发布**：Release 里只放二进制包和
 > `SHA256SUMS`。脚本里锁定版本与 sha256，所以从 main 拿到的始终是「当前发布版」的安装器。
 > 完整发布流程见 [`docs/release.md`](docs/release.md)。
-> 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可。
+> 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可；
+> 但**脚本本身建议始终从 `main` 拉** —— tag 里的脚本是当时的快照，不含之后的修复。
 
 手动安装、数据库准备与登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
 
