@@ -1,5 +1,9 @@
 # 商店数据补丁（2026-11-15）
 
+> ⚠ **这些补丁已经并入数据库版本**（2026-11-17 重构）：内容进了 `database/baseline.sql`（revision 3）
+> 与 `database/upgrades/001-shop-convergence.sql`（revision 1→2）。**新装不需要再导入本目录**；
+> 老库跑 `bash database/upgrade.sh` 即可。这里保留给老库手工干预与各自的**回退脚本**。
+
 数据库热更新，执行完即生效：**不用重新编译、不用重启服务端**，玩家重新进商店就能看到。
 
 ## 文件
@@ -96,7 +100,7 @@ LXMarid=10 Leo=11 Lavi=12 Twotop=14 LXUni=19），补丁一共改 **128 条**规
 
 ## 写补丁的规矩
 
-`WHERE NOT EXISTS` 守卫 + 单事务 + `SET NAMES utf8mb4` + 不带 `USE` + 不写 `schema_migrations` + 结尾自检；
+`WHERE NOT EXISTS` 守卫 + 单事务 + `SET NAMES utf8mb4` + 不带 `USE` + 不写版本表 + 结尾自检；
 插入顺序 `item_definitions` → `item_equipment_rules` → `shop_items` → `shop_stocks`；
 `sale_ends_at` 一律 `2060-01-01`（照抄客户端 `durationTo` 会因过期在商店里消失）。
 

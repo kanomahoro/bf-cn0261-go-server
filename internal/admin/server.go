@@ -487,7 +487,7 @@ func (s *Server) notice(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) serverInfo(w http.ResponseWriter, r *http.Request) {
-	versions, err := s.db.SchemaVersions()
+	schema, err := s.db.SchemaVersions()
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -498,7 +498,7 @@ func (s *Server) serverInfo(w http.ResponseWriter, r *http.Request) {
 		"goVersion":  runtime.Version(),
 		"configPath": s.cfgPath,
 		"pool":       s.db.PoolStats(),
-		"migrations": versions,
+		"schema":     schema,
 		"uptime":     s.game.Snapshot().UptimeSeconds,
 	})
 }

@@ -119,7 +119,7 @@ sudo bash bfserver-install.sh
 脚本里写死了版本号和二进制的 sha256，所以从 `main` 拉脚本拿到的是**当前发布版**的安装器：
 它会去 Release 下载对应 `vX.Y.Z` 的资产并校验，不会因为 main 上多一个提交就装上未经发布的东西。
 
-八步全自动：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载发布版 → 跑完 14 份迁移 →
+八步全自动：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载发布版 → 导入数据库基线（schema revision 3）→
 生成配置与 26102 自签证书 → 注册 systemd 服务并启动 → 自检三个端口。
 
 - 公网 IP 自动探测（探到内网会提醒）、邀请码随机、数据库密码随机 24 位（不打印只落盘）
@@ -243,42 +243,42 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 | `--version` | 打印版本并退出（不需要配置文件） |
 | `--config <path>` | 配置文件，默认 `config/server.json` |
 | `--check-config` | 只校验配置与数据表，不连数据库 |
+| `--auto-upgrade` | 启动前自动执行 `database/upgrades/` 里缺的版本升级（默认关） |
+| `--database-dir <path>` | 数据库脚本目录，默认 `database` |
 | `--create-account <name>` | 建号；配 `--nickname` 同时建角色 |
 | `--issue-ticket <name>` | 签发一次性登录票据（120 秒有效、一次性） |
 | `--nickname` / `--character-type` / `--password` | 配合建号使用，密码也可给 `BF_ACCOUNT_PASSWORD` |
 
 ## 数据库
 
-- 迁移 14 份，**必须用 `database/migrate.sh`**（按版本号排序；直接 `cat *.sql` 会撞外键）
+- **新装导入基线**：`database/baseline.sql`（schema revision 3，22 张业务表 + 商店/角色/饰品数据）
+  用 `database/migrate.sh` 导入；不要手动 `cat *.sql`
+- **老库升级**：`database/upgrade.sh`（先自动 `mysqldump` 备份，再按 revision 依次跑 `database/upgrades/*.sql`）
+- **版本校验**：库里的 `schema_version.revision` 必须等于二进制编译时要求的 revision（当前 3）；
+  不匹配直接拒绝启动并提示跑哪个脚本；启动加 `--auto-upgrade` 可自动补
 - 表按用途分组：账号与角色、房间与对局（`game_results*`）、商店与背包、聊天与社交
+- 目录说明与「怎么加一个新 revision」：见 [`database/README.md`](database/README.md)
 - 详细表结构、初始化校验与手工建库步骤：见 [`docs/database.md`](docs/database.md)
 
-## 商店数据补丁（可选）
+## 商店数据（已并入数据库基线）
 
-上架用的 SQL 补丁在 [`shop-patches/`](shop-patches/)（数据库热更新，执行到库里即完成）：
+以前单独导入的商店补丁（[`shop-patches/`](shop-patches/)）已经并入数据库版本：
 
-| 文件 | 内容 | 件数 |
+| 内容 | 件数 | 现所在 |
 |---|---|---|
-| `clothes-patch.sql` | HC 五件套 8 套（帽/上衣/裤/手套/鞋） | 40 |
-| `weapons-patch.sql` | 武器 | 31 |
-| `misc-items-patch.sql` | 能量水晶 4 + 起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 |
-| `grenades-patch.sql` | 投掷物 7 件（子类 307，按个数卖） | 7 |
-| `characters-patch.sql` | 新角色乖小爷 / 葱头，含外观映射与装备掩码校正 | 2 |
-| `grant-starter-cards.sql` | 全服补发角色卡（皮蛋 / 黑妞），维护脚本 | 2 张 |
+| HC 五件套 8 套（帽/上衣/裤/手套/鞋） | 40 | baseline（revision 3） |
+| 武器 | 31 | baseline |
+| 能量水晶 4 + 起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 | baseline |
+| 投掷物（子类 307，按个数卖） | 7 | baseline |
+| 新角色乖小爷 / 葱头 + 装备掩码 | 2 | baseline |
+| 功能饰品（视野 / 臂章 / 头饰 / 尾饰 / 复活腕饰） | 14 | baseline（revision 3） |
 
-新装环境把这五个补丁都导一遍（顺序随意，互相无依赖）：
-
-```bash
-for p in clothes weapons misc-items grenades characters; do
-  mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/$p-patch.sql
-done
-```
-
-- **执行完即生效**，不用重启服务端；每条 INSERT 幂等，重复执行无副作用；每个文件自带回退脚本
+- **新装**：不用再导任何商店补丁，`database/migrate.sh` 已经包含
+- **老库**：跑 `bash database/upgrade.sh`，它会顺带把商店内容收敛到最新（revision 1 → 2 → 3）
+- `shop-patches/` 仍保留：里面是历史补丁与各自的**回退脚本**，给老库/单件回退用
 - **HC 装扮的作用是激活能量水晶**（客户端 `PPAequipCheckValue = 5`：穿满 5 件 HC 才触发）
-- **角色卡不在商店出售**，用补发脚本直接进背包（真永久、幂等）
+- **角色卡不在商店出售**，用 `shop-patches/grant-starter-cards.sql` 直接补进背包
 - ⚠️ 武器包有已知定价问题（HC 版与普通版数值相同但更便宜；16 件货币与客户端不一致），尚未修正
-- 细节与回退方法：见 [`shop-patches/README.md`](shop-patches/README.md)
 
 ## 目录结构
 
@@ -290,11 +290,11 @@ internal/net/      游戏连接与中继
 internal/protocol/ 封包编解码
 internal/store/    持久化
 config/            默认配置与数据表（地图、武器、防御、角色、复活、成长）
-database/          迁移脚本
+database/          数据库基线（baseline.sql）、升级脚本（upgrades/）与版本校验脚本
 docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布、日志约定）
 launcher/          登录器（Python）
 tools/             一键安装脚本
-shop-patches/      商店数据补丁（数据库热更新）
+shop-patches/      历史商店补丁与回退脚本（内容已并入数据库基线，老库才需要）
 ZOMBIE.md          僵尸模式规则与真机验收记录
 CAPTAIN.md         队长战（mode 20）规则、协议证据与真机验收记录
 BOMB.md            爆破模式（mode 19）规则、协议证据与真机验收记录
@@ -315,9 +315,9 @@ PIRATE.md          海盗模式（mode 101）方案、协议清单与待审项
 
 | 现象 | 处理 |
 | --- | --- |
-| `errno: 150 Foreign key constraint is incorrectly formed` | 迁移顺序错了，用 `database/migrate.sh` |
+| `errno: 150 Foreign key constraint is incorrectly formed` | 手工按字母序跑了 SQL；用 `database/migrate.sh` 导基线 |
 | `Unknown collation: 'utf8mb4_0900_ai_ci'` | 这是 MySQL 8 的排序规则；本项目只支持 MariaDB |
-| 启动报 `database schema version mismatch` | `schema_migrations` 不是恰好 1..14，重跑迁移 |
+| 启动报 `database schema revision N, this build needs M` | 库版本落后/超前：老库跑 `bash database/upgrade.sh`，或启动加 `--auto-upgrade` |
 | 启动报找不到 `authentication_certificate.pem` | 跑 `./gen-cert.sh`，或把 `authentication.enabled` 置 false |
 | 登录器提示「邀请码不正确」 | 填入与服务端 `authentication.inviteCode` 相同的码；留空表示开放注册 |
 | 登录器提示「服务繁忙」 | 触发按 IP 限流（默认 5/小时、20/天），等窗口过去或调配置 |

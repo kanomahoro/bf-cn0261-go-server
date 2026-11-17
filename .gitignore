@@ -47,3 +47,6 @@ core.*
 .idea/
 .DS_Store
 Thumbs.db
+
+# 数据库升级前的自动备份（database/upgrade.sh）
+database/backups/

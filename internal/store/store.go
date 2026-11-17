@@ -27,29 +27,6 @@ var ErrNotFound = errors.New("store: not found")
 // CharacterSlot is the equipment slot that holds the worn character item.
 const CharacterSlot = 63
 
-// countSaleItems lists the catalogue entries the client sells by quantity
-// (ShopItem.durationType = "count", 90 entries in the cn-717 table). For these
-// rows shop_stocks.duration_days is a piece count, not a day count, so a
-// purchase adds that many to the bag instead of starting an expiry countdown.
-//
-// The list is embedded rather than read from client data because the server
-// ships without the client archive; EnsureShopUnits applies it at startup and is
-// idempotent, so a database that already carries the flags is left untouched.
-var countSaleItems = []uint32{
-	100001, 100002, 100064, 100065, 100066, 100067, 100079, 100080,
-	100081, 100082, 100090, 100091, 100104, 100178, 100179, 100180,
-	100251, 100252, 100382, 100383, 100384, 100385, 100386, 100425,
-	100443, 100473, 100482, 100483, 100484, 100485, 100507, 100508,
-	100509, 100547, 100548, 100598, 100622, 100623, 100624, 100625,
-	100626, 100627, 100628, 100629, 100640, 100641, 100643, 100644,
-	100650, 100652, 100657, 100819, 100976, 101050, 101062, 101164,
-	101291, 120520, 190051, 190069, 190071, 190074, 190075, 190083,
-	190085, 190086, 205002, 205003, 205004, 205005, 205006, 205009,
-	205010, 205012, 205015, 205017, 205029, 205030, 205031, 205034,
-	205035, 205040, 205041, 205044, 205045, 205048, 205050, 205051,
-	205052, 205054,
-}
-
 // ErrDuplicate reports a unique-constraint violation.
 var ErrDuplicate = errors.New("store: duplicate entry")
 
@@ -138,48 +115,6 @@ func (db *DB) CheckConnection() error {
 	}
 	if one != 1 {
 		return fmt.Errorf("database health query returned an unexpected result")
-	}
-	return nil
-}
-
-// migrationNames is the exact schema this build expects.
-var migrationNames = []string{
-	"InitializeSchema", "CreateAccounts", "CreateCharacters", "CreateInventory",
-	"CreateCharacterStats", "CreateShop", "CreateGameResults", "ExpandShopCosmetics",
-	"CreateShopCharacters", "ExpandShopEquipment", "CreateRespawnEquipment",
-	"CreateResultAwards", "CreateWeaponPresets", "ExpandShopOther",
-}
-
-// CheckSchema enforces the 14-row migration contract.
-func (db *DB) CheckSchema() error {
-	ctx, cancel := db.ctx()
-	defer cancel()
-	rows, err := db.sql.QueryContext(ctx, "SELECT version, name FROM schema_migrations ORDER BY version")
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	var versions []uint32
-	var names []string
-	for rows.Next() {
-		var version uint32
-		var name string
-		if err := rows.Scan(&version, &name); err != nil {
-			return err
-		}
-		versions = append(versions, version)
-		names = append(names, name)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	if len(versions) != len(migrationNames) {
-		return fmt.Errorf("database schema version mismatch: expected versions 1 through %d (ExpandShopOther)", len(migrationNames))
-	}
-	for i, want := range migrationNames {
-		if versions[i] != uint32(i+1) || names[i] != want {
-			return fmt.Errorf("database schema version mismatch: expected versions 1 through %d (ExpandShopOther)", len(migrationNames))
-		}
 	}
 	return nil
 }
@@ -499,41 +434,6 @@ func (db *DB) CreateAccountWithCharacter(name, scheme, salt, hash, nickname stri
 		return newCharacter(characterID, accountID, nickname, characterType, characterType), nil
 	}
 	return character, nil
-}
-
-// EnsureShopUnits adds shop_items.duration_type and flags the quantity-sold
-// entries. It runs at server startup instead of a schema migration because
-// CheckSchema pins the migration list exactly (versions 1..14); every statement
-// here is idempotent so an existing database keeps its data.
-//
-// MariaDB commits DDL implicitly, so the ALTER runs outside the transaction and
-// the backfill follows in one of its own.
-func (db *DB) EnsureShopUnits() error {
-	ctx, cancel := db.ctx()
-	defer cancel()
-	if _, err := db.sql.ExecContext(ctx,
-		`ALTER TABLE shop_items
-		   ADD COLUMN IF NOT EXISTS duration_type ENUM('day','count') NOT NULL DEFAULT 'day'
-		   COMMENT 'day: shop_stocks.duration_days is days; count: it is a piece count'
-		   AFTER max_duration_days`); err != nil {
-		return mapError(err)
-	}
-	tx, err := db.sql.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(countSaleItems)), ",")
-	args := make([]any, 0, len(countSaleItems))
-	for _, id := range countSaleItems {
-		args = append(args, id)
-	}
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE shop_items SET duration_type = 'count'
-		 WHERE duration_type <> 'count' AND item_id IN (`+placeholders+`)`, args...); err != nil {
-		return mapError(err)
-	}
-	return tx.Commit()
 }
 
 // Starter wallet for a new character. The reference hands out 10000 lucci and

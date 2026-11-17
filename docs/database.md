@@ -1,31 +1,24 @@
 # 数据库
 
-建库后共 **23 张表**，全部由 `database/migrations/` 里的 14 份迁移创建，不需要手写任何建表语句。
+建库后共 **23 张表**（22 张业务表 + `schema_version`），全部由 `database/baseline.sql` 一次性导入，
+不需要手写任何建表语句。
 
-## 迁移文件（14 份，必须按版本号顺序执行）
+## 基线、版本与升级
 
-`database/migrate.sh` 会从每份 SQL 末尾登记的 `schema_migrations` 版本号自动排序，
-不要按文件名首字母顺序手动执行（外键会失败）。Windows 上没有 bash，按
-[手动安装 · 1.3](manual-install.md#13-初始化表结构14-份迁移) 里列出的 14 条命令顺序执行即可。
+| 东西 | 说明 |
+|---|---|
+| `database/baseline.sql` | 新装基线（schema revision 3）：建表 + 商店/角色/饰品种子数据 |
+| `database/migrate.sh` | 导基线；库里已有 `schema_version` 时拒绝（需 `--force` 才重建） |
+| `database/upgrades/NNN-*.sql` | 增量升级，每个文件头有 `-- target-revision: N` |
+| `database/upgrade.sh` | 老库升级：先备份，再按 revision 依次执行 |
+| `schema_version` | 单行表，`revision` 与服务端编译时要求的值（当前 3）比对 |
 
-| 版本 | 文件 | 建了什么 |
-| --- | --- | --- |
-| v1 | `initialize_schema.sql` | 建库 + `schema_migrations` 版本记录表 |
-| v2 | `create_accounts.sql` | `accounts`、`login_tickets` |
-| v3 | `create_characters.sql` | `characters` |
-| v4 | `create_inventory.sql` | `item_definitions`、`character_items` |
-| v5 | `create_character_stats.sql` | `character_stats`（Lucci / 点卷钱包） |
-| v6 | `create_shop.sql` | 商店 5 张表 + `character_item_expirations` + `shop_purchases` |
-| v7 | `create_game_results.sql` | `character_progression`、`game_results`、`game_result_players` |
-| v8 | `expand_shop_cosmetics.sql` | `item_equipment_rules` + 化妆品商品种子 |
-| v9 | `create_shop_characters.sql` | `character_appearances`（角色外观道具） |
-| v10 | `expand_shop_equipment.sql` | 纯数据：武器/装备商品与库存 |
-| v11 | `create_respawn_equipment.sql` | 纯数据：复活与出生装备配置 |
-| v12 | `create_result_awards.sql` | `game_result_awards`（评分/评级/奖牌） |
-| v13 | `create_weapon_presets.sql` | `character_weapon_presets`、`character_weapon_preset_items`、`shop_permanent_stocks` |
-| v14 | `expand_shop_other.sql` | `shop_preview_items` + 其余杂项商品 |
+历史上确实有 14 份按顺序执行的迁移，它们的内容已经**全部合并进基线**；
+老库（用那 14 份建过、没有 `schema_version`）视为 revision 1，
+`database/upgrade.sh` 会把它升到 2（商店内容收敛）再到 3（功能饰品）。
+旧迁移文件已从仓库移除（需要时看 git 历史）。
 
-## 表结构（按用途分组）
+现存的表分组（按用途）如下。
 
 **账号与角色**
 
@@ -76,7 +69,7 @@
 | --- | --- |
 | `character_weapon_presets` | 每个角色的预设槽（2 或 3 个、当前选中项） |
 | `character_weapon_preset_items` | 预设槽里存的武器道具 ID |
-| `schema_migrations` | 已应用的迁移版本（启动时 `CheckSchema` 校验 1..14） |
+| `schema_version` | 单行表：数据库 schema revision（服务端启动时与编译值比对，当前 3） |
 
 ## 运维：手工改余额
 

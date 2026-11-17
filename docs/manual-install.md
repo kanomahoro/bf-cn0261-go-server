@@ -18,7 +18,7 @@ CREATE DATABASE IF NOT EXISTS bubblefighter_cn0261
     CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-> 迁移脚本自己也会执行同样的 `CREATE DATABASE IF NOT EXISTS`，所以这一步
+> 初始化脚本（`database/migrate.sh`）自己也会 `CREATE DATABASE IF NOT EXISTS`，所以这一步
 > 重复执行没有副作用；先建的好处是能在这里明确指定字符集。
 
 #### 1.2 创建运行账号
@@ -59,16 +59,15 @@ SELECT user, host, plugin FROM mysql.user WHERE user = 'bfserver';
   `CREATE USER ... IDENTIFIED BY '<密码>';`，再用上面的 `SELECT` 确认插件仍是
   `mysql_native_password`；若不是，用
   `ALTER USER 'bfserver'@'127.0.0.1' IDENTIFIED VIA mysql_native_password USING PASSWORD('<密码>');` 纠正
-- 账号建好后，`database/migrate.sh` 用默认的 `bfserver` 账号就能直接跑迁移（它有该
+- 账号建好后，`database/migrate.sh` 用默认的 `bfserver` 账号就能直接跑（它有该
   库的 `CREATE` 权限，可以执行 `CREATE DATABASE IF NOT EXISTS` 和建表）
 
-#### 1.3 初始化表结构（14 份迁移）
+#### 1.3 初始化表结构（导入数据库基线）
 
-建库和全部 23 张表都在 `database/migrations/` 里，不需要手写建表语句。
-顺序**必须按 `schema_migrations` 里的 v1~v14**，不能按文件名首字母（外键会失败）。
+整个 schema 就在一个文件里：`database/baseline.sql`（22 张业务表 + 商店/角色/饰品数据 +
+`schema_version`），**一次性导入**，不再需要按顺序跑一堆迁移文件。
 
-Linux / macOS / Termux —— 脚本默认就用 `bfserver` 账号，只需提供密码
-（脚本会自己从每份 SQL 末尾读出**版本号**再排序）：
+Linux / macOS / Termux —— 脚本默认就用 `bfserver` 账号，只需提供密码：
 
 ```bash
 BF_DB_PASSWORD='***' ./database/migrate.sh
@@ -76,44 +75,34 @@ BF_DB_PASSWORD='***' ./database/migrate.sh
 
 > `BF_DB_PASSWORD` 是**必需**的，脚本不会交互式询问，缺了会直接报
 > `BF_DB_PASSWORD is required`。
-> 想换账号或连接地址时再覆盖默认值：
+> 想换账号/库名/连接地址时再覆盖默认值：
 > ```bash
-> BF_DB_USER=root BF_DB_PASSWORD='***' ./database/migrate.sh 127.0.0.1 3306
+> BF_DB_USER=root BF_DB_NAME=bubblefighter_cn0261 BF_DB_PASSWORD='***' \
+>   ./database/migrate.sh 127.0.0.1 3306
 > ```
 > 这种 `变量=值 命令` 的写法只对当前这一条命令生效，比 `export` 安全——密码不会留在
 > 当前会话里；注意它也会进 shell 历史（介意的话在命令前加一个空格，并设置
 > `HISTCONTROL=ignorespace`）。
+>
+> 库里已经有 `schema_version`（表已初始化过）时脚本会**拒绝导入**（基线会 DROP 同名表）：
+> 升级老库用 `bash database/upgrade.sh`，确实要重建再加 `--force`。
 
-Windows（没有 bash，逐条执行，顺序就是下面这个）：
+Windows（没有 bash）：
 
 ```bat
 set M=C:\BF\mariadb\bin\mariadb.exe
-cd /d C:\BF\bf-cn0261-go-server
-
-%M% -u root -p < database\migrations\initialize_schema.sql
-%M% -u root -p < database\migrations\create_accounts.sql
-%M% -u root -p < database\migrations\create_characters.sql
-%M% -u root -p < database\migrations\create_inventory.sql
-%M% -u root -p < database\migrations\create_character_stats.sql
-%M% -u root -p < database\migrations\create_shop.sql
-%M% -u root -p < database\migrations\create_game_results.sql
-%M% -u root -p < database\migrations\expand_shop_cosmetics.sql
-%M% -u root -p < database\migrations\create_shop_characters.sql
-%M% -u root -p < database\migrations\expand_shop_equipment.sql
-%M% -u root -p < database\migrations\create_respawn_equipment.sql
-%M% -u root -p < database\migrations\create_result_awards.sql
-%M% -u root -p < database\migrations\create_weapon_presets.sql
-%M% -u root -p < database\migrations\expand_shop_other.sql
+%M% -u root -p -e "CREATE DATABASE IF NOT EXISTS bubblefighter_cn0261 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+%M% -u root -p bubblefighter_cn0261 < database\baseline.sql
 ```
 
-#### 1.4 校验迁移结果
+#### 1.4 校验初始化结果
 
 ```bash
-mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_migrations ORDER BY version;"
+mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version WHERE id = 1;"
 ```
 
-必须**正好 14 行、版本 1..14 连续**。少一行或名字对不上，服务端启动会直接报
-`database schema version mismatch`。
+必须返回 **3**。旧库（14 份历史迁移建出来的、还没有 `schema_version`）会报表不存在，
+跑 `bash database/upgrade.sh` 升级即可（它会先自动备份）。
 
 #### 1.5 把密码交给服务端
 
@@ -135,8 +124,7 @@ mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_mig
 服务端启动时自动完成的初始化动作，日志里依次是：
 
 ```
-[Database] checking connection and schema version   ← 连库并校验 14 份迁移
-[Database] ensuring the shop quantity flags        ← 补齐 shop_items.duration_type（数量类商品标记）
+[Database] checking connection and schema version   ← 连库并校验 schema_version.revision == 3
 [Database] purging expired login tickets            ← 清理过期登录票据
 [Relay] listening            port=26104
 [Authentication] listening   port=26102
@@ -145,27 +133,20 @@ mariadb -u root -p -e "SELECT version, name FROM bubblefighter_cn0261.schema_mig
 
 看到 `[Application] ready` 就是**初始化全部完成**，可以直接跑第 5 步建号登录。
 
-三种投掷物（手雷 / 粘稠手雷 / 感应地雷）是商店商品，需要单独导入一次补丁：
+> 服务端启动时**不再改表结构**（`duration_type` 等已在基线/升级脚本里）。
+> 如果库的 revision 不是 3，启动会直接失败并提示：
+> `database schema revision N, this build needs 3; run "bash database/upgrade.sh"`。
+> 也可以启动时加 `--auto-upgrade` 让它自己把缺的那几步跑完。
 
-```bash
-mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/grenades-patch.sql
-```
-
-补丁是幂等的，重复导入没有副作用；回退用同目录的 `grenades-rollback.sql`（会回收玩家已买的）。
-
-新装环境建议把 `shop-patches/` 里五个补丁全导一遍（顺序随意，互相无依赖）：
-`clothes` / `weapons` / `misc-items` / `grenades` / `characters`。
-其中 **`characters-patch.sql` 不能省**：它负责把新角色（type 7 葱头 / type 19 乖小爷）
-加进 `character_appearances` 与 `item_equipment_rules.character_mask`，末端的兜底 UPDATE
-会把迁移种子里的旧掩码 `11967`（不含这两名角色）统一抬到 `274175`；不导的话，
-换成新角色后每次读背包都会被 `NormalizeAppearance` 把武器饰品全脱掉。
+商店内容（衣服 / 武器 / 杂项 / 投掷物 / 新角色 / 功能饰品）**都已包含在基线里**，
+新装不需要再导任何 `shop-patches/*.sql`；老库跑 `database/upgrade.sh` 会一并收敛。
 
 排障对应关系：
 
 | 日志表现 | 原因 |
 | --- | --- |
 | 卡在 `checking connection` | 账号/密码不对，或账号没用 `mysql_native_password` |
-| `database schema version mismatch` | 1.3 的 14 份迁移没跑全，或版本号不连续 |
+| `database schema revision N, this build needs 3` | 库落后/超前：老库跑 `bash database/upgrade.sh`，或启动加 `--auto-upgrade` |
 | `database password is missing` | 1.5 没设 `BF_DATABASE_PASSWORD`，配置里也是空的 |
 
 ## 2. 配置

@@ -288,33 +288,31 @@ func (db *DB) ResultPlayers(id string) ([]AdminResultPlayer, error) {
 	return out, rows.Err()
 }
 
-// SchemaVersion is one applied migration row.
-type SchemaVersion struct {
-	Version uint32
-	Name    string
-	Applied time.Time
+// SchemaState describes the database schema revision, which is what the console
+// shows next to the build information.
+type SchemaState struct {
+	Revision uint32
+	Note     string
+	Applied  time.Time
 }
 
-// SchemaVersions lists the applied migrations, which is what the console shows
-// next to the build information.
-func (db *DB) SchemaVersions() ([]SchemaVersion, error) {
+// SchemaVersions reports the database schema revision. It replaces the former
+// list of applied migrations: the database now carries one revision number that
+// the binary is built against (see upgrade.go).
+func (db *DB) SchemaVersions() (SchemaState, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
-	rows, err := db.sql.QueryContext(ctx,
-		`SELECT version, name, applied_at FROM schema_migrations ORDER BY version`)
+	var state SchemaState
+	err := db.sql.QueryRowContext(ctx,
+		`SELECT revision, note, applied_at FROM schema_version WHERE id = 1`).
+		Scan(&state.Revision, &state.Note, &state.Applied)
+	if errors.Is(err, sql.ErrNoRows) {
+		return state, nil
+	}
 	if err != nil {
-		return nil, err
+		return state, err
 	}
-	defer rows.Close()
-	var out []SchemaVersion
-	for rows.Next() {
-		var entry SchemaVersion
-		if err := rows.Scan(&entry.Version, &entry.Name, &entry.Applied); err != nil {
-			return nil, err
-		}
-		out = append(out, entry)
-	}
-	return out, rows.Err()
+	return state, nil
 }
 
 // PoolStats exposes the connection pool counters.
