@@ -27,6 +27,12 @@
   使复活表覆盖全部 13 种身体
 - **`shop-patches/preview-cleanup.sql`**：把 38 件「只展示不售卖」的预览商品从商店整批清掉（不删道具定义，
   玩家持有不受影响）
+- **新库导入的装备掩码补修（2026-11-17）**：迁移种子与部分补丁里写的是 `11967`（旧版 11 种身体全开放），
+  不含新角色 type 7 / 19，从零导入的库上新角色一读背包就会被 `NormalizeAppearance` 把武器饰品全脱。
+  现已把「全开放」常量统一成 `274175`（补丁 + 4 份迁移），并在 `characters-patch.sql` 末尾加一条
+  `UPDATE ... WHERE character_mask = 11967` 兜底；`grenades-patch.sql` 的掩码不再按 `character_appearances`
+  现算（那写法会因导入顺序得到不同结果），`characters-patch.sql` 也自带 `duration_type` 的 `ALTER`
+  可以单独先导。实测空库（14 迁移 + 5 补丁）与旧库升级两条路结果一致，`11967` 归零
 
 ## v1.0.0（2026-11-15，第一个正式版本）
 

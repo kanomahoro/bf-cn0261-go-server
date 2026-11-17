@@ -19,7 +19,7 @@
 --
 --  槽位：客户端 slotLocation → SlotLocation id
 --    sWeapon1=18（步枪/散弹/狙击）、sWeapon2=19（手枪）、sWeapon3=20（近战）
---    occupied_slots = 1 << 槽位，character_mask = 11967
+--    occupied_slots = 1 << 槽位，character_mask = 274175
 --
 --  价格（按同类现有武器，只发 7 天 / 30 天两档；货币 lucci，与现有武器一致）
 --    手枪 普通 3000/6000 ；手枪 HC 500/800
@@ -36,7 +36,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 207037, '龙鳞战锤', 20, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 207037);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 207037, CAST(1 AS UNSIGNED) << 20, 11967
+SELECT 207037, CAST(1 AS UNSIGNED) << 20, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 207037);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -54,7 +54,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 207055, '凡尔赛玫瑰之锤', 20, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 207055);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 207055, CAST(1 AS UNSIGNED) << 20, 11967
+SELECT 207055, CAST(1 AS UNSIGNED) << 20, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 207055);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -72,7 +72,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 207922, '绮丽双彩手杖', 20, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 207922);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 207922, CAST(1 AS UNSIGNED) << 20, 11967
+SELECT 207922, CAST(1 AS UNSIGNED) << 20, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 207922);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -90,7 +90,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 207926, '年年有余火锤', 20, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 207926);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 207926, CAST(1 AS UNSIGNED) << 20, 11967
+SELECT 207926, CAST(1 AS UNSIGNED) << 20, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 207926);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -108,7 +108,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201108, '复仇者手枪', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 201108);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201108, CAST(1 AS UNSIGNED) << 19, 11967
+SELECT 201108, CAST(1 AS UNSIGNED) << 19, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 201108);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -126,7 +126,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201110, '沙漠之鹰手枪', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 201110);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201110, CAST(1 AS UNSIGNED) << 19, 11967
+SELECT 201110, CAST(1 AS UNSIGNED) << 19, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 201110);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -144,7 +144,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201342, '黄金左轮手枪R3 HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 201342);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201342, CAST(1 AS UNSIGNED) << 19, 11967
+SELECT 201342, CAST(1 AS UNSIGNED) << 19, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 201342);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -162,7 +162,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202015, '喜兔步枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202015);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202015, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202015, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202015);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -180,7 +180,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202207, '狸猫团步枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202207);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202207, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202207, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202207);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -198,7 +198,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202308, '复仇者步枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202308);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202308, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202308, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202308);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -216,7 +216,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202312, '守护者步枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202312);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202312, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202312, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202312);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -234,7 +234,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202315, 'AK47步枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202315);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202315, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202315, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202315);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -252,7 +252,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202327, '恶魔步枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202327);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202327, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202327, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202327);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -270,7 +270,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202333, '蝰蛇之牙步枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202333);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202333, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202333, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202333);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -288,7 +288,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202342, '黄金左轮步枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202342);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202342, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202342, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202342);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -306,7 +306,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202376, '蓝离激光步枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202376);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202376, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202376, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202376);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -324,7 +324,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202378, '旋律咩咩步枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 202378);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202378, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 202378, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 202378);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -342,7 +342,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203014, '喜兔散弹枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203014);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203014, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203014, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203014);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -360,7 +360,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203103, '狸猫团散弹枪HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203103);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203103, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203103, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203103);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -378,7 +378,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203206, '复仇者散弹枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203206);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203206, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203206, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203206);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -396,7 +396,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203209, '汽锤散弹枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203209);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203209, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203209, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203209);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -414,7 +414,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203220, '狸猫团散弹枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203220);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203220, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203220, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203220);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -432,7 +432,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203333, '蝰蛇之牙散弹枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203333);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203333, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203333, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203333);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -450,7 +450,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203342, '黄金左轮散弹枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203342);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203342, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203342, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203342);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -468,7 +468,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203372, '蓝离激光散弹枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203372);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203372, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203372, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203372);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -486,7 +486,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203373, '旋律咩咩散弹枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 203373);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203373, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 203373, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 203373);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -504,7 +504,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204107, '复仇者狙击枪', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 204107);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204107, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 204107, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 204107);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -522,7 +522,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204342, '黄金左轮狙击枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 204342);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204342, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 204342, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 204342);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -540,7 +540,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204365, '天空之翼狙击枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 204365);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204365, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 204365, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 204365);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -558,7 +558,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204367, '蓝离激光狙击枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 204367);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204367, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 204367, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 204367);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)
@@ -576,7 +576,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204368, '旋律咩咩狙击枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 204368);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204368, CAST(1 AS UNSIGNED) << 18, 11967
+SELECT 204368, CAST(1 AS UNSIGNED) << 18, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 204368);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
                         sale_starts_at, sale_ends_at, is_on_sale, currency)

@@ -153,6 +153,13 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/gren
 
 补丁是幂等的，重复导入没有副作用；回退用同目录的 `grenades-rollback.sql`（会回收玩家已买的）。
 
+新装环境建议把 `shop-patches/` 里五个补丁全导一遍（顺序随意，互相无依赖）：
+`clothes` / `weapons` / `misc-items` / `grenades` / `characters`。
+其中 **`characters-patch.sql` 不能省**：它负责把新角色（type 7 葱头 / type 19 乖小爷）
+加进 `character_appearances` 与 `item_equipment_rules.character_mask`，末端的兜底 UPDATE
+会把迁移种子里的旧掩码 `11967`（不含这两名角色）统一抬到 `274175`；不导的话，
+换成新角色后每次读背包都会被 `NormalizeAppearance` 把武器饰品全脱掉。
+
 排障对应关系：
 
 | 日志表现 | 原因 |

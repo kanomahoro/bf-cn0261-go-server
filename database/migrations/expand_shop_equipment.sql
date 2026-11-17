@@ -169,7 +169,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100117, '泡泡棒球队棒球服', 39, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100117, 652835028992, 11967
+SELECT 100117, 652835028992, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100117, 108, 54, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -187,7 +187,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100118, '泡泡棒球队棒球裤', 40, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100118, 3298534883328, 11967
+SELECT 100118, 3298534883328, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100118, 109, 55, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -205,7 +205,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100119, '泡泡棒球队手套', 38, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100119, 412316860416, 11967
+SELECT 100119, 412316860416, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100119, 105, 56, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -217,13 +217,13 @@ INSERT INTO shop_stocks (id, item_id, duration_days, show_price, sell_price, is_
 SELECT 1011966, 100119, 7, 250, 250, 1
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_stocks (id, item_id, duration_days, show_price, sell_price, is_on_sale)
-SELECT 1011967, 100119, 30, 500, 500, 1
+SELECT 10274175, 100119, 30, 500, 500, 1
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100120, '泡泡棒球队靴', 42, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100120, 4398046511104, 11967
+SELECT 100120, 4398046511104, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100120, 106, 57, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -421,7 +421,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100181, '恶魔角发带', 1, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100181, 2, 11967
+SELECT 100181, 2, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100181, 202, 300555, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -439,7 +439,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100240, '泡泡棒球队棒球帽', 33, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100240, 8589934592, 11967
+SELECT 100240, 8589934592, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100240, 102, 148, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1171,7 +1171,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201014, '棉花糖手枪L3 HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201014, 524288, 11967
+SELECT 201014, 524288, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 201014, 305, 1120, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1186,7 +1186,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201024, '爆烈手枪L3-HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201024, 524288, 11967
+SELECT 201024, 524288, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 201024, 305, 1085, 360, '2013-04-30 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1201,7 +1201,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201044, '猛兽手枪L3 HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201044, 524288, 11967
+SELECT 201044, 524288, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 201044, 305, 1061, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1216,7 +1216,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201075, '尖锋手枪 S3 HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201075, 524288, 11967
+SELECT 201075, 524288, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 201075, 305, 1103, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1231,7 +1231,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 201127, '左轮手枪R3 HC', 19, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 201127, 524288, 11967
+SELECT 201127, 524288, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 201127, 305, 34100, 360, '2013-06-27 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1246,7 +1246,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202016, '棉花糖步枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202016, 262144, 11967
+SELECT 202016, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202016, 302, 1115, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1261,7 +1261,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202025, '爆烈步枪L3-HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202025, 262144, 11967
+SELECT 202025, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202025, 302, 1080, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1276,7 +1276,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202034, '尖锋步枪S3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202034, 262144, 11967
+SELECT 202034, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202034, 302, 1102, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1291,7 +1291,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202044, '猛兽步枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202044, 262144, 11967
+SELECT 202044, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202044, 302, 1060, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1306,7 +1306,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202127, '左轮步枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202127, 262144, 11967
+SELECT 202127, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202127, 302, 2030, 360, '2013-07-16 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1321,7 +1321,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202321, '力之轮回步枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202321, 262144, 11967
+SELECT 202321, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202321, 302, 2020, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1336,7 +1336,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 202324, '熊猫步枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 202324, 262144, 11967
+SELECT 202324, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 202324, 302, 2009, 360, '2012-11-04 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1351,7 +1351,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203016, '棉花糖散弹枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203016, 262144, 11967
+SELECT 203016, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203016, 303, 1111, 360, '2011-08-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1366,7 +1366,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203024, '爆烈散弹枪L3-HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203024, 262144, 11967
+SELECT 203024, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203024, 303, 1071, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1381,7 +1381,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203034, '尖锋散弹枪S3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203034, 262144, 11967
+SELECT 203034, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203034, 303, 1101, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1396,7 +1396,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203044, '猛兽散弹枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203044, 262144, 11967
+SELECT 203044, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203044, 303, 1051, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1411,7 +1411,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203127, '左轮散弹枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203127, 262144, 11967
+SELECT 203127, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203127, 303, 34101, 360, '2013-06-27 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1426,7 +1426,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203216, '熊猫散弹枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203216, 262144, 11967
+SELECT 203216, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203216, 303, 2005, 360, '2012-11-04 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1441,7 +1441,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 203336, '凯旋V-87散弹枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 203336, 262144, 11967
+SELECT 203336, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 203336, 303, 2015, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1456,7 +1456,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204015, '棉花糖狙击枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204015, 262144, 11967
+SELECT 204015, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204015, 304, 1110, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1471,7 +1471,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204026, '爆烈狙击枪L3-HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204026, 262144, 11967
+SELECT 204026, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204026, 304, 1070, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1486,7 +1486,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204034, '尖锋狙击枪S3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204034, 262144, 11967
+SELECT 204034, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204034, 304, 1100, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1501,7 +1501,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204044, '猛兽狙击枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204044, 262144, 11967
+SELECT 204044, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204044, 304, 1050, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1516,7 +1516,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204120, '熊猫狙击枪L3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204120, 262144, 11967
+SELECT 204120, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204120, 304, 2001, 360, '2012-11-04 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1531,7 +1531,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204127, '左轮狙击枪R3 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204127, 262144, 11967
+SELECT 204127, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204127, 304, 2031, 360, '2013-07-16 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1546,7 +1546,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 204336, '凯旋G-1狙击枪 HC', 18, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 204336, 262144, 11967
+SELECT 204336, 262144, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 204336, 304, 2010, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -1561,7 +1561,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 207028, '尖锋冲击大锤', 20, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 207028, 1048576, 11967
+SELECT 207028, 1048576, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 10);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 207028, 306, 599, 360, '2009-01-01 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'

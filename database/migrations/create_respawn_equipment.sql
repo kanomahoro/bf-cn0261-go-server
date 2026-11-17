@@ -7,7 +7,7 @@ INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 100241, '快速复活项链', 14, 0
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 11);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100241, 16384, 11967
+SELECT 100241, 16384, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 11);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 100241, 204, 149, 360, '2011-10-25 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'

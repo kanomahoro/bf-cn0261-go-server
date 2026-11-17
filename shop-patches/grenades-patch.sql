@@ -74,49 +74,36 @@ SELECT 205054, '超级龙鳞手雷', 21, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 205054);
 
 -- ---------------------------------------------------------------------------
---  槽位规则：占特殊武器槽 21；角色掩码取「本库能建的角色」并集，空表退回 1..12
+--  槽位规则：占特殊武器槽 21；角色掩码固定 274175（13 种身体全开放）
+--            （早期写法是取 character_appearances 的并集，会因导入顺序不同而得到不同结果）
 -- ---------------------------------------------------------------------------
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205003, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205003, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205003);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205004, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205004, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205004);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205009, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205009, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205009);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205005, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205005, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205005);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205015, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205015, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205015);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205017, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205017, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205017);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 205054, 2097152,
-       COALESCE((SELECT BIT_OR(CAST(1 AS UNSIGNED) << (character_type - 1))
-                 FROM character_appearances), 4095)
+SELECT 205054, 2097152, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 205054);
 
 -- ---------------------------------------------------------------------------

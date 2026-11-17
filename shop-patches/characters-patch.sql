@@ -10,9 +10,11 @@
 --  为什么不止插商品：
 --    1. character_appearances 决定「哪张卡 = 哪个角色身体」，缺行则 63 槽拿不到模型
 --    2. item_equipment_rules.character_mask 决定「这件东西能被哪些角色穿」。
---       存量 215 行的掩码只有 11967 / 703 / 1727 三种，全都不含 type 7(1<<6=64)
---       与 type 19(1<<18=262144) 的位。不加位的话，换成新角色后每次读背包
---       （NormalizeAppearance 在 Items() 里跑）都会把非 63 槽装备全部脱下。
+--       迁移种子都是按旧版 11 种身体写的（11967 / 703 / 1727 / 3），全都不含
+--       type 7(1<<6=64) 与 type 19(1<<18=262144) 的位。不加位的话，换成新角色后
+--       每次读背包（NormalizeAppearance 在 Items() 里跑）都会把非 63 槽装备全部脱下。
+--       因此本补丁末尾（第 1.1 节）还有一条兜底：把所有仍是 11967（旧「11 种全开放」）
+--       的规则统一抬到 274175，这样从零导入的库也能一次性补齐；现有库跑是空操作。
 --
 --       **掩码按客户端 allowChr 校正**：客户端数据表明这两名角色能穿的东西比预想的多 ——
 --       122 件通用装备（全部武器/饰品/手雷）+ 62 件衣服（企鹅、小熊、夏威夷、中秋喜兔、
@@ -28,6 +30,13 @@
 --     否则换装后可能无角色/黑屏。上架前先在客户端确认能看到这两个角色。
 -- ============================================================================
 SET NAMES utf8mb4;
+
+-- 服务端启动时也会跑这条（EnsureShopUnits），这里重复一次保证本补丁可单独执行、
+-- 不依赖 grenades-patch 先导。MariaDB 的 DDL 会隐式提交，所以它必须在 START TRANSACTION 之前。
+ALTER TABLE shop_items
+  ADD COLUMN IF NOT EXISTS duration_type ENUM('day','count') NOT NULL DEFAULT 'day'
+  COMMENT 'day: shop_stocks.duration_days is days; count: it is a piece count'
+  AFTER max_duration_days;
 
 START TRANSACTION;
 
@@ -106,6 +115,17 @@ UPDATE item_equipment_rules SET character_mask = 271485
  );
 
 -- ---------------------------------------------------------------------------
+--  1.1) 兜底：把「旧版 11 种全开放」（11967）的规则统一抬到 13 种（274175）
+--       需要它的原因：迁移种子和早期补丁写的都是 11967，而上面的逐组 UPDATE
+--       只覆盖按客户端 allowChr 换算过的 128 件，剩下的武器/饰品/投掷物/杂项
+--       会留在 11967 —— 全新库上新角色一读背包就会被全部脱掉。
+--       现有库（被旧版「按位或」刷过）这行匹配 0 条，属于空操作；
+--       只动 11967，不碰 3 / 703 / 1727 / 2690 这些受客户端 allowChr 限制的组。
+-- ---------------------------------------------------------------------------
+UPDATE item_equipment_rules SET character_mask = 274175
+ WHERE character_mask = 11967;
+
+-- ---------------------------------------------------------------------------
 --  2) 道具定义（角色卡穿 63 槽）
 -- ---------------------------------------------------------------------------
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
@@ -182,8 +202,9 @@ COMMIT;
 -- ---------------------------------------------------------------------------
 --  7) 自检
 --     · 两张卡：定义 / 外观 / 规则 / 商品 / 档位 都齐
---     · 掩码分布应为 274175×124（122 通用 + 2 新卡）、262911×62、767×26、263935×5
---       （与客户端 allowChr 换算出来的结果一致）
+--     · 掩码分布（全部补丁导完的空库实测）：274175×178（166 通用 + 10 HC + 2 张新卡）、
+--       262911×72、767×26、271485×10、263935×5、272127×5、2690×5；
+--       旧库因为历史原因数字会不同，**只要 mask_legacy_left = 0 就对了**
 -- ---------------------------------------------------------------------------
 SELECT i.item_id, d.name, a.character_type, r.character_mask, i.currency,
        i.max_duration_days, i.is_on_sale,
@@ -203,4 +224,5 @@ SELECT
   (SELECT COUNT(*) FROM item_equipment_rules WHERE character_mask = 262911)              AS mask_no_leo_family,
   (SELECT COUNT(*) FROM item_equipment_rules WHERE character_mask = 767)                 AS mask_no_lxuni,
   (SELECT COUNT(*) FROM item_equipment_rules WHERE character_mask = 263935)              AS mask_adventurer,
+  (SELECT COUNT(*) FROM item_equipment_rules WHERE character_mask = 11967)               AS mask_legacy_left,
   (SELECT COUNT(*) FROM character_appearances)                                           AS appearances;

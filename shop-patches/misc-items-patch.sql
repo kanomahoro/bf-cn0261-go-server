@@ -32,7 +32,7 @@ SELECT 100412, '超级击爆加速水晶', 5, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100412);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100412, 32, 11967
+SELECT 100412, 32, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100412);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -55,7 +55,7 @@ SELECT 100431, '信天翁翻滚水晶', 5, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100431);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100431, 32, 11967
+SELECT 100431, 32, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100431);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -75,7 +75,7 @@ SELECT 100500, '击爆加速水晶', 5, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100500);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100500, 32, 11967
+SELECT 100500, 32, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100500);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -98,7 +98,7 @@ SELECT 100546, '怪物能量水晶', 5, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100546);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100546, 32, 11967
+SELECT 100546, 32, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100546);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -125,7 +125,7 @@ SELECT 100224, '强制起跳手镯', 24, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100224);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100224, 16777216, 11967
+SELECT 100224, 16777216, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100224);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -152,7 +152,7 @@ SELECT 100310, '霸王HC推进器', 16, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100310);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100310, 65536, 11967
+SELECT 100310, 65536, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100310);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -175,7 +175,7 @@ SELECT 101552, '时空等离子推进器', 16, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 101552);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 101552, 134283264, 11967
+SELECT 101552, 134283264, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 101552);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -198,7 +198,7 @@ SELECT 110140, '黄金液体推进器', 16, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 110140);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 110140, 65536, 11967
+SELECT 110140, 65536, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 110140);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -225,7 +225,7 @@ SELECT 100172, '补助推进器  P01-S2', 27, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100172);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100172, 134217728, 11967
+SELECT 100172, 134217728, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100172);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -248,7 +248,7 @@ SELECT 100311, '霸王HC辅助推进器', 27, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100311);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100311, 134217728, 11967
+SELECT 100311, 134217728, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100311);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -271,7 +271,7 @@ SELECT 110172, '黄金辅助推进器', 27, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 110172);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 110172, 134217728, 11967
+SELECT 110172, 134217728, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 110172);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -298,7 +298,7 @@ SELECT 100085, '降低致命的盾牌挂件', 14, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100085);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100085, 16384, 11967
+SELECT 100085, 16384, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100085);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,
@@ -318,7 +318,7 @@ SELECT 100377, '金色龟壳', 16, 0
 WHERE NOT EXISTS (SELECT 1 FROM item_definitions WHERE id = 100377);
 
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 100377, 65536, 11967
+SELECT 100377, 65536, 274175
 WHERE NOT EXISTS (SELECT 1 FROM item_equipment_rules WHERE item_id = 100377);
 
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days,

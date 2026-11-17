@@ -29,7 +29,8 @@ mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < characters-patch.
 # mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < preview-cleanup.sql
 ```
 
-- 顺序随意，三者无依赖
+- 顺序随意（2026-11-17 实测：正序和「characters 先导」两种顺序产出的 `item_equipment_rules` 完全一致）。
+  `characters-patch.sql` 已自带 `duration_type` 的 `ALTER`，不再依赖 `grenades-patch` 先导
 - 默认以当前系统用户连接；以 root 执行即 `root@localhost` 走 socket 免密
 - 每条 INSERT 带 `WHERE NOT EXISTS`，重复执行无副作用
 - 每个文件末尾打印自检 SELECT，行数对得上就成功
@@ -73,13 +74,17 @@ LXMarid=10 Leo=11 Lavi=12 Twotop=14 LXUni=19），补丁一共改 **128 条**规
 
 13 种以外（Leo/Lavi/Twopup 等被 allowChr 排除的组合）保持客户端原样，没有放开。
 
-> ⚠ **从零导入的库要注意**（2026-11-17 实测）：单独起一个空库跑完 14 份迁移后，`item_equipment_rules`
-> 只有 `11967`(115) / `703`(88) / `1727`(5) 三种掩码，**一个 `274175` 都没有**；再按上面顺序导入
-> 5 个补丁，仍有 **166 条停在 `11967`**（迁移种子 115 + 补丁新插入 51，包括全部武器、饰品、
-> 投掷物和杂项），只有 12 条成为 `274175`（10 件 HC + 2 张角色卡）。
-> `11967` 不含 type 7 / 19，所以全新环境下新角色一读背包就会被 `NormalizeAppearance` 把武器饰品全脱。
-> 现在这个库是对的，是因为它被早期「按位或」版本刷过（那版给**全部**规则加位，后来改成逐组绝对值时
-> 这组覆盖丢了）。处理方式待定。
+> ✅ **从零导入的库已修复（2026-11-17）**：以前迁移种子和部分补丁写的是 `11967`（旧版 11 种身体全开放），
+> 不含 type 7 / 19，全新库上不给这些行补位的话，新角色一读背包就会被 `NormalizeAppearance` 把武器饰品全脱。
+> 现在三处已对齐：
+> 1. `characters-patch.sql` 末尾加了兜底 `UPDATE ... SET character_mask = 274175 WHERE character_mask = 11967`
+> 2. 各补丁与迁移里的「全开放」掩码常量统一成 `274175`（13 种），`grenades-patch` 不再按
+>    `character_appearances` 现算（那条写法会因导入顺序得到不同结果）
+> 3. `characters-patch.sql` 自带 `shop_items.duration_type` 的 `ALTER`，可以单独先导
+>
+> 实测（空库跑 14 份迁移 + 5 个补丁）：掩码收敛为 `274175`(178) / `262911`(72) / `767`(26) /
+> `271485`(10) / `263935`(5) / `272127`(5) / `2690`(5)，**`11967` 归零**；旧库（旧迁移 + 新补丁）结果相同。
+> 自检看 `characters-patch.sql` 末尾那组数：`WHERE character_mask = 11967` 应为 0。
 
 ## 三条要记住的
 

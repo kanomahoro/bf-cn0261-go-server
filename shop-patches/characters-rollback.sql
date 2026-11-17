@@ -36,7 +36,9 @@ DELETE FROM item_equipment_rules WHERE item_id IN (300019, 300007);
 DELETE FROM character_appearances WHERE item_id IN (300019, 300007);
 DELETE FROM item_definitions WHERE id IN (300019, 300007);
 
--- 5) 掩码回到补丁前：按当前值反推原来的三组（11967 / 703 / 1727）
+-- 5) 掩码回到补丁前：按当前值反推原来的几组
+--    注意：274175 包含第 1.1 节的兜底结果（通用装备也变成了 274175），
+--    所以这一步会把通用装备一起退回 11967（即新角色又穿不上）—— 这是预期行为
 UPDATE item_equipment_rules SET character_mask = 11967 WHERE character_mask = 274175;
 UPDATE item_equipment_rules SET character_mask = 703   WHERE character_mask IN (262911, 767);
 UPDATE item_equipment_rules SET character_mask = 1727  WHERE character_mask = 263935;

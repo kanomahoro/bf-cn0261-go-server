@@ -53,7 +53,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300001, 1
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300001, 9223372036854775808, 11967
+SELECT 300001, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300002, '黑妞', 63, 0
@@ -62,7 +62,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300002, 2
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300002, 9223372036854775808, 11967
+SELECT 300002, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300003, '宝宝', 63, 0
@@ -71,7 +71,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300003, 3
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300003, 9223372036854775808, 11967
+SELECT 300003, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300004, '胖墩', 63, 0
@@ -80,7 +80,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300004, 4
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300004, 9223372036854775808, 11967
+SELECT 300004, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300005, '小乖', 63, 0
@@ -89,7 +89,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300005, 5
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300005, 9223372036854775808, 11967
+SELECT 300005, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300006, '小强', 63, 0
@@ -98,7 +98,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300006, 6
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300006, 9223372036854775808, 11967
+SELECT 300006, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300008, '蓝蓝', 63, 0
@@ -107,7 +107,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300008, 8
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300008, 9223372036854775808, 11967
+SELECT 300008, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300010, '蓝妹妹', 63, 0
@@ -116,7 +116,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300010, 10
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300010, 9223372036854775808, 11967
+SELECT 300010, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300011, '雷欧', 63, 0
@@ -125,7 +125,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300011, 11
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300011, 9223372036854775808, 11967
+SELECT 300011, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300012, '拉比', 63, 0
@@ -134,7 +134,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300012, 12
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300012, 9223372036854775808, 11967
+SELECT 300012, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_definitions (id, name, equipment_slot, starter_equipped)
 SELECT 300014, '杰克将军', 63, 0
@@ -143,7 +143,7 @@ INSERT INTO character_appearances (item_id, character_type)
 SELECT 300014, 14
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO item_equipment_rules (item_id, occupied_slots, character_mask)
-SELECT 300014, 9223372036854775808, 11967
+SELECT 300014, 9223372036854775808, 274175
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO shop_items (item_id, sub_category_id, display_order, max_duration_days, sale_starts_at, sale_ends_at, is_on_sale, currency)
 SELECT 300003, 402, 525, 360, '2011-09-27 00:00:00.000', '2060-01-01 00:00:00.000', 1, 'cash_cn'
@@ -256,35 +256,35 @@ WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 INSERT INTO shop_stocks (id, item_id, duration_days, show_price, sell_price, is_on_sale)
 SELECT 1014093, 300014, 30, 2000, 2000, 1
 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100043
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100043
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100044
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100044
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100046
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100046
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100057
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100057
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100062
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100062
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100063
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100063
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100072
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100073
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100076
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100076
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100077
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100077
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100078
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100078
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100086
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100086
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100096
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100106
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100111
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100111
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100125
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
@@ -292,29 +292,29 @@ UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100126
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 100128
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100140
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100140
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100141
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100141
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100143
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100143
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100144
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100144
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100145
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100145
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100173
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100173
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100174
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100174
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100175
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100175
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100176
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100176
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100177
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100177
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100182
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100182
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 100242
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 100242
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 1727 WHERE item_id = 100290
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
@@ -374,99 +374,99 @@ UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 120240
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 UPDATE item_equipment_rules SET character_mask = 703 WHERE item_id = 120241
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201001
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201001
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201013
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201013
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201023
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201023
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201033
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201033
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201043
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201043
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201073
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201073
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201119
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201119
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201120
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201120
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201121
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201121
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 201122
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 201122
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202001
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202001
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202014
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202014
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202024
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202024
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202033
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202033
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202043
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202043
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202072
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202072
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202329
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202329
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202330
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202330
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202331
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202331
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202332
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202332
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 202341
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 202341
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203001
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203001
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203015
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203015
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203023
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203023
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203033
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203033
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203043
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203043
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203072
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203072
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203223
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203223
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203224
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203224
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203225
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203225
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203226
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203226
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 203341
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 203341
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204001
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204001
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204014
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204014
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204025
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204025
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204033
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204033
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204043
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204043
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204053
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204053
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204123
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204123
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204124
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204124
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204125
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204125
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204126
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204126
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 204341
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 204341
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 207001
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 207001
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 207013
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 207013
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 207016
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 207016
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
-UPDATE item_equipment_rules SET character_mask = 11967 WHERE item_id = 207026
+UPDATE item_equipment_rules SET character_mask = 274175 WHERE item_id = 207026
 AND NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = 9);
 
 -- Preserve the creation choice as the permanent fallback; do not grant the other base character.

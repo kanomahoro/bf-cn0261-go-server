@@ -262,10 +262,16 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 | `clothes-patch.sql` | HC 五件套 8 套（帽/上衣/裤/手套/鞋） | 40 |
 | `weapons-patch.sql` | 武器 | 31 |
 | `misc-items-patch.sql` | 能量水晶 4 + 起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 |
+| `grenades-patch.sql` | 投掷物 7 件（子类 307，按个数卖） | 7 |
+| `characters-patch.sql` | 新角色乖小爷 / 葱头，含外观映射与装备掩码校正 | 2 |
 | `grant-starter-cards.sql` | 全服补发角色卡（皮蛋 / 黑妞），维护脚本 | 2 张 |
 
+新装环境把这五个补丁都导一遍（顺序随意，互相无依赖）：
+
 ```bash
-mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/clothes-patch.sql
+for p in clothes weapons misc-items grenades characters; do
+  mariadb --default-character-set=utf8mb4 bubblefighter_cn0261 < shop-patches/$p-patch.sql
+done
 ```
 
 - **执行完即生效**，不用重启服务端；每条 INSERT 幂等，重复执行无副作用；每个文件自带回退脚本
