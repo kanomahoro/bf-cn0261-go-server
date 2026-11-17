@@ -1,6 +1,24 @@
 # Changelog
 
-## v1.1.0（未发布，待打 tag）
+## 未发布 — 一键安装脚本：更新安装修复
+
+v1.1.0 发布后测出的两个安装器问题，只改 `tools/bfserver-install.sh`，不动服务端代码与版本号。
+
+- **重跑脚本不再必失败**：旧流程第 6 步直接调 `migrate.sh`（不带 `--force`），而 v1.1.0 的
+  `migrate.sh` 对非空库是拒绝的——老用户重跑“更新”会在换完二进制、清完配置之后死在这里，
+  留下半装的现场。现在先判库：空库 → 导入基线；已是本版基线（23 表齐全）→ 跳过导入、数据保留；
+  旧结构 → **在动任何文件之前**停下并说明原因
+- **新增 `--rebuild-db`**：确认重建时先用 `mysqldump` 备份到 `/opt/bf-backup-<库名>-<时间>.sql.gz`
+  （备份为空或失败就不往下走），再 `migrate.sh --force` 重建
+- **更新不再抹掉手改过的配置**：不再 `rm -rf config/`——旧目录整份备份到 `config.bak.<时间>/`，
+  `server.json` 与证书沿用（`network`/`relay`/`authentication`/`logging` 只补缺失字段，端口与日志级别
+  保持用户设置），只覆盖 `config/game_*.json`、`progression.json` 这类随版本走的文件；证书已存在就不再重签
+- **执行顺序**：数据库确认无误后才换二进制、动配置；旧二进制留一份 `bfserver.prev` 方便回退
+- **修掉一个 locale 陷阱**：表集合比对用 `LC_ALL=C comm`，否则 UTF-8 locale 下会报
+  `comm: file 1 is not in sorted order`
+- 文档：README 的一键安装段与 `docs/manual-install.md` 补上更新/重建行为（`--rebuild-db`）
+
+## v1.1.0（2026-11-17 发布）
 
 - **中继改为参考实现的透传策略**：`relayForwardable` 不再是白名单——`≥0x8000` 的对局内帧一律原样
   转发（对齐 cn-717 的 `round_feed_passthrough`），只保留两个服务端自己应答的例外（`C32904` 复活请求、

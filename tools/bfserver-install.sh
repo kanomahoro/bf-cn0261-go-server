@@ -18,6 +18,12 @@
 #     --no-sha256    跳过二进制包哈希校验（自己编译的包用）
 #     注意：离线模式不联网，MariaDB 等系统依赖需事先用本地源装好。
 #
+#  已有旧版本（数据库是旧结构）时：
+#     bash bfserver-install.sh --rebuild-db
+#     --rebuild-db   备份现有库（/opt/bf-backup-*.sql.gz）后整库重建为新基线。
+#                    会清空账号、角色、道具、战绩；不加这个参数时，脚本发现库结构与
+#                    本版不符会在改任何文件之前就停下，不会留下半装的现场。
+#
 #  面向 Linux 新手：每一步都有中文提示，出错会告诉你下一步做什么。
 # ============================================================================
 set -Eeuo pipefail
@@ -39,6 +45,7 @@ DRY_RUN=0
 DO_UNINSTALL=0
 OFFLINE=0
 NO_SHA256=0
+REBUILD_DB=0
 BIN_LOCAL=""
 SRC_LOCAL=""
 STEP=0
@@ -86,6 +93,7 @@ while [ $# -gt 0 ]; do
     --uninstall)  DO_UNINSTALL=1; shift ;;
     --offline)    OFFLINE=1; shift ;;
     --no-sha256)  NO_SHA256=1; shift ;;
+    --rebuild-db) REBUILD_DB=1; shift ;;
     --bin)
       [ $# -ge 2 ] || die "--bin 后面要跟本地二进制包的路径"
       BIN_LOCAL=$(abspath "$2"); shift 2 ;;
@@ -292,7 +300,7 @@ fi
 [ -n "$DB_PASS" ] || DB_PASS="$(rand_str 24)"
 
 if [ -d "$PREFIX" ] && [ -f "${PREFIX}/config/server.json" ]; then
-  warn "检测到已有安装在 ${PREFIX}：本次为「更新」，数据库和配置会保留"
+  warn "检测到已有安装在 ${PREFIX}：本次为「更新」——配置会备份后沿用，数据库要看第 6 步的检查结果"
   MODE="update"
 else
   MODE="fresh"
@@ -446,46 +454,179 @@ fi
 ok "数据库就绪：${DB_NAME} / ${DB_USER}"
 
 # ============================================================================
-# 6. 部署文件 + 迁移
+# 6. 先定数据库怎么处理，再部署文件
 # ============================================================================
-step 6 "部署文件并初始化表结构"
-run "mkdir -p '$PREFIX'"
-run "install -m 0755 '$TMP/bfserver' '$PREFIX/bfserver'"
-run "rm -rf '$PREFIX/config' '$PREFIX/database'"
-run "cp -r '$SRC_ROOT/config' '$PREFIX/config'"
-run "cp -r '$SRC_ROOT/database' '$PREFIX/database'"
-run "mkdir -p '$PREFIX/Logs'"
+# 顺序很重要：数据库没搞定之前不动 $PREFIX 里的任何东西，失败也不会留下半装的现场。
+step 6 "检查数据库并部署文件"
+
+# 期望表清单来自本次发布自带的基线，而不是写死的数字
+# 干跑时如果没指定本地源码包（还没下载），基线不在本地，就跳过着这一步
+if [ -f "$SRC_ROOT/database/baseline.sql" ]; then
+  EXPECTED_TABLES=$(sed -n 's/^CREATE TABLE `\([^`]*\)`.*/\1/p' "$SRC_ROOT/database/baseline.sql" | LC_ALL=C sort)
+else
+  EXPECTED_TABLES=""
+fi
+EXPECTED_COUNT=$(printf '%s\n' "$EXPECTED_TABLES" | grep -c . || true)
+if [ -z "$EXPECTED_TABLES" ] && [ "$DRY_RUN" = "1" ]; then
+  EXPECTED_COUNT="?"   # 干跑且没下载源码包：表数以基线文件为准，真跑时会重新算
+elif [ -z "$EXPECTED_TABLES" ]; then
+  die "源码包的 database/baseline.sql 里没有 CREATE TABLE，包不完整"
+fi
+
+if [ "$DRY_RUN" = "1" ]; then
+  say "    [dry-run] 检查 ${DB_NAME} 现有表：空库 → 导入基线；已是基线 → 跳过；旧结构 → 要求 --rebuild-db"
+  DB_STATE="dry"
+else
+  TABLES_NOW=$(mariadb -N -B -e "SELECT table_name FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo '?')
+  if [ "$TABLES_NOW" = "?" ]; then
+    db_names=""
+    DB_STATE="unknown"
+  else
+    db_names=$(printf '%s\n' "$TABLES_NOW" | grep -c . || true)
+    if [ "${db_names:-0}" = "0" ]; then
+      DB_STATE="empty"
+    else
+      # comm 要跟 sort 用同一个排序：本机可能是 UTF-8 locale，得显式 LC_ALL=C，
+      # 否则会报 "file 1 is not in sorted order"
+      MISSING_TABLES=$(LC_ALL=C comm -23 <(printf '%s\n' "$EXPECTED_TABLES") \
+        <(printf '%s\n' "$TABLES_NOW" | LC_ALL=C sort))
+      if [ -z "$(printf '%s' "$MISSING_TABLES" | tr -d ' ')" ]; then
+        DB_STATE="baseline"
+      else
+        DB_STATE="other"
+      fi
+    fi
+  fi
+fi
+
+case "$DB_STATE" in
+  empty)    DB_ACTION="import" ;;
+  baseline) DB_ACTION="skip" ;;
+  other)    DB_ACTION="rebuild" ;;
+  dry)      DB_ACTION="dry" ;;
+  *)        DB_ACTION="unknown" ;;
+esac
+
+if [ "$DB_ACTION" = "unknown" ]; then
+  die "读不到数据库 ${DB_NAME} 的现状（是否已启动？），为避免误操作已停止"
+fi
+
+if [ "$DB_ACTION" = "rebuild" ] && [ "$REBUILD_DB" != "1" ]; then
+  missing_count=$(printf '%s\n' "$MISSING_TABLES" | grep -c . || true)
+  missing_preview=$(printf '%s\n' "$MISSING_TABLES" | head -5 | tr '\n' ' ')
+  cat <<EOF
+
+    数据库 ${DB_NAME} 里已经有数据，但结构和本版（baseline revision 1，${EXPECTED_COUNT} 张表）不一样：
+      缺 ${missing_count} 张表：${missing_preview}$([ "$missing_count" -gt 5 ] && echo '…')
+
+    本版不做原地升级——旧表结构和现在的服务端对不上，直接覆盖又会让账号、角色、道具丢干净。
+    确认要重建（数据会全部丢失）就跑：
+      bash $0 --rebuild-db
+    脚本会先把现有库备份到 /opt/bf-backup-${DB_NAME}-<时间>.sql.gz，再重建。
+    只想先看看现状：mariadb -e "SHOW TABLES FROM \`${DB_NAME}\`"
+EOF
+  die "数据库结构与本版不符，已停止（${PREFIX} 未做任何改动）"
+fi
+
+# 重建前先备份：备份失败就不往下走
+if [ "$DB_ACTION" = "rebuild" ]; then
+  DB_BACKUP="/opt/bf-backup-${DB_NAME}-$(date +%Y%m%d-%H%M%S).sql.gz"
+  DUMP_BIN=mysqldump
+  command -v mysqldump >/dev/null 2>&1 || DUMP_BIN=mariadb-dump
+  if [ "$DRY_RUN" = "1" ]; then
+    say "    [dry-run] ${DUMP_BIN} 备份 ${DB_NAME} → ${DB_BACKUP}"
+    say "    [dry-run] 导入 database/baseline.sql（--force，现有 ${db_names} 张表会被清空）"
+  else
+    $DUMP_BIN --single-transaction --routines "$DB_NAME" 2>>"$LOG_FILE" | gzip > "$DB_BACKUP" \
+      || die "备份失败，未做任何改动。检查磁盘空间与 ${DUMP_BIN} 权限，日志：${LOG_FILE}"
+    [ -s "$DB_BACKUP" ] || die "备份文件是空的（${DB_BACKUP}），为安全起见已停止"
+    ok "旧库已备份：${DB_BACKUP}（$(du -h "$DB_BACKUP" | awk '{print $1}')）"
+  fi
+fi
 
 # 建库：仓库自带的 migrate.sh 导入 database/baseline.sql（schema revision 1）
-if [ "$DRY_RUN" = "1" ]; then
-  say "    [dry-run] 导入 database/baseline.sql（schema revision 1）"
-else
-  ( cd "$PREFIX" && BF_DB_USER="$DB_USER" BF_DB_PASSWORD="$DB_PASS" BF_DB_NAME="$DB_NAME" \
-      bash database/migrate.sh 127.0.0.1 3306 ) >>"$LOG_FILE" 2>&1 \
-    || die "数据库初始化失败（详情见上方输出 / ${LOG_FILE}）；库已存在时用 --force 重建，或先手工 drop"
+case "$DB_ACTION" in
+  skip)
+    info "库结构已是本版基线（${EXPECTED_COUNT} 张表），跳过导入，数据原样保留"
+    ;;
+  import)
+    if [ "$DRY_RUN" = "1" ]; then
+      say "    [dry-run] 导入 database/baseline.sql（schema revision 1，${EXPECTED_COUNT} 张表）"
+    else
+      ( BF_DB_USER="$DB_USER" BF_DB_PASSWORD="$DB_PASS" BF_DB_NAME="$DB_NAME" \
+          bash "$SRC_ROOT/database/migrate.sh" 127.0.0.1 3306 ) >>"$LOG_FILE" 2>&1 \
+        || die "数据库初始化失败（详情见 ${LOG_FILE}）"
+    fi
+    ;;
+  rebuild)
+    if [ "$DRY_RUN" = "0" ]; then
+      ( BF_DB_USER="$DB_USER" BF_DB_PASSWORD="$DB_PASS" BF_DB_NAME="$DB_NAME" \
+          bash "$SRC_ROOT/database/migrate.sh" 127.0.0.1 3306 --force ) >>"$LOG_FILE" 2>&1 \
+        || die "数据库重建失败（备份在 ${DB_BACKUP}，详情见 ${LOG_FILE}）"
+    fi
+    ;;
+  dry)
+    if [ "$REBUILD_DB" = "1" ]; then
+      say "    [dry-run] 会先备份现有库，再用 --force 重建为 ${EXPECTED_COUNT} 张表的基线"
+    else
+      say "    [dry-run] 真跑时：空库导入基线 / 已是基线跳过 / 旧结构要求 --rebuild-db"
+    fi
+    ;;
+esac
+
+if [ "$DRY_RUN" = "0" ]; then
   REVISION=$(mariadb -N -B -e "SELECT revision FROM \`${DB_NAME}\`.schema_version WHERE id = 1;" 2>/dev/null || echo '?')
   TABLES=$(mariadb -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo '?')
-  ok "表结构已初始化（${TABLES} 张表，schema revision ${REVISION}）"
+  ok "数据库就绪（${TABLES} 张表，schema revision ${REVISION}）"
 fi
+
+# ---- 数据库确定无误，这时才动磁盘上的文件 ----
+run "mkdir -p '$PREFIX'"
+if [ -f "${PREFIX}/bfserver" ]; then
+  run "cp -f '${PREFIX}/bfserver' '${PREFIX}/bfserver.prev'"   # 回退用
+fi
+run "install -m 0755 '$TMP/bfserver' '$PREFIX/bfserver'"
+
+# 配置：整目录先备份，随版本走的 JSON 表覆盖，server.json 与证书保留（第 7 步只补字段）
+if [ -d "${PREFIX}/config" ]; then
+  CFG_BACKUP="${PREFIX}/config.bak.$(date +%Y%m%d-%H%M%S)"
+  run "cp -a '${PREFIX}/config' '${CFG_BACKUP}'"
+  [ "$DRY_RUN" = "1" ] || info "旧配置已备份：${CFG_BACKUP}"
+fi
+run "mkdir -p '$PREFIX/config'"
+if [ -d "$SRC_ROOT/config" ]; then
+  for cfg_file in "$SRC_ROOT"/config/*.json; do
+    [ "$(basename "$cfg_file")" = "server.json" ] && continue   # server.json 由第 7 步生成/补字段
+    run "cp -f '$cfg_file' '$PREFIX/config/$(basename "$cfg_file")'"
+  done
+  if [ ! -f "${PREFIX}/config/server.json" ]; then
+    run "cp -f '$SRC_ROOT/config/server.json' '$PREFIX/config/server.json'"
+  fi
+else
+  say "    [dry-run] 覆盖 config/ 里随版本走的 JSON，保留 server.json 与证书"   # 干跑且无本地源码包时
+fi
+run "rm -rf '$PREFIX/database'"
+run "cp -r '$SRC_ROOT/database' '$PREFIX/database'"
+run "mkdir -p '$PREFIX/Logs'"
 
 # ============================================================================
 # 7. 生成配置 + 证书
 # ============================================================================
 step 7 "生成配置与自签证书"
-if [ -f "${PREFIX}/config/server.json" ]; then
-  run "cp '${PREFIX}/config/server.json' '${PREFIX}/config/server.json.bak.$(date +%Y%m%d-%H%M%S)'"
-fi
+# 旧配置已在第 6 步整目录备份（config.bak.<时间>），这里不再单独备份 server.json
 
 if [ "$DRY_RUN" = "1" ]; then
-  say "    [dry-run] 写入 config/server.json（数据库密码、公网 IP、邀请码）"
-  say "    [dry-run] 生成 26102 认证端自签证书（SAN: ${PUBLIC_IP}）"
+  say "    [dry-run] 写入 config/server.json（数据库密码、公网 IP、邀请码；已有配置只补字段，不覆盖你改过的项）"
+  say "    [dry-run] 缺证书时生成 26102 认证端自签证书（SAN: ${PUBLIC_IP}）"
 else
-  BF_DB_PASS="$DB_PASS" BF_PUBLIC_IP="$PUBLIC_IP" BF_INVITE="$INVITE_CODE" \
+  BF_CFG_MODE="$MODE" BF_DB_PASS="$DB_PASS" BF_PUBLIC_IP="$PUBLIC_IP" BF_INVITE="$INVITE_CODE" \
   python3 - "$PREFIX/config/server.json" <<'PY'
 import json, os, sys
 path = sys.argv[1]
+update = os.environ.get("BF_CFG_MODE") == "update"
 cfg = json.load(open(path, encoding="utf-8"))
 
+# 数据库连接是脚本自己的领地，两种模式都写死。
 cfg.setdefault("database", {})
 cfg["database"].update({
     "host": "127.0.0.1",
@@ -496,44 +637,53 @@ cfg["database"].update({
     "tlsMode": "disable",
 })
 
-cfg.setdefault("network", {})
-cfg["network"]["listenAddress"] = "0.0.0.0"
-cfg["network"]["listenPort"] = 26100
+# 端口/日志级别这类用户可能手改过的项：更新时只补缺失字段，不恢复成默认值。
+def fill(section, defaults):
+    cfg.setdefault(section, {})
+    for key, value in defaults.items():
+        if update:
+            cfg[section].setdefault(key, value)
+        else:
+            cfg[section][key] = value
 
-cfg.setdefault("relay", {})
-cfg["relay"]["listenAddress"] = "0.0.0.0"
-cfg["relay"]["listenPort"] = 26104
+fill("network", {"listenAddress": "0.0.0.0", "listenPort": 26100})
+fill("relay", {"listenAddress": "0.0.0.0", "listenPort": 26104})
 # 关键：留 127.0.0.1 的话，远程客户端拿到的中继地址是本机回环地址，进对局会卡住
 cfg["relay"]["advertisedAddress"] = os.environ["BF_PUBLIC_IP"]
 
-cfg.setdefault("authentication", {})
-cfg["authentication"].update({
+fill("authentication", {
     "enabled": True,
     "listenAddress": "0.0.0.0",
     "listenPort": 26102,
+})
+# 证书路径、对外主机名、邀请码跟安装参数走
+cfg["authentication"].update({
     "certificateFile": "config/authentication_certificate.pem",
     "privateKeyFile": "config/authentication_private_key.pem",
     "gameHost": os.environ["BF_PUBLIC_IP"],
     "inviteCode": os.environ["BF_INVITE"],
 })
 
-cfg.setdefault("logging", {})
-cfg["logging"]["level"] = "info"
-cfg["logging"]["directory"] = "Logs"
+fill("logging", {"level": "info", "directory": "Logs"})
 
 json.dump(cfg, open(path, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
 print("config written")
 PY
   chmod 600 "$PREFIX/config/server.json"
   # 认证端（26102）用自签证书：客户端不校验证书链，自签即可
-  ( cd "$PREFIX" && openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
-      -keyout config/authentication_private_key.pem \
-      -out config/authentication_certificate.pem \
-      -subj "/CN=bfserver-cn0261" \
-      -addext "subjectAltName=IP:${PUBLIC_IP},IP:127.0.0.1,DNS:localhost" ) >>"$LOG_FILE" 2>&1 \
-    || die "证书生成失败，日志：${LOG_FILE}"
+  # 更新时已有证书就沿用：换证书会让已登录的客户端下次连接时握手失败
+  if [ -f "${PREFIX}/config/authentication_certificate.pem" ] && [ -f "${PREFIX}/config/authentication_private_key.pem" ]; then
+    info "沿用已有证书（${PREFIX}/config/authentication_certificate.pem）"
+  else
+    ( cd "$PREFIX" && openssl req -x509 -newkey rsa:2048 -nodes -sha256 -days 3650 \
+        -keyout config/authentication_private_key.pem \
+        -out config/authentication_certificate.pem \
+        -subj "/CN=bfserver-cn0261" \
+        -addext "subjectAltName=IP:${PUBLIC_IP},IP:127.0.0.1,DNS:localhost" ) >>"$LOG_FILE" 2>&1 \
+      || die "证书生成失败，日志：${LOG_FILE}"
+  fi
   chmod 600 "$PREFIX/config/authentication_private_key.pem"
-  ok "配置与证书已生成"
+  ok "配置与证书已就绪"
 fi
 
 # ============================================================================

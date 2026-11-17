@@ -86,6 +86,10 @@ BF_DB_PASSWORD='***' ./database/migrate.sh
 >
 > 库里已经有 `schema_version`（表已初始化过）时脚本会**拒绝导入**（基线会 DROP 同名表）：
 > 确实要重建（会丢数据）就加 `--force`，重建前自己备份。
+>
+> 用一键脚本（`tools/bfserver-install.sh`）装的实例同理：库里是旧版结构时，重跑脚本会早退并提示，
+> 要和 `--rebuild-db` 重跑（它自己先备份到 `/opt/bf-backup-<库名>-<时间>.sql.gz`）。
+> 库里已是本版基线时，脚本直接跳过导入，账号与角色不受影响。
 
 Windows（没有 bash）：
 
