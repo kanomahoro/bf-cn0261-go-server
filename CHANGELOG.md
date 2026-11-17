@@ -2,6 +2,11 @@
 
 ## v1.1.0（未发布，待打 tag）
 
+- **启动校验从「版本号」改为「表结构」**：服务端不再比对 `schema_version.revision`，改为比对编译进去的
+  结构清单（`internal/store/schema_expected.go`，由 `tools/db-schema-expected.sh` 生成）——
+  只改数据（上架/改价/发卡/玩家数据）不再需要任何操作；缺表/缺列/类型变化会被明确报出，
+  **多出来的表和列不算错**。`revision` 降级为纯标签，只用于后台展示与排障；
+  另新增 `tools/db-schema-expected.sh` 用于改结构后重新生成清单
 - **数据库改为单一基线 + revision 校验**：14 份历史迁移、5 个商店补丁与功能饰品合并成
   `database/baseline.sql`（schema revision 1），服务端只校验 `schema_version.revision`
   （不再钉 14 行 `schema_migrations`）。项目尚未上线，**不保留升级路径**：版本不匹配就用

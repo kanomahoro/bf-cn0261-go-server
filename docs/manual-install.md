@@ -101,7 +101,7 @@ set M=C:\BF\mariadb\bin\mariadb.exe
 mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version WHERE id = 1;"
 ```
 
-必须返回 **1**。没有 `schema_version` 表说明是旧结构，直接 `bash database/migrate.sh --force` 重建（先备份）。
+版本号只是标签（当前 1），**启动时不校验它**；服务端校验的是表结构。想确认结构对不对，直接启动服务端看日志即可。
 
 #### 1.5 把密码交给服务端
 
@@ -123,7 +123,7 @@ mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version 
 服务端启动时自动完成的初始化动作，日志里依次是：
 
 ```
-[Database] checking connection and schema version   ← 连库并校验 schema_version.revision == 3
+[Database] checking connection and schema structure  ← 连库并比对表/列/类型（不看数据）
 [Database] purging expired login tickets            ← 清理过期登录票据
 [Relay] listening            port=26104
 [Authentication] listening   port=26102
@@ -132,9 +132,10 @@ mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version 
 
 看到 `[Application] ready` 就是**初始化全部完成**，可以直接跑第 5 步建号登录。
 
-> 服务端启动时**不再改表结构**（`duration_type` 等已在基线里）。
-> 如果库的 revision 不是 1，启动会直接失败并提示：
-> `database schema revision N, this build needs 1; rebuild it with "bash database/migrate.sh --force"`。
+> 服务端启动时**不改表结构、也不校验版本号**，只比对表结构。
+> 结构不一致时会列出差异，例如：
+> `database structure does not match this build (1 problem(s) …): missing column shop_items.display_order; …`
+> 只改数据（上架/改价/玩家数据）不会触发任何报错。
 
 商店内容（衣服 / 武器 / 杂项 / 投掷物 / 新角色 / 功能饰品）**都已包含在基线里**，
 新装不需要再导任何 `shop-patches/*.sql`。
@@ -144,7 +145,7 @@ mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version 
 | 日志表现 | 原因 |
 | --- | --- |
 | 卡在 `checking connection` | 账号/密码不对，或账号没用 `mysql_native_password` |
-| `database schema revision N, this build needs 1` | 库不是当前基线：`bash database/migrate.sh --force` 重建（先备份） |
+| `database structure does not match this build` | 库结构不匹配：按报错补结构，或 `bash database/migrate.sh --force` 重建（先备份） |
 | `database password is missing` | 1.5 没设 `BF_DATABASE_PASSWORD`，配置里也是空的 |
 
 ## 2. 配置

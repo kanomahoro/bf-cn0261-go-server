@@ -252,10 +252,11 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 - **整库只有一份基线**：`database/baseline.sql`（schema revision 1，22 张业务表 + 商店/角色/饰品数据），
   用 `database/migrate.sh` 导入；不要手动 `cat *.sql`
 - **重建**：`database/migrate.sh --force`（会 DROP 同名表，先自己备份）
-- **版本校验**：库里的 `schema_version.revision` 必须等于二进制编译时要求的 revision（当前 3）；
-  不匹配直接拒绝启动；本项目尚未上线，没有升级路径，直接重建
+- **结构校验**：服务端只比对表结构（表 / 列 / 类型 / 可空 / 键 / 自增），比对对象是编译进去的
+  `internal/store/schema_expected.go`。**只改数据（上架/改价/发卡/玩家数据）完全不受影响**；
+  改结构才需要重新生成清单并重打服务端，不一致时启动会列出差异
 - 表按用途分组：账号与角色、房间与对局（`game_results*`）、商店与背包、聊天与社交
-- 目录说明与「怎么加一个新 revision」：见 [`database/README.md`](database/README.md)
+- 结构清单的再生成与改结构流程：见 [`database/README.md`](database/README.md)
 - 详细表结构、初始化校验与手工建库步骤：见 [`docs/database.md`](docs/database.md)
 
 ## 商店数据（已并入数据库基线）
@@ -314,7 +315,7 @@ PIRATE.md          海盗模式（mode 101）方案、协议清单与待审项
 | --- | --- |
 | `errno: 150 Foreign key constraint is incorrectly formed` | 手工按字母序跑了 SQL；用 `database/migrate.sh` 导基线 |
 | `Unknown collation: 'utf8mb4_0900_ai_ci'` | 这是 MySQL 8 的排序规则；本项目只支持 MariaDB |
-| 启动报 `database schema revision N, this build needs M` | 库不是当前基线：`bash database/migrate.sh --force` 重建（先备份） |
+| 启动报 `database structure does not match this build` | 库结构与二进制不一致：按报错补结构，或 `bash database/migrate.sh --force` 重建（先备份） |
 | 启动报找不到 `authentication_certificate.pem` | 跑 `./gen-cert.sh`，或把 `authentication.enabled` 置 false |
 | 登录器提示「邀请码不正确」 | 填入与服务端 `authentication.inviteCode` 相同的码；留空表示开放注册 |
 | 登录器提示「服务繁忙」 | 触发按 IP 限流（默认 5/小时、20/天），等窗口过去或调配置 |

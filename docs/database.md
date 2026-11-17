@@ -3,16 +3,17 @@
 建库后共 **23 张表**（22 张业务表 + `schema_version`），全部由 `database/baseline.sql` 一次性导入，
 不需要手写任何建表语句。
 
-## 基线与版本
+## 基线与结构校验
 
 | 东西 | 说明 |
 |---|---|
-| `database/baseline.sql` | 唯一 schema 来源（revision 1）：建表 + 商店/角色/饰品种子数据 |
+| `database/baseline.sql` | 唯一 schema 来源：建表 + 商店/角色/饰品种子数据 |
 | `database/migrate.sh` | 导入基线；库里已有 `schema_version` 时拒绝（`--force` 才重建） |
-| `schema_version` | 单行表，`revision` 与服务端编译值（当前 1）比对 |
+| `internal/store/schema_expected.go` | 服务端启动时比对的**结构清单**（表/列/类型/可空/键/自增），由 `tools/db-schema-expected.sh` 生成 |
+| `schema_version` | 单行标签表（revision / note / applied_at），**不参与启动判断** |
 
-历史上确实有 14 份按顺序执行的迁移，它们的内容已经**全部合并进基线**，文件已从仓库移除
-（需要时看 git 历史）。项目尚未上线，因此**没有升级路径**：版本不匹配就重建。
+服务端只校验结构，不校验数据、也不校验版本号：上架/改价/发卡/玩家数据怎么变都不影响启动；
+加表、删列、改类型才需要重新生成清单并重打二进制。**多出来的表和列不算错**。
 
 现存的表分组（按用途）如下。
 
@@ -65,7 +66,7 @@
 | --- | --- |
 | `character_weapon_presets` | 每个角色的预设槽（2 或 3 个、当前选中项） |
 | `character_weapon_preset_items` | 预设槽里存的武器道具 ID |
-| `schema_version` | 单行表：数据库 schema revision（服务端启动时与编译值比对，当前 3） |
+| `schema_version` | 单行标签表：revision / note / applied_at（仅展示，不参与启动校验） |
 
 ## 运维：手工改余额
 

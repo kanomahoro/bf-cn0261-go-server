@@ -53,8 +53,9 @@ Usage: bfserver [flags]
   --character-type <1|2>   starter character type: 1=皮蛋(Pidan) 2=黑妞(Heiniu), default 1
   --password <password>    account password for the two account commands above
 
-Database schema: the server compares schema_version.revision with the revision it
-was built for and refuses to start on a mismatch. Rebuild such a database with
+Database schema: the server compares the live table/column structure with the one
+it was built for and refuses to start when they differ. Data-only changes (items,
+prices, stock, accounts) need no action. Rebuild a mismatched database with
 "bash database/migrate.sh --force" (it imports database/baseline.sql).
 
 Database password: database.password in the configuration, or BF_DATABASE_PASSWORD.
@@ -230,7 +231,7 @@ func run(args []string) error {
 		return err
 	}
 
-	logger.Info("[Database] checking connection and schema version")
+	logger.Info("[Database] checking connection and schema structure")
 	if err := checkSchema(db); err != nil {
 		return err
 	}
