@@ -520,6 +520,10 @@ if [ -f "$TMP/src.tar.gz" ]; then
     if [ -d "$cand/config" ] && [ -d "$cand/database" ]; then SRC_ROOT="$cand"; break; fi
   done
   [ -n "$SRC_ROOT" ] || die "源码包里找不到 config/ 和 database/ 目录，请确认是 v${VERSION} 的源码包"
+  # 旧版本的源码包里 database/ 只有 migrations/，没有整库基线：提前在这里拦住，
+  # 别等到第 6 步（那时库和账号已经建了）
+  [ -f "$SRC_ROOT/database/baseline.sql" ] || die "源码包里没有 database/baseline.sql——这个源码包不是 v${VERSION} 的（v1.1.0 起才有整库基线）。
+    --src 要指向 v${VERSION} 的源码归档（GitHub 的 archive/refs/tags/v${VERSION}.tar.gz）。"
   ok "源码包已解压：${SRC_ROOT}"
 else
   say "    [dry-run] 解压源码包 → $SRC_ROOT"
