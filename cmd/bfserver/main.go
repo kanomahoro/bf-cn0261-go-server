@@ -171,9 +171,8 @@ func run(args []string) error {
 			return err
 		}
 		defer db.Close()
-		if err := db.CheckConnection(); err != nil {
-			return err
-		}
+		// checkSchema also verifies the connection, so the account commands do
+		// not ping the database twice.
 		if err := checkSchema(db); err != nil {
 			return err
 		}

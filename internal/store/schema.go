@@ -25,7 +25,8 @@ type SchemaRevisionError struct {
 
 func (e *SchemaRevisionError) Error() string {
 	if e.Have == 0 {
-		return fmt.Sprintf("database schema revision unknown (no schema_version row): this build needs revision %d; rebuild it with \"bash database/migrate.sh --force\"", e.Want)
+		// Also reached when the row exists but carries 0, which no baseline writes.
+		return fmt.Sprintf("database schema revision is missing or zero: this build needs revision %d; rebuild it with \"bash database/migrate.sh --force\"", e.Want)
 	}
 	return fmt.Sprintf("database schema revision %d, this build needs %d; rebuild it with \"bash database/migrate.sh --force\"", e.Have, e.Want)
 }

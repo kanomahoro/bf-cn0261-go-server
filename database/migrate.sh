@@ -11,14 +11,20 @@
 # 确认要整库重建再加 --force。
 set -euo pipefail
 
-host="${1:-127.0.0.1}"
-port="${2:-3306}"
+host=""
+port=""
 force=0
 for arg in "$@"; do
   case "$arg" in
     --force) force=1 ;;
+    -h|--help)
+      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) if [ -z "$host" ]; then host="$arg"; elif [ -z "$port" ]; then port="$arg"; fi ;;
   esac
 done
+host="${host:-127.0.0.1}"
+port="${port:-3306}"
 
 user="${BF_DB_USER:-bfserver}"
 password="${BF_DB_PASSWORD:?BF_DB_PASSWORD is required}"
@@ -31,13 +37,21 @@ command -v mysql >/dev/null 2>&1 || client="mariadb"
 
 [ -f "$baseline" ] || { echo "missing $baseline" >&2; exit 1; }
 
-target="$(grep -m1 -oP '^--\s*schema-revision:\s*\K[0-9]+' "$baseline" || true)"
+target="$(sed -n 's/^--[[:space:]]*schema-revision:[[:space:]]*\([0-9][0-9]*\).*/\1/p' "$baseline" | head -n1)"
 [ -n "$target" ] || { echo "baseline has no \"-- schema-revision: N\" marker" >&2; exit 1; }
 
 run() { "$client" -h "$host" -P "$port" -u "$user" -p"$password" "$@"; }
 
 echo "目标库   ：${db}@${host}:${port}"
 echo "基线版本 ：schema revision ${target}"
+
+# Fail fast with a clear message: the checks below swallow query errors on
+# purpose, so a bad password must be caught here instead of looking like an
+# empty database.
+if ! "$client" -h "$host" -P "$port" -u "$user" -p"$password" -e "SELECT 1" >/dev/null 2>&1; then
+  echo "无法连接数据库 ${host}:${port}（检查 BF_DB_USER / BF_DB_PASSWORD 与服务是否运行）" >&2
+  exit 1
+fi
 
 "$client" -h "$host" -P "$port" -u "$user" -p"$password" \
   -e "CREATE DATABASE IF NOT EXISTS \`${db}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci" >/dev/null
@@ -69,6 +83,14 @@ tables="$("$client" -h "$host" -P "$port" -u "$user" -p"$password" -N -B \
 
 if [ "$revision" != "$target" ]; then
   echo "导入完成但 revision 是 ${revision}，预期 ${target}" >&2
+  exit 1
+fi
+
+# A partial import would still show the right revision (it is written last), so
+# compare the table count with the baseline's own CREATE TABLE statements.
+expected_tables="$(grep -c '^CREATE TABLE ' "$baseline" || true)"
+if [ "${tables}" != "${expected_tables}" ]; then
+  echo "导入后表数为 ${tables}，基线里有 ${expected_tables} 张表：导入不完整" >&2
   exit 1
 fi
 
