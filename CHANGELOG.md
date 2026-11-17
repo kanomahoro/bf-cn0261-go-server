@@ -2,6 +2,8 @@
 
 ## v1.1.0（未发布，待打 tag）
 
+- **删除 `shop-patches/` 目录**：14 份历史补丁/回退脚本的内容早已并入数据库基线，
+  现在没有任何流程需要它；需要查旧文件看 git 历史
 - **启动校验从「版本号」改为「表结构」**：服务端不再比对 `schema_version.revision`，改为比对编译进去的
   结构清单（`internal/store/schema_expected.go`，由 `tools/db-schema-expected.sh` 生成）——
   只改数据（上架/改价/发卡/玩家数据）不再需要任何操作；缺表/缺列/类型变化会被明确报出，

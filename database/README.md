@@ -59,4 +59,4 @@ missing column shop_items.display_order; rebuild it with "bash database/migrate.
 
 - `baseline.sql` 只由 `migrate.sh` 用，不要手改；改内容就重出基线
 - 脚本里不要写 `USE` / `CREATE DATABASE`：库名由命令行/`BF_DB_NAME` 决定
-- `shop-patches/` 是历史工具，内容已并入基线，新库不需要导入
+- 早期的 `shop-patches/` 目录已删除（内容全部并入基线；需要旧文件查 git 历史）

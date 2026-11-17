@@ -138,7 +138,7 @@ mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version 
 > 只改数据（上架/改价/玩家数据）不会触发任何报错。
 
 商店内容（衣服 / 武器 / 杂项 / 投掷物 / 新角色 / 功能饰品）**都已包含在基线里**，
-新装不需要再导任何 `shop-patches/*.sql`。
+商店内容全部在基线里，新装不需要再导入任何额外的 SQL。
 
 排障对应关系：
 
