@@ -1,22 +1,16 @@
 package store
 
 import (
-	"database/sql"
-	"errors"
 	"fmt"
 	"regexp"
 	"sort"
 	"strings"
-
-	"github.com/go-sql-driver/mysql"
 )
 
-// SchemaRevision is the revision label the baseline writes into schema_version.
-// It is *informational*: startup no longer enforces it, because data-only
-// changes must not require any action. The structural contract lives in
-// schema_expected.go; regenerate it with tools/db-schema-expected.sh after an
-// intentional schema change.
-const SchemaRevision uint32 = 1
+// The structural contract lives in schema_expected.go; regenerate it with
+// tools/db-schema-expected.sh after an intentional schema change. The revision
+// number the baseline writes into schema_version is a label only: startup never
+// compares it, so data-only changes need no action.
 
 // SchemaStructureError lists the ways the live database differs from the
 // structure this build expects.
@@ -37,28 +31,6 @@ func (e *SchemaStructureError) Error() string {
 		message += fmt.Sprintf("; and %d more", len(e.Problems)-shownMax)
 	}
 	return message + "; rebuild it with \"bash database/migrate.sh --force\""
-}
-
-// Revision reports schema_version.revision, or 0 when the table or row is
-// missing. It is used for display (admin console, logs), never for the startup
-// decision.
-func (db *DB) Revision() (uint32, error) {
-	ctx, cancel := db.ctx()
-	defer cancel()
-	var revision uint32
-	err := db.sql.QueryRowContext(ctx, "SELECT revision FROM schema_version WHERE id = 1").Scan(&revision)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, nil
-	}
-	if err != nil {
-		var mysqlErr *mysql.MySQLError
-		// 1146: table doesn't exist.
-		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1146 {
-			return 0, nil
-		}
-		return 0, err
-	}
-	return revision, nil
 }
 
 // integerDisplayWidth matches the "(N)" part of the integer types MariaDB and

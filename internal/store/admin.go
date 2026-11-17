@@ -296,9 +296,10 @@ type SchemaState struct {
 	Applied  time.Time
 }
 
-// SchemaVersions reports the database schema revision. It replaces the former
-// list of applied migrations: the database now carries one revision number that
-// the binary is built against (see upgrade.go).
+// SchemaVersions reports the schema label for the admin console. It replaces
+// the former list of applied migrations: the database carries one revision
+// number, which is informational only. The startup contract is the table
+// structure in schema_expected.go, not this number.
 func (db *DB) SchemaVersions() (SchemaState, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()

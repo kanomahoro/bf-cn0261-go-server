@@ -8,10 +8,12 @@
 --        `item_definitions` 与 `item_equipment_rules` 一一对应（308 条）；
 --        没有预览商品、没有武器切换扩张卡（500001）。
 --        所有在售商品的销售窗口统一到 2060-01-01（原先 4 件「猛兽 …MC」停在 2014 年，商店里看不到）。
---  版本：服务端启动时读 schema_version.revision 与本版要求的 revision 比对；
---        不一致会拒绝启动（本项目尚未上线，没有升级路径，直接重建）。
+--  启动校验：服务端只比对**表结构**（internal/store/schema_expected.go，127 列），
+--        不比对 revision。数据类改动（道具/价格/库存/账号）不需要任何动作；
+--        改表结构才要重跑 tools/db-schema-expected.sh 并重打二进制。
+--        revision 只是标签（后台展示用，删掉那行也不影响启动）。
 --
---  ⚠ 不要手改本文件。改库一律重出基线并 bump revision。
+--  ⚠ 不要手改本文件。改库一律重出基线；改结构另外重跑 db-schema-expected.sh。
 --  ⚠ 导入会 DROP 同名表，只对空库/重建使用（migrate.sh 会做安全检查）。
 --
 --  生成时间：2026-11-17
