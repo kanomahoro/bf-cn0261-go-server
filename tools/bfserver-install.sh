@@ -143,10 +143,14 @@ if [ "$OFFLINE" = "1" ]; then
 fi
 
 # 同一台机器上只允许一个安装进程：两个同时跑会互相覆盖配置和库
-if command -v flock >/dev/null 2>&1; then
-  LOCK_FILE="${TMPDIR:-/tmp}/.bfserver-install.lock"
+# 锁放在 /run（root 专用）；非 root 的干跑不需要锁，也避开 /tmp 里别人建的锁文件：
+# 开了 fs.protected_regular 时，root 都打不开别人在粘滞目录里建的文件。
+if command -v flock >/dev/null 2>&1 && [ "$(id -u)" = "0" ]; then
+  LOCK_FILE="${BF_LOCK_FILE:-/run/bfserver-install.lock}"
   if { exec 9>"$LOCK_FILE"; } 2>/dev/null; then
     flock -n 9 || die "已有另一个安装进程在运行（锁：${LOCK_FILE}），等它结束再试"
+  else
+    warn "拿不到安装锁（${LOCK_FILE}），无法阻止并发安装，请确认没有另一个安装在内跑"
   fi
 fi
 
@@ -188,6 +192,19 @@ run() { # 干跑模式下只打印命令
 
 need_root() {
   [ "$(id -u)" = "0" ] || die "请用 root 运行：sudo bash $0"
+}
+
+valid_ipv4() { # 从 stdin 读一个地址：四段十进制，每段 0-255（旧版的正则会把 999.1.1.1 放过去）
+  local ip octet IFS=.
+  read -r ip || return 1
+  set -- $ip
+  [ $# -eq 4 ] || return 1
+  for octet in "$@"; do
+    case "$octet" in ''|*[!0-9]*) return 1 ;; esac
+    [ ${#octet} -le 3 ] || return 1
+    [ "$((10#$octet))" -le 255 ] || return 1
+  done
+  return 0
 }
 
 # ----------------------------------------------------------------------------
@@ -325,7 +342,7 @@ fi
 [ -n "$PUBLIC_IP" ] || PUBLIC_IP=""
 [ -n "$FORCED_IP" ] || ask PUBLIC_IP "服务器公网 IP（客户端要连的那个）" "$PUBLIC_IP"
 [ -n "$PUBLIC_IP" ] || die "公网 IP 不能为空。在云控制台可以看到，填它就好"
-echo "$PUBLIC_IP" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || die "公网 IP 格式不对：${PUBLIC_IP}"
+echo "$PUBLIC_IP" | valid_ipv4 || die "公网 IP 格式不对：${PUBLIC_IP}（要像 203.0.113.10 这样的四段数字，每段 0-255）"
 # 自动探测到的是 NAT 内网地址时，安下去中继地址对玩家就是不可达的：
 # 交互式只能提醒，非交互（--yes / curl | bash）直接停下要 --ip。
 PRIVATE_IP=0
