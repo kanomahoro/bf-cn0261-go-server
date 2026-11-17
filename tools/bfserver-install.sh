@@ -25,6 +25,9 @@ BIN_LOCAL=""
 SRC_LOCAL=""
 FORCED_IP=""
 STEP=0
+# 消息里要用到脚本名：curl | bash 时 $0 是 "bash"，所以取 BASH_SOURCE，取不到就用默认名
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]:-bfserver-install.sh}")"
+[ "$SCRIPT_NAME" = "bash" ] && SCRIPT_NAME="bfserver-install.sh"
 
 usage() {   # 帮助文本写在这里而不是从 $0 里抠：curl … | bash -s -- --help 时 $0 是 bash，读不到文件
   cat <<'TEXT'
@@ -191,7 +194,6 @@ need_root() {
 # 卸载
 # ----------------------------------------------------------------------------
 if [ "$DO_UNINSTALL" = "1" ]; then
-  need_root
   say "${c_b}卸载泡泡战士服务端${c_reset}"
   if [ "$DRY_RUN" = "1" ]; then
     # 干跑只列计划：一条命令都不能真执行（以前这里不看 DRY_RUN，会直接删掉安装）
@@ -205,6 +207,8 @@ if [ "$DO_UNINSTALL" = "1" ]; then
     say " 干跑结束：以上是卸载会做的事，系统未改动"
     exit 0
   fi
+  # 真卸载要 root；干跑不需要（之前非 root 连“看看会删什么”都做不到）
+  need_root
   systemctl stop "$SERVICE" 2>/dev/null || true
   systemctl disable "$SERVICE" 2>/dev/null || true
   rm -f "$UNIT"
@@ -273,9 +277,9 @@ ARCH="$(uname -m)"
 [ "$ARCH" = "x86_64" ] || die "本包只支持 x86_64（amd64），当前是 ${ARCH}"
 ok "架构：${ARCH}"
 
-MEM_MB=$(awk '/MemTotal/{printf "%d", $2/1024}' /proc/meminfo)
-[ "$MEM_MB" -ge 480 ] || warn "内存只有 ${MEM_MB} MB，建议 1 GB 以上"
-ok "内存：${MEM_MB} MB"
+MEM_MB=$(awk '/MemTotal/{printf "%d", $2/1024}' /proc/meminfo 2>/dev/null || true)
+[ "${MEM_MB:-0}" -ge 480 ] || warn "内存只有 ${MEM_MB:-?} MB，建议 1 GB 以上"
+ok "内存：${MEM_MB:-?} MB"
 
 AVAIL_MB=$(df -Pm /opt 2>/dev/null | awk 'NR==2{print $4}')
 [ "${AVAIL_MB:-0}" -ge 1500 ] || warn "剩余磁盘只有 ${AVAIL_MB:-?} MB，建议 2 GB 以上"
@@ -294,7 +298,8 @@ step 2 "确认安装参数"
 PUBLIC_IP=""
 # 旧配置坏掉的话后面每一步都会崩掉，而且要到第 7 步才发现（那时文件已经换过了）：
 # 在这里先确认它能解析，不行就直接停下，什么都不改。
-if [ -f "${PREFIX}/config/server.json" ] && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "${PREFIX}/config/server.json" 2>/dev/null; then
+if [ -f "${PREFIX}/config/server.json" ] && command -v python3 >/dev/null 2>&1 \
+   && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "${PREFIX}/config/server.json" 2>/dev/null; then
   die "旧配置 ${PREFIX}/config/server.json 不是合法 JSON（或当前用户无权读取），已停止（未改动任何文件）。
     修好它再重跑；不想保留就把这个文件改名，脚本会按全新安装重新生成。"
 fi
@@ -329,10 +334,14 @@ case "$PUBLIC_IP" in
   172.1[6-9].*|172.2[0-9].*|172.3[01].*) PRIVATE_IP=1 ;;
 esac
 if [ "$PRIVATE_IP" = "1" ]; then
-  if [ "$FORCE_YES" = "1" ] || [ ! -t 0 ]; then
-    die "${PUBLIC_IP} 是内网地址，玩家拿它连不上。云主机请用 --ip <公网IP> 重跑（控制台里能看到）。"
+  if [ -n "$FORCED_IP" ]; then
+    # --ip 是用户自己指定的（局域网部署就这么干）：只提醒，不拦
+    warn "${PUBLIC_IP} 是内网/回环地址（你通过 --ip 显式指定）。局域网内可以用；公网玩家连不上。"
+  elif [ "$FORCE_YES" = "1" ] || [ ! -t 0 ]; then
+    die "探测到的 ${PUBLIC_IP} 是内网地址，玩家拿它连不上。云主机请用 --ip <公网IP> 重跑（控制台里能看到）。"
+  else
+    warn "这个地址看起来是内网/回环地址。云主机请填控制台上的「公网 IP」，否则远程玩家进不了对局"
   fi
-  warn "这个地址看起来是内网/回环地址。云主机请填控制台上的「公网 IP」，否则远程玩家进不了对局"
 fi
 
 # 邀请码：沿用已有配置，否则随机生成
@@ -381,13 +390,17 @@ else
 fi
 info "公网 IP：${PUBLIC_IP}"
 say_secret "    邀请码：${INVITE_CODE}"   # 邀请码同样只给屏幕，不落日志
-info "数据库密码：已随机生成 24 位，不打印（存在配置文件与 ${SECRET_FILE}）"
+if [ "$MODE" = "update" ]; then
+  info "数据库密码：沿用已有配置（不打印）"
+else
+  info "数据库密码：已随机生成 24 位，不打印（存在配置文件与 ${SECRET_FILE}）"
+fi
 info "模式：$([ "$MODE" = "fresh" ] && echo 全新安装 || echo 更新)"
 
 # ============================================================================
 # 3. 安装依赖
 # ============================================================================
-step 3 "检查并安装系统依赖（MariaDB、python3、tar、openssl）"
+step 3 "检查并安装系统依赖（MariaDB、python3、curl/tar/openssl、iproute2）"
 MISSING_PKGS=""
 for p in mariadb-server mariadb-client python3 curl tar openssl ca-certificates iproute2; do
   dpkg -s "$p" >/dev/null 2>&1 || MISSING_PKGS="$MISSING_PKGS $p"
@@ -403,8 +416,9 @@ elif [ "$OFFLINE" = "1" ]; then
 else
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq >>"$LOG_FILE" 2>&1 || die "apt update 失败。换一个软件源或稍后重试，日志：${LOG_FILE}"
-  apt-get install -y -qq mariadb-server mariadb-client python3 curl tar openssl ca-certificates >>"$LOG_FILE" 2>&1 \
-    || die "安装 MariaDB 失败，日志：${LOG_FILE}"
+  # 安装的必须就是检测到缺的那几个（旧版这里写死了包名，新加的 iproute2 就漏了）
+  apt-get install -y -qq $MISSING_PKGS >>"$LOG_FILE" 2>&1 \
+    || die "安装依赖失败：${MISSING_PKGS# }，日志：${LOG_FILE}"
   ok "依赖就绪"
 fi
 
@@ -455,12 +469,14 @@ take_local() { # take_local <名称> <本地文件> <目标文件>：只写临�
 if [ -n "$BIN_LOCAL" ]; then
   take_local "二进制包" "$BIN_LOCAL" "$TMP/bin.tar.gz"
 else
-  fetch "$BIN_URL" "$TMP/bin.tar.gz"
+  fetch "$BIN_URL" "$TMP/bin.tar.gz" || die "下载二进制包失败：${BIN_URL}
+    检查网络后重试，或手动下载后用 --bin 指定本地文件（见 --help 的离线安装）"
 fi
 if [ -n "$SRC_LOCAL" ]; then
   take_local "源码包" "$SRC_LOCAL" "$TMP/src.tar.gz"
 else
-  fetch "$SRC_URL" "$TMP/src.tar.gz"
+  fetch "$SRC_URL" "$TMP/src.tar.gz" || die "下载源码包失败：${SRC_URL}
+    检查网络后重试，或手动下载后用 --src 指定本地文件"
 fi
 ok "安装包就绪"
 
@@ -558,7 +574,6 @@ if [ "$DRY_RUN" = "1" ]; then
 else
   TABLES_NOW=$(mariadb -N -B -e "SELECT table_name FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo '?')
   if [ "$TABLES_NOW" = "?" ]; then
-    db_names=""
     DB_STATE="unknown"
   else
     db_names=$(printf '%s\n' "$TABLES_NOW" | grep -c . || true)
@@ -592,7 +607,7 @@ if [ "$REBUILD_DB" = "1" ] && [ "$DB_STATE" = "baseline" ] && [ "$DRY_RUN" = "0"
 fi
 
 if [ "$DB_ACTION" = "unknown" ]; then
-  die "读不到数据库 ${DB_NAME} 的现状（是否已启动？），为避免误操作已停止"
+  die "读不到数据库 ${DB_NAME} 的现状（MariaDB 没启动？或当前账号连不上：脚本用 root 走 unix socket）。为避免误操作已停止"
 fi
 
 if [ "$DB_ACTION" = "rebuild" ] && [ "$REBUILD_DB" != "1" ]; then
@@ -605,7 +620,7 @@ if [ "$DB_ACTION" = "rebuild" ] && [ "$REBUILD_DB" != "1" ]; then
 
     本版不做原地升级——旧表结构和现在的服务端对不上，直接覆盖又会让账号、角色、道具丢干净。
     确认要重建（数据会全部丢失）就跑：
-      bash $0 --rebuild-db
+      bash ${SCRIPT_NAME} --rebuild-db
     脚本会先把现有库备份到 /opt/bf-backup-${DB_NAME}-<时间>.sql.gz，再重建。
     只想先看看现状：mariadb -e "SHOW TABLES FROM \`${DB_NAME}\`"
 EOF
@@ -816,7 +831,11 @@ else
   if ! systemctl is-active --quiet "$SERVICE"; then
     say ""
     say "    服务没能启动，最近日志："
-    tail -20 "$PREFIX/Logs/Server.log" 2>/dev/null | sed 's/^/      /' || journalctl -u "$SERVICE" -n 20 --no-pager | sed 's/^/      /'
+    if [ -s "$PREFIX/Logs/Server.log" ]; then
+      tail -20 "$PREFIX/Logs/Server.log" | sed 's/^/      /'
+    else
+      journalctl -u "$SERVICE" -n 20 --no-pager 2>/dev/null | sed 's/^/      /' || true
+    fi
     die "启动失败。常见原因：端口被占用、数据库密码不对、配置文件格式错误。"
   fi
   ok "服务已启动"
@@ -870,7 +889,7 @@ say "   看状态     systemctl status ${SERVICE}"
 say "   重启       systemctl restart ${SERVICE}"
 say "   看实时日志 tail -f ${PREFIX}/Logs/Server.log"
 say "   建测试账号 ${PREFIX}/bfserver --config config/server.json --create-account 你的账号名 --nickname 角色名"
-say "   卸载       bash $0 --uninstall"
+say "   卸载       bash ${SCRIPT_NAME} --uninstall"
 say ""
 say " ${c_b}管理后台（WebUI，可选）${c_reset}"
 say "   现在是${c_y}关闭${c_reset}的：仓库里公开过的示例 token 不应该出现在任何人的机器上。"
