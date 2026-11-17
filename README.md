@@ -133,6 +133,12 @@ sudo bash bfserver-install.sh
 sudo bash bfserver-install.sh --rebuild-db   # 先备份到 /opt/bf-backup-<库名>-<时间>.sql.gz，再重建
 ```
 
+云主机如果自动探测到的是内网地址（NAT 环境），脚本会停下并要求明确给出公网 IP：
+
+```bash
+sudo bash bfserver-install.sh --ip 203.0.113.10        # 不安参数时交互模式会直接问
+```
+
 - 公网 IP 自动探测（探到内网会提醒）、邀请码随机、数据库密码随机 24 位（不打印只落盘）
 - 装完会提示：三个端口要放行、以及**管理后台默认关闭**和怎么开启（见下文「管理后台（可选）」）
 - 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、`--uninstall`（卸载，库默认保留）

@@ -1,31 +1,6 @@
 #!/usr/bin/env bash
-# ============================================================================
-#  泡泡战士 CN0261 服务端 · Debian 12+ 一键安装脚本
-#
-#  用法：
-#     bash bfserver-install.sh              # 交互安装（推荐）
-#     bash bfserver-install.sh --yes        # 全自动，全部用默认值
-#     bash bfserver-install.sh --dry-run    # 只看会做什么，不改系统
-#     bash bfserver-install.sh --uninstall  # 卸载（保留数据库，会再问一次）
-#
-#  离线安装（国内拉不动 GitHub 时用）：
-#     bash bfserver-install.sh --offline \
-#          --bin ./bfserver-linux-amd64-v1.1.0.tar.gz \
-#          --src ./v1.1.0.tar.gz
-#     --bin <路径>   用本地二进制包代替 GitHub Release 下载
-#     --src <路径>   用本地源码包代替 GitHub 归档下载
-#     --offline      两个都用本地包（此时必须同时给 --bin 和 --src）
-#     --no-sha256    跳过二进制包哈希校验（自己编译的包用）
-#     注意：离线模式不联网，MariaDB 等系统依赖需事先用本地源装好。
-#
-#  已有旧版本（数据库是旧结构）时：
-#     bash bfserver-install.sh --rebuild-db
-#     --rebuild-db   备份现有库（/opt/bf-backup-*.sql.gz）后整库重建为新基线。
-#                    会清空账号、角色、道具、战绩；不加这个参数时，脚本发现库结构与
-#                    本版不符会在改任何文件之前就停下，不会留下半装的现场。
-#
-#  面向 Linux 新手：每一步都有中文提示，出错会告诉你下一步做什么。
-# ============================================================================
+# 泡泡战士 CN0261 服务端 · Debian 12+ 一键安装脚本
+# 用法与参数说明：bash bfserver-install.sh --help（文本在下面的 usage() 里）
 set -Eeuo pipefail
 
 VERSION="1.1.0"
@@ -48,14 +23,53 @@ NO_SHA256=0
 REBUILD_DB=0
 BIN_LOCAL=""
 SRC_LOCAL=""
+FORCED_IP=""
 STEP=0
+
+usage() {   # 帮助文本写在这里而不是从 $0 里抠：curl … | bash -s -- --help 时 $0 是 bash，读不到文件
+  cat <<'TEXT'
+泡泡战士 CN0261 服务端 · Debian 12+ 一键安装脚本
+
+ 用法：
+    bash bfserver-install.sh              # 交互安装（推荐）
+    bash bfserver-install.sh --yes        # 全自动，全部用默认值
+    bash bfserver-install.sh --dry-run    # 只看会做什么，不改系统（--uninstall 也支持）
+    bash bfserver-install.sh --uninstall  # 卸载（保留数据库，会再问一次）
+
+ 离线安装（国内拉不动 GitHub 时用）：
+    bash bfserver-install.sh --offline \
+         --bin ./bfserver-linux-amd64-v1.1.0.tar.gz \
+         --src ./v1.1.0.tar.gz
+    --bin <路径>   用本地二进制包代替 GitHub Release 下载
+    --src <路径>   用本地源码包代替 GitHub 归档下载
+    --offline      两个都用本地包（此时必须同时给 --bin 和 --src）
+    --no-sha256    跳过哈希校验，只对 --bin 指定的本地包生效（自己编译的包用）
+                   下载得到的包始终校验
+    注意：离线模式不联网，MariaDB 等系统依赖需事先用本地源装好。
+
+ 已有安装 / 旧版本升级：
+    --rebuild-db   备份现有库（/opt/bf-backup-*.sql.gz）后整库重建为新基线。
+                   会清空账号、角色、道具、战绩；不加这个参数时，脚本发现库结构
+                   与本版不符会在改任何文件之前就停下，不会留下半装的现场。
+                   库已是本版基线时也会强制重建（相当于重置为干净库）。
+
+ 非交互 / 云主机：
+    --ip <地址>    直接指定公网 IP（不探测、不提问）；非交互模式下探测到私网地址
+                   会直接停下，要求用这个参数显式给出公网 IP。
+
+ 面向 Linux 新手：每一步都有中文提示，出错会告诉你下一步怎么做。
+TEXT
+}
 
 # ----------------------------------------------------------------------------
 # 输出
 # ----------------------------------------------------------------------------
 c_reset=$'\033[0m'; c_b=$'\033[1m'; c_g=$'\033[32m'; c_y=$'\033[33m'; c_r=$'\033[31m'; c_c=$'\033[36m'
 say()   {
-  printf '%s\n' "$*" | sed -E 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE" 2>/dev/null || true
+  # 非 root 干跑时写不了 /var/log：先判可写，否则 bash 会先报一句 Permission denied
+  if [ -w "$LOG_FILE" ] || [ -w "$(dirname "$LOG_FILE")" ]; then
+    printf '%s\n' "$*" | sed -E 's/\x1b\[[0-9;]*m//g' >> "$LOG_FILE" 2>/dev/null || true
+  fi
   printf '%s\n' "$*"
 }
 ok()    { say "${c_g}  ✓${c_reset} $*"; }
@@ -102,8 +116,12 @@ while [ $# -gt 0 ]; do
       [ $# -ge 2 ] || die "--src 后面要跟本地源码包的路径"
       SRC_LOCAL=$(abspath "$2"); shift 2 ;;
     --src=*)      SRC_LOCAL=$(abspath "${1#*=}"); shift ;;
+    --ip)
+      [ $# -ge 2 ] || die "--ip 后面要跟公网 IP 地址"
+      FORCED_IP="$2"; shift 2 ;;
+    --ip=*)       FORCED_IP="${1#*=}"; shift ;;
     --help|-h)
-      awk 'NR>2 && /^# =====/{exit} NR>2{sub(/^# ?/,""); print}' "$0"
+      usage
       exit 0 ;;
     *)            die "未知参数：$1（用 --help 查看用法）" ;;
   esac
@@ -119,6 +137,14 @@ done
 if [ "$OFFLINE" = "1" ]; then
   [ -n "$BIN_LOCAL" ] || die "--offline 需要同时指定 --bin（本地二进制包路径）"
   [ -n "$SRC_LOCAL" ] || die "--offline 需要同时指定 --src（本地源码包路径）"
+fi
+
+# 同一台机器上只允许一个安装进程：两个同时跑会互相覆盖配置和库
+if command -v flock >/dev/null 2>&1; then
+  LOCK_FILE="${TMPDIR:-/tmp}/.bfserver-install.lock"
+  if { exec 9>"$LOCK_FILE"; } 2>/dev/null; then
+    flock -n 9 || die "已有另一个安装进程在运行（锁：${LOCK_FILE}），等它结束再试"
+  fi
 fi
 
 # ----------------------------------------------------------------------------
@@ -167,6 +193,18 @@ need_root() {
 if [ "$DO_UNINSTALL" = "1" ]; then
   need_root
   say "${c_b}卸载泡泡战士服务端${c_reset}"
+  if [ "$DRY_RUN" = "1" ]; then
+    # 干跑只列计划：一条命令都不能真执行（以前这里不看 DRY_RUN，会直接删掉安装）
+    warn "干跑模式：不会删除任何东西，只列出卸载时会做什么"
+    say "    [dry-run] systemctl stop ${SERVICE} && systemctl disable ${SERVICE}"
+    [ -f "$UNIT" ] && say "    [dry-run] 删除 systemd 单元 $UNIT"
+    [ -d "$PREFIX" ] && say "    [dry-run] 删除安装目录 $PREFIX"
+    [ -f "$SECRET_FILE" ] && say "    [dry-run] 删除安装记录 $SECRET_FILE"
+    say "    [dry-run] 询问是否连数据库 ${DB_NAME} 一起删除（默认保留）"
+    say ""
+    say " 干跑结束：以上是卸载会做的事，系统未改动"
+    exit 0
+  fi
   systemctl stop "$SERVICE" 2>/dev/null || true
   systemctl disable "$SERVICE" 2>/dev/null || true
   rm -f "$UNIT"
@@ -174,6 +212,11 @@ if [ "$DO_UNINSTALL" = "1" ]; then
   if [ -d "$PREFIX" ]; then
     rm -rf "$PREFIX"
     ok "已删除 $PREFIX"
+  fi
+  # 安装时可能自己建的 mysql 软链（Debian 12 的客户端叫 mariadb）
+  if [ -L /usr/local/bin/mysql ] && [ "$(readlink /usr/local/bin/mysql)" = "$(command -v mariadb 2>/dev/null)" ]; then
+    rm -f /usr/local/bin/mysql
+    ok "已删除 /usr/local/bin/mysql 软链"
   fi
   ask dropdb "是否连数据库 ${DB_NAME} 一起删除？（数据会永久丢失，输入 yes 确认）" ""
   if [ "$dropdb" = "yes" ]; then
@@ -187,7 +230,12 @@ if [ "$DO_UNINSTALL" = "1" ]; then
     info "数据库 ${DB_NAME} 已保留"
   fi
   rm -f "$SECRET_FILE"
+  # 系统用户和安装日志也是这次安装建的，一并清掉（数据库已单独询问过）
+  if id "$SERVICE" >/dev/null 2>&1; then
+    userdel "$SERVICE" 2>/dev/null && ok "已删除系统用户 ${SERVICE}" || warn "系统用户 ${SERVICE} 删除失败，可手动 userdel"
+  fi
   ok "卸载完成"
+  rm -f "$LOG_FILE" 2>/dev/null || true   # 放在最后：上面的 ok 还会写一行日志
   exit 0
 fi
 
@@ -195,7 +243,7 @@ fi
 # 1. 环境体检
 # ============================================================================
 
-[ -f "$LOG_FILE" ] || : > "$LOG_FILE"
+[ -f "$LOG_FILE" ] || : > "$LOG_FILE" 2>/dev/null || true   # 非 root 干跑时写不了 /var/log，不应报警
 chmod 600 "$LOG_FILE" 2>/dev/null || true
 
 say "${c_b}泡泡战士 CN0261 服务端 · 安装程序 v${VERSION}${c_reset}"
@@ -242,9 +290,19 @@ done
 # ============================================================================
 step 2 "确认安装参数"
 
-# 公网 IP：优先沿用已有配置，其次自动探测
+# 公网 IP：优先用 --ip，其次沿用已有配置，最后自动探测
 PUBLIC_IP=""
-if [ -f "${PREFIX}/config/server.json" ]; then
+# 旧配置坏掉的话后面每一步都会崩掉，而且要到第 7 步才发现（那时文件已经换过了）：
+# 在这里先确认它能解析，不行就直接停下，什么都不改。
+if [ -f "${PREFIX}/config/server.json" ] && ! python3 -c 'import json,sys; json.load(open(sys.argv[1], encoding="utf-8"))' "${PREFIX}/config/server.json" 2>/dev/null; then
+  die "旧配置 ${PREFIX}/config/server.json 不是合法 JSON（或当前用户无权读取），已停止（未改动任何文件）。
+    修好它再重跑；不想保留就把这个文件改名，脚本会按全新安装重新生成。"
+fi
+if [ -n "$FORCED_IP" ]; then
+  PUBLIC_IP="$FORCED_IP"
+  info "公网 IP：${PUBLIC_IP}（来自 --ip）"
+fi
+if [ -z "$PUBLIC_IP" ] && [ -f "${PREFIX}/config/server.json" ]; then
   PUBLIC_IP=$(python3 - "${PREFIX}/config/server.json" <<'PY' 2>/dev/null || true
 import json,sys
 try:
@@ -260,13 +318,22 @@ if [ -z "$PUBLIC_IP" ]; then
   PUBLIC_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}' || true)
 fi
 [ -n "$PUBLIC_IP" ] || PUBLIC_IP=""
-ask PUBLIC_IP "服务器公网 IP（客户端要连的那个）" "$PUBLIC_IP"
+[ -n "$FORCED_IP" ] || ask PUBLIC_IP "服务器公网 IP（客户端要连的那个）" "$PUBLIC_IP"
 [ -n "$PUBLIC_IP" ] || die "公网 IP 不能为空。在云控制台可以看到，填它就好"
 echo "$PUBLIC_IP" | grep -Eq '^([0-9]{1,3}\.){3}[0-9]{1,3}$' || die "公网 IP 格式不对：${PUBLIC_IP}"
+# 自动探测到的是 NAT 内网地址时，安下去中继地址对玩家就是不可达的：
+# 交互式只能提醒，非交互（--yes / curl | bash）直接停下要 --ip。
+PRIVATE_IP=0
 case "$PUBLIC_IP" in
-  10.*|192.168.*|127.*) warn "这个地址看起来是内网/回环地址。云主机请填控制台上的「公网 IP」，否则远程玩家进不了对局" ;;
-  172.1[6-9].*|172.2[0-9].*|172.3[01].*) warn "这个地址看起来是内网地址（172.16-31 段）。云主机请填公网 IP" ;;
+  10.*|192.168.*|127.*) PRIVATE_IP=1 ;;
+  172.1[6-9].*|172.2[0-9].*|172.3[01].*) PRIVATE_IP=1 ;;
 esac
+if [ "$PRIVATE_IP" = "1" ]; then
+  if [ "$FORCE_YES" = "1" ] || [ ! -t 0 ]; then
+    die "${PUBLIC_IP} 是内网地址，玩家拿它连不上。云主机请用 --ip <公网IP> 重跑（控制台里能看到）。"
+  fi
+  warn "这个地址看起来是内网/回环地址。云主机请填控制台上的「公网 IP」，否则远程玩家进不了对局"
+fi
 
 # 邀请码：沿用已有配置，否则随机生成
 INVITE_CODE=""
@@ -298,6 +365,13 @@ PY
 )
 fi
 [ -n "$DB_PASS" ] || DB_PASS="$(rand_str 24)"
+# 密码会被拼进 SQL（CREATE/ALTER USER）：带引号、反斜杠等字符会直接语法错，
+# 而且只会在第 5 步才发现。这种密码（用户手改过 config 才可能出现）直接重新生成——
+# 反正第 5 步本来就会 ALTER USER，同步写回配置就行。
+if ! printf '%s' "$DB_PASS" | LC_ALL=C grep -Eq '^[A-Za-z0-9]+$'; then
+  warn "旧配置里的数据库密码含有特殊字符，已重新生成一个（账号密码会一并改掉）"
+  DB_PASS="$(rand_str 24)"
+fi
 
 if [ -d "$PREFIX" ] && [ -f "${PREFIX}/config/server.json" ]; then
   warn "检测到已有安装在 ${PREFIX}：本次为「更新」——配置会备份后沿用，数据库要看第 6 步的检查结果"
@@ -315,7 +389,7 @@ info "模式：$([ "$MODE" = "fresh" ] && echo 全新安装 || echo 更新)"
 # ============================================================================
 step 3 "检查并安装系统依赖（MariaDB、python3、tar、openssl）"
 MISSING_PKGS=""
-for p in mariadb-server mariadb-client python3 curl tar openssl ca-certificates; do
+for p in mariadb-server mariadb-client python3 curl tar openssl ca-certificates iproute2; do
   dpkg -s "$p" >/dev/null 2>&1 || MISSING_PKGS="$MISSING_PKGS $p"
 done
 if [ -z "$MISSING_PKGS" ]; then
@@ -363,8 +437,13 @@ fetch() { # fetch <url> <输出文件>
     say "    [dry-run] curl -L $1 -o $2"
     return 0
   fi
-  curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 --progress-bar \
-       -o "$2" "$1" >>"$LOG_FILE" 2>&1
+  # 进度条走 stderr：终端上要看得见（否则几十 MB 的包看上去像卡死），非交互时全进日志
+  if [ -t 2 ]; then
+    curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$2" "$1"
+  else
+    curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 --silent --show-error \
+         -o "$2" "$1" >>"$LOG_FILE" 2>&1
+  fi
 }
 
 take_local() { # take_local <名称> <本地文件> <目标文件>：只写临时目录，dry-run 下也真做
@@ -507,6 +586,11 @@ case "$DB_STATE" in
   *)        DB_ACTION="unknown" ;;
 esac
 
+# 显式给了 --rebuild-db 就按用户意思重建（库已是基线也算：用来把库重置成干净的）
+if [ "$REBUILD_DB" = "1" ] && [ "$DB_STATE" = "baseline" ] && [ "$DRY_RUN" = "0" ]; then
+  DB_ACTION="rebuild"
+fi
+
 if [ "$DB_ACTION" = "unknown" ]; then
   die "读不到数据库 ${DB_NAME} 的现状（是否已启动？），为避免误操作已停止"
 fi
@@ -530,17 +614,19 @@ fi
 
 # 重建前先备份：备份失败就不往下走
 if [ "$DB_ACTION" = "rebuild" ]; then
-  DB_BACKUP="/opt/bf-backup-${DB_NAME}-$(date +%Y%m%d-%H%M%S).sql.gz"
-  DUMP_BIN=mysqldump
-  command -v mysqldump >/dev/null 2>&1 || DUMP_BIN=mariadb-dump
   if [ "$DRY_RUN" = "1" ]; then
-    say "    [dry-run] ${DUMP_BIN} 备份 ${DB_NAME} → ${DB_BACKUP}"
-    say "    [dry-run] 导入 database/baseline.sql（--force，现有 ${db_names} 张表会被清空）"
+    say "    [dry-run] 先把 ${DB_NAME} 备份到 /opt/bf-backup-…，再用 --force 重建"
   else
+    DB_BACKUP="/opt/bf-backup-${DB_NAME}-$(date +%Y%m%d-%H%M%S).sql.gz"
+    DUMP_BIN=mysqldump
+    if ! command -v mysqldump >/dev/null 2>&1; then
+      command -v mariadb-dump >/dev/null 2>&1 || die "找不到 mysqldump / mariadb-dump，无法在重建前备份，已停止"
+      DUMP_BIN=mariadb-dump
+    fi
     $DUMP_BIN --single-transaction --routines "$DB_NAME" 2>>"$LOG_FILE" | gzip > "$DB_BACKUP" \
       || die "备份失败，未做任何改动。检查磁盘空间与 ${DUMP_BIN} 权限，日志：${LOG_FILE}"
     [ -s "$DB_BACKUP" ] || die "备份文件是空的（${DB_BACKUP}），为安全起见已停止"
-    ok "旧库已备份：${DB_BACKUP}（$(du -h "$DB_BACKUP" | awk '{print $1}')）"
+    ok "旧库已备份：${DB_BACKUP}（$(du -h "$DB_BACKUP" | awk '{print $1}')，恢复：zcat ${DB_BACKUP} | mariadb ${DB_NAME}）"
   fi
 fi
 
@@ -765,7 +851,11 @@ fi
 # ============================================================================
 say ""
 say "${c_g}${c_b}────────────────────────────────────────────────${c_reset}"
-say "${c_g}${c_b} ✅ 安装完成，服务已在后台运行${c_reset}"
+if [ "$DRY_RUN" = "1" ]; then
+  say "${c_y}${c_b} 干跑完成：以上是将会执行的操作，系统没有做任何改动${c_reset}"
+else
+  say "${c_g}${c_b} ✅ 安装完成，服务已在后台运行${c_reset}"
+fi
 say "${c_g}${c_b}────────────────────────────────────────────────${c_reset}"
 say " 公网 IP    : ${c_b}${PUBLIC_IP}${c_reset}"
 say " 端口       : 游戏 26100 · 认证 26102 · 中继 26104"
