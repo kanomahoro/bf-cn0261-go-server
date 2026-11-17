@@ -175,7 +175,7 @@ git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
 | 顶层 | `gameMapsFile` 等 6 个 | 数据表路径，指向 `config/*.json` |
 | `network` | `listenPort` 26100 | 游戏端口、连接数、空闲超时 |
 | `relay` | `listenPort` 26104、`advertisedAddress` | 中继端口，**必须填公网 IP**，否则对局连不上 |
-| `database` | `host`/`port`/`databaseName`/`username`/`password` | MariaDB 连接；库名只允许 `bubblefighter_cn0261(_tests)` |
+| `database` | `host`/`port`/`databaseName`/`username`/`password` | MariaDB 连接；库名任意（非空即可），对不对由启动时的表结构校验决定 |
 | `authentication` | `listenPort` 26102、`inviteCode`、限流 | 登录器认证；证书用 `./gen-cert.sh` 生成 |
 | `logging` | `level`、轮转 | `trace/debug/info/warn/error`；默认 `info`，一局只写几行骨架 |
 | `zombie` | `humanTurnMs` 12000、`zombiniTurnMs` 18000 | 换队通知的等待（真机量出来的），范围 500–60000，整段可省略 |

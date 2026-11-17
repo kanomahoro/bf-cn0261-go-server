@@ -170,12 +170,6 @@ type Config struct {
 	Admin              Admin          `json:"admin"`
 }
 
-// AllowedDatabaseNames are the only database names the server accepts.
-var AllowedDatabaseNames = map[string]bool{
-	"bubblefighter_cn0261":       true,
-	"bubblefighter_cn0261_tests": true,
-}
-
 // Load reads and validates a configuration file.
 func Load(path string) (Config, error) {
 	file, err := os.Open(path)
@@ -271,8 +265,11 @@ func (c Config) Validate() error {
 	if c.Database.Port == 0 {
 		return fmt.Errorf("database.port must be between 1 and 65535")
 	}
-	if !AllowedDatabaseNames[c.Database.DatabaseName] {
-		return fmt.Errorf("database.databaseName must be bubblefighter_cn0261 or bubblefighter_cn0261_tests")
+	// Any non-empty name is accepted: the driver receives it as a Config field
+	// (mysql.NewConnector, not a DSN string), so it needs no escaping, and the
+	// startup structure check is what decides whether the schema fits this build.
+	if c.Database.DatabaseName == "" {
+		return fmt.Errorf("database.databaseName must not be empty")
 	}
 	if c.Database.Username == "" {
 		return fmt.Errorf("database.username must not be empty")
