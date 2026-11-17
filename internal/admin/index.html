@@ -435,6 +435,9 @@ async function loadOverview() {
     ["作者", "rurudoo（github.com/kanomahoro）"],
     ["仓库", '<a href="https://github.com/kanomahoro/bf-cn0261-go-server" target="_blank" rel="noopener">kanomahoro/bf-cn0261-go-server</a>'],
     ["Go 版本", data.server.goVersion],
+    ["数据库结构", data.server.schema && data.server.schema.Revision
+      ? "revision " + data.server.schema.Revision + (data.server.schema.Note ? " · " + data.server.schema.Note : "")
+      : "（未读到 schema_version）"],
     ["配置文件", data.server.configPath],
   ].map(([k, v]) => "<tr><th style='width:160px'>" + k + "</th><td>" + (/^<a /.test(v) ? v : esc(v)) + "</td></tr>").join("");
 }

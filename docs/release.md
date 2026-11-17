@@ -20,6 +20,9 @@ tar --sort=name --mtime='UTC 2026-01-01' --owner=0 --group=0 --numeric-owner \
     -czf bfserver-linux-amd64-vX.Y.Z.tar.gz bfserver
 # 3. 算 tar.gz 的 sha256，写回 tools/bfserver-install.sh 的 BIN_SHA256
 sha256sum bfserver-linux-amd64-vX.Y.Z.tar.gz
+#    注意：一键脚本会把 **源码包里的 config/ 与 database/** 一起装到部署目录，
+#    所以 tag 里必须包含最新的 database/baseline.sql；改了表结构还要先重跑
+#    tools/db-schema-expected.sh，把清单一起提交（它会编译进二进制）。
 # 4. 提交、打 tag、推 main 与 tag，然后在 GitHub 建 Release 并上传资产
 #    Release 只放二进制包 + SHA256SUMS，**不传 bfserver-install.sh**：
 #    脚本永远从仓库取（raw 的 main 或某个 tag），不跟着 Release 发，也就不存在两份脚本不一致的问题。

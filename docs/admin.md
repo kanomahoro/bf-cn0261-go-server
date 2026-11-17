@@ -141,6 +141,15 @@ POST /api/balance              POST /api/notice         GET  /api/server
 `{"total": 总数, "offset": 实际起点, "limit": 实际每页条数, "items": [...]}`，控制台的分页器直接
 拿 `total` 算页数；`offset` 越过末尾时会被拉回最后一页。
 
+`GET /api/server` 返回版本、构建提交、Go 版本、连接池、配置路径与**数据库结构信息**：
+
+```json
+{"version":"1.1.0","schema":{"Revision":1,"Note":"baseline 2026-11-17","Applied":"2026-11-17T02:00:01Z"}, …}
+```
+
+`schema` 只是标签（当前基线批次），不参与启动校验——服务端比对的是表/列结构（见
+[`database/README.md`](../database/README.md)）。控制台「服务端」卡片里会显示这一行。
+
 CSV 下载也是一次普通的 `fetch`，同样带 `Authorization: Bearer <token>` 请求头。
 **token 不接受 URL 参数**（会进浏览器历史、日志和任何被转发的链接）。
 
@@ -156,4 +165,4 @@ CSV 下载也是一次普通的 `fetch`，同样带 `Authorization: Bearer <toke
 [Admin] room disbanded room=12 members=3
 ```
 
-还没有落库的审计表 —— 需要新增迁移，等以后一起做。
+还没有落库的审计表 —— 需要新增一张表（改结构后记得重新生成 `internal/store/schema_expected.go`），等以后一起做。
