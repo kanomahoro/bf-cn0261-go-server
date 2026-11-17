@@ -2,15 +2,15 @@
 
 ## v1.1.0（未发布，待打 tag）
 
-- **数据库改为「基线 + revision」模型**：14 份历史迁移与 5 个商店补丁合并成 `database/baseline.sql`
-  （schema revision 3），服务端只校验 `schema_version.revision`（不再钉 14 行 `schema_migrations`）。
-  新增 `database/upgrades/`（增量、幂等、带 `-- target-revision`）、`database/upgrade.sh`（升级前自动
-  `mysqldump` 备份）与启动参数 `--auto-upgrade`（默认关）。服务端启动**不再改表结构**：
+- **数据库改为单一基线 + revision 校验**：14 份历史迁移、5 个商店补丁与功能饰品合并成
+  `database/baseline.sql`（schema revision 1），服务端只校验 `schema_version.revision`
+  （不再钉 14 行 `schema_migrations`）。项目尚未上线，**不保留升级路径**：版本不匹配就用
+  `database/migrate.sh --force` 重建。服务端启动**不再改表结构**：
   `EnsureShopUnits` 及其内嵌的 90 条数量类清单已删除，`duration_type` 与数量标记由基线/升级脚本负责
-- **功能饰品 14 件（revision 3）**：视野眼镜 / 臂章护腕 / 头饰 / 腰饰 / 尾饰 / 复活腕饰，货币统一
+- **功能饰品 14 件**：视野眼镜 / 臂章护腕 / 头饰 / 腰饰 / 尾饰 / 复活腕饰，货币统一
   `lucci`（运营决定，不跟客户端 `cashCN`），掩码 `274175`（客户端 `allowChr=all`），定价与 2060
-  上架期按运营设定；详见 `database/upgrades/002-accessories.sql`
-- **预览商品清理进版本**：38 件「只展示不售卖」的商品不再进新基线；老库由 revision 1→2 的升级脚本清掉
+  上架期按运营设定
+- **预览商品清理进基线**：38 件「只展示不售卖」的商品及其商店行/档位都不再进基线
 - **数量类商品购买修复**：客户端 `ShopItem.durationType = count` 的 90 件商品以前按天卖——买「50 个」只到手
   1 个还带 50 天过期。现在 `shop_items.duration_type` 由数据库基线/升级脚本建好并回填，
   购买路径按个数累加到 `character_items.quantity`、不写过期行；超过商品上限（`max_duration_days`）

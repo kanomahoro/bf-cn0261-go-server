@@ -85,7 +85,7 @@ BF_DB_PASSWORD='***' ./database/migrate.sh
 > `HISTCONTROL=ignorespace`）。
 >
 > 库里已经有 `schema_version`（表已初始化过）时脚本会**拒绝导入**（基线会 DROP 同名表）：
-> 升级老库用 `bash database/upgrade.sh`，确实要重建再加 `--force`。
+> 确实要重建（会丢数据）就加 `--force`，重建前自己备份。
 
 Windows（没有 bash）：
 
@@ -101,8 +101,7 @@ set M=C:\BF\mariadb\bin\mariadb.exe
 mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version WHERE id = 1;"
 ```
 
-必须返回 **3**。旧库（14 份历史迁移建出来的、还没有 `schema_version`）会报表不存在，
-跑 `bash database/upgrade.sh` 升级即可（它会先自动备份）。
+必须返回 **1**。没有 `schema_version` 表说明是旧结构，直接 `bash database/migrate.sh --force` 重建（先备份）。
 
 #### 1.5 把密码交给服务端
 
@@ -133,20 +132,19 @@ mariadb -u root -p -e "SELECT revision FROM bubblefighter_cn0261.schema_version 
 
 看到 `[Application] ready` 就是**初始化全部完成**，可以直接跑第 5 步建号登录。
 
-> 服务端启动时**不再改表结构**（`duration_type` 等已在基线/升级脚本里）。
-> 如果库的 revision 不是 3，启动会直接失败并提示：
-> `database schema revision N, this build needs 3; run "bash database/upgrade.sh"`。
-> 也可以启动时加 `--auto-upgrade` 让它自己把缺的那几步跑完。
+> 服务端启动时**不再改表结构**（`duration_type` 等已在基线里）。
+> 如果库的 revision 不是 1，启动会直接失败并提示：
+> `database schema revision N, this build needs 1; rebuild it with "bash database/migrate.sh --force"`。
 
 商店内容（衣服 / 武器 / 杂项 / 投掷物 / 新角色 / 功能饰品）**都已包含在基线里**，
-新装不需要再导任何 `shop-patches/*.sql`；老库跑 `database/upgrade.sh` 会一并收敛。
+新装不需要再导任何 `shop-patches/*.sql`。
 
 排障对应关系：
 
 | 日志表现 | 原因 |
 | --- | --- |
 | 卡在 `checking connection` | 账号/密码不对，或账号没用 `mysql_native_password` |
-| `database schema revision N, this build needs 3` | 库落后/超前：老库跑 `bash database/upgrade.sh`，或启动加 `--auto-upgrade` |
+| `database schema revision N, this build needs 1` | 库不是当前基线：`bash database/migrate.sh --force` 重建（先备份） |
 | `database password is missing` | 1.5 没设 `BF_DATABASE_PASSWORD`，配置里也是空的 |
 
 ## 2. 配置

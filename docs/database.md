@@ -3,20 +3,16 @@
 建库后共 **23 张表**（22 张业务表 + `schema_version`），全部由 `database/baseline.sql` 一次性导入，
 不需要手写任何建表语句。
 
-## 基线、版本与升级
+## 基线与版本
 
 | 东西 | 说明 |
 |---|---|
-| `database/baseline.sql` | 新装基线（schema revision 3）：建表 + 商店/角色/饰品种子数据 |
-| `database/migrate.sh` | 导基线；库里已有 `schema_version` 时拒绝（需 `--force` 才重建） |
-| `database/upgrades/NNN-*.sql` | 增量升级，每个文件头有 `-- target-revision: N` |
-| `database/upgrade.sh` | 老库升级：先备份，再按 revision 依次执行 |
-| `schema_version` | 单行表，`revision` 与服务端编译时要求的值（当前 3）比对 |
+| `database/baseline.sql` | 唯一 schema 来源（revision 1）：建表 + 商店/角色/饰品种子数据 |
+| `database/migrate.sh` | 导入基线；库里已有 `schema_version` 时拒绝（`--force` 才重建） |
+| `schema_version` | 单行表，`revision` 与服务端编译值（当前 1）比对 |
 
-历史上确实有 14 份按顺序执行的迁移，它们的内容已经**全部合并进基线**；
-老库（用那 14 份建过、没有 `schema_version`）视为 revision 1，
-`database/upgrade.sh` 会把它升到 2（商店内容收敛）再到 3（功能饰品）。
-旧迁移文件已从仓库移除（需要时看 git 历史）。
+历史上确实有 14 份按顺序执行的迁移，它们的内容已经**全部合并进基线**，文件已从仓库移除
+（需要时看 git 历史）。项目尚未上线，因此**没有升级路径**：版本不匹配就重建。
 
 现存的表分组（按用途）如下。
 

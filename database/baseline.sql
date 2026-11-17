@@ -1,13 +1,13 @@
 -- ============================================================================
--- schema-revision: 3
---  Bubble Fighter CN0261 · 数据库基线（schema revision 3）
+-- schema-revision: 1
+--  Bubble Fighter CN0261 · 数据库基线（schema revision 1）
 --
---  用途：**新装环境**一次性导入。老库（已有数据）不要跑这个，跑 database/upgrade.sh。
+--  用途：**新装/重建**一次性导入。已有库要重建用 `database/migrate.sh --force`（数据会丢）。
 --  来源：14 份历史迁移 + shop-patches 的 5 个商店补丁 + 功能饰品 14 件，
 --        并按运营要求清掉了 38 件「只展示不售卖」的预览商品（含它们的商店行与库存档）。
---  内容：22 张业务表 + schema_version（revision 3），无账号 / 无角色 / 无对局数据。
+--  内容：22 张业务表 + schema_version（revision 1），无账号 / 无角色 / 无对局数据。
 --  版本：服务端启动时读 schema_version.revision 与本版要求的 revision 比对；
---        库里是旧 revision 会直接拒绝启动并提示跑 upgrade.sh。
+--        不一致会拒绝启动（本项目尚未上线，没有升级路径，直接重建）。
 --
 --  ⚠ 不要手改本文件。改库一律新增 database/upgrades/NNN-描述.sql，再 bump revision。
 --  ⚠ 导入会 DROP 同名表，只对空库/重建使用（migrate.sh 会做安全检查）。
@@ -1051,7 +1051,7 @@ CREATE TABLE `schema_version` (
 LOCK TABLES `schema_version` WRITE;
 /*!40000 ALTER TABLE `schema_version` DISABLE KEYS */;
 INSERT INTO `schema_version` VALUES
-(1,3,'baseline 2026-11-17 (migrations + shop + accessories)','2026-11-17 02:00:01.355578');
+(1,1,'baseline 2026-11-17','2026-11-17 02:00:01.355578');
 /*!40000 ALTER TABLE `schema_version` ENABLE KEYS */;
 UNLOCK TABLES;
 DROP TABLE IF EXISTS `shop_items`;

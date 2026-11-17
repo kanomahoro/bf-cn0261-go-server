@@ -456,13 +456,13 @@ run "cp -r '$SRC_ROOT/config' '$PREFIX/config'"
 run "cp -r '$SRC_ROOT/database' '$PREFIX/database'"
 run "mkdir -p '$PREFIX/Logs'"
 
-# 建库：仓库自带的 migrate.sh 导入 database/baseline.sql（schema revision 3）
+# 建库：仓库自带的 migrate.sh 导入 database/baseline.sql（schema revision 1）
 if [ "$DRY_RUN" = "1" ]; then
-  say "    [dry-run] 导入 database/baseline.sql（schema revision 3）"
+  say "    [dry-run] 导入 database/baseline.sql（schema revision 1）"
 else
   ( cd "$PREFIX" && BF_DB_USER="$DB_USER" BF_DB_PASSWORD="$DB_PASS" BF_DB_NAME="$DB_NAME" \
       bash database/migrate.sh 127.0.0.1 3306 ) >>"$LOG_FILE" 2>&1 \
-    || die "数据库初始化失败（详情见上方输出 / ${LOG_FILE}）；已有的库请改用 bash database/upgrade.sh"
+    || die "数据库初始化失败（详情见上方输出 / ${LOG_FILE}）；库已存在时用 --force 重建，或先手工 drop"
   REVISION=$(mariadb -N -B -e "SELECT revision FROM \`${DB_NAME}\`.schema_version WHERE id = 1;" 2>/dev/null || echo '?')
   TABLES=$(mariadb -N -B -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME}';" 2>/dev/null || echo '?')
   ok "表结构已初始化（${TABLES} 张表，schema revision ${REVISION}）"

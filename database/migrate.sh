@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 新装 / 重建数据库：把 database/baseline.sql 导入目标库。
 #
-# 老库（已有玩家数据）不要用这个，用 database/upgrade.sh。
+# 本项目尚未上线，没有升级路径：库版本不匹配一律重建（会 DROP 同名表）。
 #
 # 用法：
 #   BF_DB_USER=bfserver BF_DB_PASSWORD=*** [BF_DB_NAME=bubblefighter_cn0261] \
@@ -49,8 +49,8 @@ if [ "$existing" != "0" ] && [ "$force" != "1" ]; then
     -e "SELECT revision FROM \`${db}\`.schema_version WHERE id = 1" 2>/dev/null || echo '?')"
   cat >&2 <<EOF
 库里已经有 schema_version（revision ${current}），拒绝导入基线：baseline 会 DROP 同名表。
-  · 升级老库：  bash database/upgrade.sh ${host} ${port}
   · 确认重建：  bash database/migrate.sh ${host} ${port} --force   （数据会全部丢失）
+  · 只想看现状：mariadb -e "SELECT * FROM ${db}.schema_version"
 EOF
   exit 1
 fi
@@ -73,4 +73,4 @@ if [ "$revision" != "$target" ]; then
 fi
 
 echo "完成：${tables} 张表，schema revision ${revision}"
-echo "下一步：启动服务端（无需再手工改库）；老库请改用 database/upgrade.sh"
+echo "下一步：启动服务端（无需再手工改库）"

@@ -47,8 +47,6 @@ Usage: bfserver [flags]
   --version                print the server version and exit
   --config <path>          configuration file (default config/server.json)
   --check-config           validate the configuration and exit, without touching the database
-  --auto-upgrade           apply database/upgrades scripts before the schema check
-  --database-dir <path>    directory holding the database scripts (default database)
   --create-account <name>  create a game account
   --issue-ticket <name>    issue a one-time login ticket for an existing account
   --nickname <character>   character to create with --create-account
@@ -56,8 +54,8 @@ Usage: bfserver [flags]
   --password <password>    account password for the two account commands above
 
 Database schema: the server compares schema_version.revision with the revision it
-was built for and refuses to start on a mismatch. Run "bash database/upgrade.sh"
-(or start once with --auto-upgrade) to bring an older database up to date.
+was built for and refuses to start on a mismatch. Rebuild such a database with
+"bash database/migrate.sh --force" (it imports database/baseline.sql).
 
 Database password: database.password in the configuration, or BF_DATABASE_PASSWORD.
 Account password: --password, or BF_ACCOUNT_PASSWORD environment variable.
@@ -88,9 +86,6 @@ func run(args []string) error {
 	accountPasswordFlag := flags.String("password", "",
 		"account password for --create-account/--issue-ticket (falls back to BF_ACCOUNT_PASSWORD)")
 	characterType := flags.Uint("character-type", 1, "starter character type for --nickname (1=皮蛋/Pidan, 2=黑妞/Heiniu)")
-	autoUpgrade := flags.Bool("auto-upgrade", false,
-		"apply database/upgrades scripts before the schema check")
-	databaseDir := flags.String("database-dir", "database", "directory holding the database scripts")
 	// The default flag usage printer is replaced by usageText below, so a help
 	// request shows one block instead of the flag package's own listing.
 	flags.Usage = func() {}
@@ -179,9 +174,7 @@ func run(args []string) error {
 		if err := db.CheckConnection(); err != nil {
 			return err
 		}
-		if err := prepareSchema(db, *databaseDir, *autoUpgrade, func(message string, kv ...any) {
-			fmt.Fprintf(os.Stderr, "%s %v\n", message, kv)
-		}); err != nil {
+		if err := checkSchema(db); err != nil {
 			return err
 		}
 		accounts := features.NewAccounts(db)
@@ -239,9 +232,7 @@ func run(args []string) error {
 	}
 
 	logger.Info("[Database] checking connection and schema version")
-	if err := prepareSchema(db, *databaseDir, *autoUpgrade, func(message string, kv ...any) {
-		logger.Info(message, kv...)
-	}); err != nil {
+	if err := checkSchema(db); err != nil {
 		return err
 	}
 
@@ -316,17 +307,13 @@ func printJSON(value map[string]any) error {
 	return nil
 }
 
-// prepareSchema brings the database to the revision this build expects. The
-// upgrade scripts run only when --auto-upgrade was asked for; either way the
-// revision check afterwards is the same one that guards normal starts.
-func prepareSchema(db *store.DB, dir string, autoUpgrade bool, logf func(string, ...any)) error {
+// checkSchema verifies the connection and that the database carries the schema
+// revision this build was compiled for. There is no upgrade path: the project is
+// not deployed yet, so a mismatch means the database is rebuilt from the
+// baseline in database/baseline.sql.
+func checkSchema(db *store.DB) error {
 	if err := db.CheckConnection(); err != nil {
 		return err
-	}
-	if autoUpgrade {
-		if err := db.ApplyUpgrades(dir, logf); err != nil {
-			return err
-		}
 	}
 	return db.CheckSchema()
 }
