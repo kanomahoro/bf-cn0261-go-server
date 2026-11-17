@@ -80,26 +80,6 @@ var mapPointKinds = map[uint32]bool{
 	141: true, // shieldField
 }
 
-// relayAlreadyForwards reports whether the relay itself already passes this id to
-// the peers. It mirrors internal/net.reportForwardable's list; the game package
-// cannot import the net package (the relay imports the game server), so an id
-// added there has to be added here too.
-func relayAlreadyForwards(id uint16) bool {
-	if protocol.IsPeerAction(id) || protocol.IsPeerLife(id) ||
-		protocol.IsPeerKick(id) || protocol.IsPeerExplosion(id) {
-		return true
-	}
-	switch id {
-	case 32898, 32901, 32924, // peer fire
-		32773, 32777, 32900, 32906, 32920, // attacks, life points
-		32862, 32892, 32866, 32873, // NPC peer frames (the relay carries them)
-		32884, 32885, 32922, // movement and watch target
-		32925: // respawn complete
-		return true
-	}
-	return false
-}
-
 // supplyCreateBodyBytes is the size of the ten-word box creation envelope.
 const supplyCreateBodyBytes = 40
 
@@ -962,7 +942,7 @@ func (s *Server) runSupplies(room *Room, state *supplyRound) {
 // handleItemPeerPacket takes one item packet a client reported, whichever
 // connection it arrived on: the creation envelope is checked, a box is
 // remembered by its own id and the packet is passed to the other members.
-func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, viaRelay bool) error {
+func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, viaRelay, relayed bool) error {
 	room := session.room
 	if room == nil || !seated(session) || !s.supplyMode(room) {
 		return nil
@@ -973,6 +953,11 @@ func (s *Server) handleItemPeerPacket(session *Session, packet protocol.Packet, 
 	}
 	if packet.ID == 32832 {
 		s.noteClientBox(room, objectID, box)
+	}
+	if relayed {
+		// The relay passed the frame on already; only the envelope check and the
+		// box bookkeeping were still owed here.
+		return nil
 	}
 	s.forwardItemPacket(room, session.slot, packet, viaRelay)
 	return nil

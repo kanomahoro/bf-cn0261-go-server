@@ -446,9 +446,18 @@ func (r *Relay) handle(conn net.Conn) {
 }
 
 // relayForwardable reports whether one relay packet may be forwarded to the
-// other members. It mirrors the reference server, which only relays in-match
-// peer state: GameRoundCoordinator::HandleRelayPacket consumes everything else
-// itself, so a peer never sees those ids coming from another client.
+// other members.
+//
+// The reference server for this client (BubbleFighter.Fantasy, cn-717 inherits
+// kr-812) relays the peer feed the other way round: its round_feed_passthrough
+// setting forwards every frame at or above 0x8000 that the round itself does not
+// claim, rather than naming the ids it does forward (RoundFeedBinding.cs, the
+// block that re-dispatches relay frames onto the game protocol). Naming them all
+// here meant every unlisted peer frame vanished; a survivor hit, a teleport or an
+// emote was then visible only to the player who caused it.
+//
+// So the list below names what the relay passes, and anything else at or above
+// 0x8000 is passed too unless it is one of the two ids the round answers itself.
 //
 // The ids that are deliberately NOT forwarded matter more than the ones that
 // are:
@@ -465,6 +474,9 @@ func (r *Relay) handle(conn net.Conn) {
 //   - C32840                 - peer ping: the reference echoes it to its sender
 //     only ("Never broadcast this probe")
 //   - C32904                 - respawn request mirror, handled server-side
+//
+// Everything below 0x8000 stays server-only: that range holds the handshake, the
+// defence seeds and the per-seat reports, never peer state.
 func relayForwardable(id uint16) bool {
 	if protocol.IsPeerAction(id) || protocol.IsPeerLife(id) ||
 		protocol.IsPeerKick(id) || protocol.IsPeerExplosion(id) {
@@ -486,7 +498,18 @@ func relayForwardable(id uint16) bool {
 	case 32925: // respawn complete, relayed once the server completed it
 		return true
 	}
-	return false
+	// The remainder of the peer feed goes on unchanged, as the reference does.
+	// The two exceptions are frames the round answers itself: forwarding the
+	// respawn request would offer the seat two grants, and the latency probe is
+	// answered for its sender alone.
+	if id < 0x8000 {
+		return false
+	}
+	switch id {
+	case 32904, 32840:
+		return false
+	}
+	return true
 }
 
 // join binds a connection to its reserved room slot.

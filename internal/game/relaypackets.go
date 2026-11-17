@@ -127,26 +127,17 @@ func (s *Server) handleRelayPacket(session *Session, packet protocol.Packet) err
 		}
 		return nil
 	case isItemRelayPacket(packet.ID):
-		// Item-mode traffic the clients report between themselves. The relay
-		// whitelist does not carry these ids, so they are forwarded here once the
-		// box envelope checks out and the round really runs the item battle.
-		return s.handleItemPeerPacket(session, packet, true)
+		// Item traffic the clients report between themselves. The relay passes these
+		// frames on like the rest of the peer feed, so this path only checks the box
+		// envelope and keeps the round's own bookkeeping.
+		return s.handleItemPeerPacket(session, packet, true, true)
 	case packet.ID == 32877 || packet.ID == 32776 || packet.ID == 32777 || packet.ID == 32923:
-		// Explosion style packets are validated elsewhere and forwarded by the relay.
+		// Explosion style packets need no round state here: the relay forwards them
+		// (32877 included, through the pass-through above).
 		return nil
 	}
-	// A round that runs the item battle or the zombie battle lets the clients own
-	// the rules, including the packets the server does not model: a turret's state,
-	// a character whose look an item changed, the zombie king's rage effect,
-	// whatever else the client puts on this connection. Dropping them is what made
-	// those effects visible only to the player who caused them: the zombie log
-	// showed the king's ultra broadcasting 32772/32783/32828/32812 that never
-	// reached the humans. Packets the relay itself forwards are skipped so nothing
-	// reaches a peer twice, and the seat's own respawn request stays server-side.
-	if packet.ID >= 32768 && s.supplyMode(room) && packet.ID != 32904 &&
-		!relayAlreadyForwards(packet.ID) {
-		s.forwardItemPacket(room, session.slot, packet, true)
-	}
+	// Everything else in the peer feed (>= 0x8000) is passed on by the relay
+	// itself, the way the reference forwards it, so nothing is forwarded here.
 	return nil
 }
 
