@@ -12,7 +12,7 @@
 | 文件 | 用途 |
 |---|---|
 | `baseline.sql` | 基线：22 张业务表 + 商店/角色/饰品数据 + `schema_version`。整库导入，会 DROP 同名表 |
-| `migrate.sh` | 新装/重建：导入基线。库里有 `schema_version` 时默认拒绝，需 `--force` |
+| `migrate.sh` | 新装/重建：导入基线。目标库**非空**时默认拒绝（不看 `schema_version`，老库同样拦）；`--force` 会逐表清空后重建 |
 | `../tools/db-schema-expected.sh` | 重新生成服务端用的结构清单（`internal/store/schema_expected.go`） |
 
 ## 新装
@@ -29,6 +29,28 @@ mysqldump -u ... --single-transaction <库> | gzip > 备份.sql.gz      # 先备
 BF_DB_USER=bfserver BF_DB_PASSWORD='***' BF_DB_NAME=bubblefighter_cn0261 \
   bash database/migrate.sh 127.0.0.1 3306 --force
 ```
+
+`--force` 的行为：
+
+1. 先列出目标库当前的所有表并逐张 `DROP`（用 `SET FOREIGN_KEY_CHECKS=0` 包住），
+   所以旧版本留下的 `schema_migrations`、用户自建表也会清掉；只授权了库级权限的账号
+   也能重建（不需要 `DROP DATABASE`）。
+2. 导入 `baseline.sql`。
+3. 校验 `schema_version.revision` 与基线头部的 `-- schema-revision:` 一致。
+4. 校验基线里每张 `CREATE TABLE` 出的表都存在（半截导入会被抓出来）；
+   若库里还有基线之外的表，只打印一句提示，不判失败——服务端本身容忍多余表。
+
+脚本的行为约定：
+
+| 情况 | 结果 |
+|---|---|
+| 目标库为空 | 直接导入 |
+| 目标库非空、无 `--force` | 拒绝并提示，退出码 1（**不会**静默覆盖） |
+| 目标库非空、有 `--force` | 清空后重建 |
+| 库名不是字母/数字/`_`/`-` | 拒绝（库名会拼进 SQL 标识符） |
+| 端口不是数字、多余参数 | 拒绝 |
+| 连不上、密码错、缺 `BF_DB_PASSWORD` | 拒绝并给出原因 |
+| 导入后缺表 / revision 不符 | 报错，退出码 1 |
 
 ## 改结构时的流程（重要）
 
