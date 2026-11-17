@@ -1,8 +1,13 @@
 Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENSE](LICENSE)。
 
 > 仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营或任何侵犯他人权利的场景。
-> 游戏名称、商标、美术与音频等素材的权利归原权利人所有；部分协议行为与数据库结构参考
-> [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（MIT，Copyright (c) 2026 Albert Gong）。
+> 游戏名称、商标、美术与音频等素材的权利归原权利人所有。
+>
+> 部分协议行为与数据库结构参考 C++ 原版
+> [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（MIT，Copyright (c) 2026 Albert Gong）；
+> 中继转发语义、包表与部分模式规则参考同为 cn-717 的 C# 实现
+> [Wasabi-FantasyTaleDev/BubbleFighter.Fantasy](https://github.com/Wasabi-FantasyTaleDev/BubbleFighter.Fantasy)（MIT，Copyright (c) 2026 Fantasy Tale Studio）。
+> 两处参考都只取协议事实与行为约定，没有引入其代码。
 
 # Bubble Fighter CN0261(cn-717) Server (Go)
 
@@ -11,7 +16,8 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 ![Version](https://img.shields.io/badge/version-v1.1.0-blue?style=flat-square)
 
 Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
-协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致。
+协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致，
+中继与部分模式的网络行为对齐 [BubbleFighter.Fantasy](https://github.com/Wasabi-FantasyTaleDev/BubbleFighter.Fantasy)（同版本的 C# 实现）。
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
@@ -151,6 +157,27 @@ sudo bash bfserver-install.sh --ip 203.0.113.10        # 不安参数时交互�
 > 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可。
 
 手动安装、数据库准备与登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
+
+## 登录器（可选）
+
+`launcher/` 是一套 Windows 用的图形登录器（Python 3.9+ / tkinter），替代原版启动器，
+把「登录 → 拉起客户端」收成一次点击：
+
+- **登录与注册**：填服务器 IP 与认证端口（默认 `26102`），可直接在登录器里注册
+  （账号、密码、角色名、邀请码），服务端按 IP 限流；**不保存密码**，
+  只在 `%APPDATA%\BubbleFighterCN0261Launcher\config.json` 里记住服务器地址、端口与账号名。
+- **票据注入**：登录成功后自行拉起 `BubbleFighter.exe`，把一次性登录票据直接写进客户端内存，
+  不用手改配置或命令行参数，**不往客户端目录写任何文件**。
+- **单机多开**：每个实例启动时把客户端的单实例互斥体名改成 `B261_<实例号>`，
+  同一台机器可以开多个客户端（要用不同账号，同一角色同时进广场会被服务端拒绝）。
+- **高分辨率扩展（可选）**：勾选后启动时给客户端打一组内存补丁，设置菜单里会出现显示器
+  真正支持的分辨率（上限 1920×1080，超出会拉伸失真）；只改内存不改文件，不勾选就完全不碰客户端。
+- **启动前校验**：用 SHA-256 校验客户端镜像，版本不对直接拒绝启动，不会把票据注入到错误的客户端。
+
+源码在 [`launcher/`](launcher/)，打包成单文件 exe 与使用步骤见
+[`docs/manual-install.md`](docs/manual-install.md)；分辨率扩展的补丁点来自
+`Wasabi-FantasyTaleDev/FantasyTale.Launcher` 的 `resolution-extension` 插件（MIT），
+细节与上架规则同样记在那份文档里。
 
 ## 构建
 
@@ -351,7 +378,8 @@ Release 资产只包含**二进制包**与 `SHA256SUMS`；安装脚本一直在�
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。版权所有 (c) 2026 kanomahoro；
-部分协议行为与数据库结构参考 BubbleFighter_CN0261_Server（MIT，Copyright (c) 2026 Albert Gong）。
+部分协议行为与数据库结构参考 BubbleFighter_CN0261_Server（MIT，Copyright (c) 2026 Albert Gong），
+中继与部分模式行为参考 BubbleFighter.Fantasy（MIT，Copyright (c) 2026 Fantasy Tale Studio）。
 
 > 本项目仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营
 > 或任何侵犯他人权利的场景。游戏名称、商标、美术与音频等素材的权利归原权利人所有。
