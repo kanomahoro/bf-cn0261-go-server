@@ -307,10 +307,10 @@ func printJSON(value map[string]any) error {
 	return nil
 }
 
-// checkSchema verifies the connection and that the database carries the schema
-// revision this build was compiled for. There is no upgrade path: the project is
-// not deployed yet, so a mismatch means the database is rebuilt from the
-// baseline in database/baseline.sql.
+// checkSchema verifies the connection and that the database structure matches
+// the one this build was compiled for (schema_expected.go). The revision number
+// is not compared. There is no upgrade path: the project is not deployed yet, so
+// a mismatch means the database is rebuilt from database/baseline.sql.
 func checkSchema(db *store.DB) error {
 	if err := db.CheckConnection(); err != nil {
 		return err
