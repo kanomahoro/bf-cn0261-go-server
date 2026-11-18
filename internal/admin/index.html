@@ -400,12 +400,18 @@ function esc(value) {
 // 5/6 夺星留着只为万一读到旧库里的记录时有个名字，本客户端没有这两个模式。
 const MODE = { 1: "竞技", 3: "道具", 5: "夺星", 6: "夺星", 8: "僵尸", 12: "狙击", 13: "热血个人", 14: "热血团队", 16: "僵尸BOSS", 18: "热血狙击", 19: "爆破", 20: "队长战", 101: "海盗" };
 const modeName = (mode) => MODE[mode] || ("模式 " + mode);
-// 合作模式没有红蓝双方，而且两套约定相反（见 internal/game/rooms.go）：
-// 海盗 101 用 1 = 玩家通关，僵尸BOSS 16 用 2 = 玩家通关。
-const COOP_WIN = { 101: 1, 16: 2 };
+// 合作模式没有红蓝双方：海盗 101 的 pirateWinner 与僵尸BOSS 16 的 pveWinner
+// 都用 2 表示座位方（玩家）通关、1 表示对面（失败），见 internal/game/rooms.go
+// 里结算那一段。所以这两列要读成「通关/失败」，不能按红蓝队显示。
+const COOP_MODES = new Set([101, 16]);
 const winnerName = (r) => {
-  const win = COOP_WIN[r.Mode];
-  if (win !== undefined) return r.Winner === win ? "通关" : "失败";
+  if (COOP_MODES.has(r.Mode)) return r.Winner === 2 ? "通关" : "失败";
+  // 僵尸模式的红蓝其实是阵营：1 人类（zombieHumanTeam），14 僵尸（zombieTeam，
+  // 入库时 normalize 成 2），所以这一列要读成「人类/僵尸」。
+  if (r.Mode === 8) return r.Winner === 0 ? "平" : (r.Winner === 1 ? "人类" : "僵尸");
+  // 热血个人没有队伍总分（teamless），每局入库存的 winner 都是 0，真实的胜者
+  // 是“先到击杀上限的座位”，记录里表达不了 —— 写「个人战」而不是误导成平局。
+  if (r.Mode === 13) return "个人战";
   return r.Winner === 0 ? "平" : (r.Winner === 1 ? "红" : "蓝");
 };
 
