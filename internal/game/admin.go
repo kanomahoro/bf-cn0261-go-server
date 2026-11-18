@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/kanomahoro/bf-cn0261-go-server/internal/protocol"
@@ -128,6 +129,22 @@ func (s *Server) AdminPlayers() []AdminPlayer {
 	return out
 }
 
+// adminRoomMap names the map the console lists: the display name the card shows
+// in the first setting string, the scene key only when that string states no name,
+// and "Random" while the room's entry is an all-random marker (the client's own
+// list draws that entry as the random picture, never as a missing map).
+func adminRoomMap(game protocol.GameSetting) string {
+	name := protocol.FromU16(game.Strings16[0])
+	scene := protocol.FromU16(game.Strings16[1])
+	if name != "" && !strings.HasPrefix(name, "Random") {
+		return name
+	}
+	if strings.HasPrefix(name, "Random") || scene == "" || strings.HasPrefix(scene, "Random") {
+		return "Random"
+	}
+	return scene
+}
+
 // AdminRooms lists every room with its live state.
 func (s *Server) AdminRooms() []AdminRoom {
 	s.mu.Lock()
@@ -144,7 +161,7 @@ func (s *Server) AdminRooms() []AdminRoom {
 			ID:         room.ID,
 			Title:      protocol.FromU16(setting.Title),
 			Mode:       setting.Game.Mode,
-			Map:        protocol.FromU16(setting.Game.Strings16[1]),
+			Map:        adminRoomMap(setting.Game),
 			Master:     room.MasterSlot(),
 			MasterName: protocol.FromU16(room.masterNickname()),
 			Occupied:   room.Occupied(),
