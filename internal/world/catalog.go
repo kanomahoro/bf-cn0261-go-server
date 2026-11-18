@@ -19,6 +19,14 @@ type Map struct {
 	NormalMode            bool   `json:"normalMode"`
 	ItemMode              bool   `json:"itemMode"`
 	TeamSpawnCount        uint32 `json:"teamSpawnCount"`
+	// DisplayName is the name the room card shows for this map: the string the
+	// client's own string table gives the map's Directory (StringTable/
+	// TranslatedXmlTable), which is also the text the client writes into a room
+	// itself. A competitive map's card normally carries the name the client sent, so
+	// the field is a fallback there (empty slot, a slot carrying the key, a request the
+	// mode's pool replaced); the bomb, raid and pirate pools, whose keys the client
+	// cannot resolve to a name, state it outright.
+	DisplayName string `json:"displayName"`
 }
 
 // Maps is the map catalog.
@@ -97,14 +105,17 @@ var modeExtraMaps = map[uint32][]Map{
 	zombieModeID: {{
 		ResourceName: "rel_Stadium03_StardustArena", Theme: "Stadium", Difficulty: 4,
 		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+		DisplayName: "星团竞技场",
 	}},
 	sniperModeID: {{
 		ResourceName: "rel_pirate02_frontal", Theme: "Pirate", Difficulty: 3,
 		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+		DisplayName: "海盗船正面突破",
 	}},
 	singlePvpModeID: {{
 		ResourceName: "rel_Stadium03_StardustArena", Theme: "Stadium", Difficulty: 4,
 		TimeLimitMilliseconds: 240000, ScoreLimit: 20, TeamSpawnCount: 8,
+		DisplayName: "星团竞技场",
 	}},
 }
 

@@ -13,6 +13,10 @@ package world
 //   - The four npc_Zombie_* rows MapMeta also flags (isHordeModeMap = 1) are the
 //     Halloween variant's leftovers: MapIdx -1, award table 0, no AI script. They
 //     are not part of this client's mode 101 pool and stay out.
+//   - DisplayName is the name the client's own string table gives the map's
+//     Directory (StringTable/TranslatedXmlTable, MapMeta-MapMeta-Directory-MapName),
+//     which is the same text the client writes into an ordinary room's setting. Only
+//     rel_Space01_Spaceship has no row there, so that theme keeps MapMeta's own name.
 //   - Only the two angel-rescue maps ship an AIScriptFileName
 //     (rel_pirate03_prison_horde.ini, rel_village08_daohouse_horde.ini); the rest
 //     build their waves from the client's own tables.
@@ -23,39 +27,39 @@ package world
 // the client would not offer and so the npc_* keys resolve at all. Hardcoded on
 // purpose, the same way the bomb mission's pool is.
 var hordeMapPool = []Map{
-	{ResourceName: "npc_Forest02_Ravine01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest02_Ravine02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest02_Ravine03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest01_Hill01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest01_Hill02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest01_Hill03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Stadium01_Pangpang01", Theme: "Stadium", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Stadium01_Pangpang02", Theme: "Stadium", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Stadium01_Pangpang03", Theme: "Stadium", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert04_Pharaoh01", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert04_Pharaoh02", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert04_Pharaoh03", Theme: "Desert", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village07_Easy01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village07_Easy02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village07_Easy03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest03_Waterfall01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest03_Waterfall02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Forest03_Waterfall03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_pirate03_prison01", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_pirate03_prison02", Theme: "Pirate", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_pirate03_prison03", Theme: "Pirate", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_village08_daohouse01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_village08_daohouse02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_village08_daohouse03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert05_mummy01", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert05_mummy02", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Desert05_mummy03", Theme: "Desert", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village05_Playground01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village05_Playground02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Village05_Playground03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Space01_Spaceship01", Theme: "Space", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Space01_Spaceship02", Theme: "Space", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
-	{ResourceName: "npc_Space01_Spaceship03", Theme: "Space", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8},
+	{ResourceName: "npc_Forest02_Ravine01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林遗忘山涧"},
+	{ResourceName: "npc_Forest02_Ravine02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林遗忘山涧"},
+	{ResourceName: "npc_Forest02_Ravine03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林遗忘山涧"},
+	{ResourceName: "npc_Forest01_Hill01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林小乐园"},
+	{ResourceName: "npc_Forest01_Hill02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林小乐园"},
+	{ResourceName: "npc_Forest01_Hill03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林小乐园"},
+	{ResourceName: "npc_Stadium01_Pangpang01", Theme: "Stadium", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "砰砰竞技场"},
+	{ResourceName: "npc_Stadium01_Pangpang02", Theme: "Stadium", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "砰砰竞技场"},
+	{ResourceName: "npc_Stadium01_Pangpang03", Theme: "Stadium", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "砰砰竞技场"},
+	{ResourceName: "npc_Desert04_Pharaoh01", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠法老的秘密墓地"},
+	{ResourceName: "npc_Desert04_Pharaoh02", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠法老的秘密墓地"},
+	{ResourceName: "npc_Desert04_Pharaoh03", Theme: "Desert", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠法老的秘密墓地"},
+	{ResourceName: "npc_Village07_Easy01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村小河边休闲区"},
+	{ResourceName: "npc_Village07_Easy02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村小河边休闲区"},
+	{ResourceName: "npc_Village07_Easy03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村小河边休闲区"},
+	{ResourceName: "npc_Forest03_Waterfall01", Theme: "Forest", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林清澈瀑布"},
+	{ResourceName: "npc_Forest03_Waterfall02", Theme: "Forest", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林清澈瀑布"},
+	{ResourceName: "npc_Forest03_Waterfall03", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "森林清澈瀑布"},
+	{ResourceName: "npc_pirate03_prison01", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "营救公主"},
+	{ResourceName: "npc_pirate03_prison02", Theme: "Pirate", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "营救公主"},
+	{ResourceName: "npc_pirate03_prison03", Theme: "Pirate", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "营救公主"},
+	{ResourceName: "npc_village08_daohouse01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "皮蛋小屋"},
+	{ResourceName: "npc_village08_daohouse02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "皮蛋小屋"},
+	{ResourceName: "npc_village08_daohouse03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "皮蛋小屋"},
+	{ResourceName: "npc_Desert05_mummy01", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠木乃伊之诅咒"},
+	{ResourceName: "npc_Desert05_mummy02", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠木乃伊之诅咒"},
+	{ResourceName: "npc_Desert05_mummy03", Theme: "Desert", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "沙漠木乃伊之诅咒"},
+	{ResourceName: "npc_Village05_Playground01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村贝贝乐园"},
+	{ResourceName: "npc_Village05_Playground02", Theme: "Village", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村贝贝乐园"},
+	{ResourceName: "npc_Village05_Playground03", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "泡泡村贝贝乐园"},
+	{ResourceName: "npc_Space01_Spaceship01", Theme: "Space", Difficulty: 1, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "阿瑞斯号宇宙飞船"},
+	{ResourceName: "npc_Space01_Spaceship02", Theme: "Space", Difficulty: 2, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "阿瑞斯号宇宙飞船"},
+	{ResourceName: "npc_Space01_Spaceship03", Theme: "Space", Difficulty: 3, TimeLimitMilliseconds: 300000, TeamSpawnCount: 8, DisplayName: "阿瑞斯号宇宙飞船"},
 }
 
 // hordeStages maps each pirate mission key to the resource directory its stage is

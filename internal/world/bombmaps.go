@@ -20,12 +20,12 @@ package world
 // The pool is data, not a rule: it exists so a bomb room never mixes in a map the
 // client would not offer, and so the two bomb-only maps resolve at all.
 var bombMapPool = []Map{
-	{ResourceName: "rel_Village03_CityHall", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
-	{ResourceName: "rel_Desert02_Castle", Theme: "Desert", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
-	{ResourceName: "rel_Forest02_Ravine", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
-	{ResourceName: "rel_Village02_waterPark", Theme: "Village", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie_01_bomb", Theme: "Village", Difficulty: 5, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: false, ItemMode: false, TeamSpawnCount: 8},
-	{ResourceName: "rel_Sudden06_Tank", Theme: "Sudden", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: false, ItemMode: false, TeamSpawnCount: 8},
+	{ResourceName: "rel_Village03_CityHall", Theme: "Village", Difficulty: 3, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8, DisplayName: "泡泡村市政厅广场"},
+	{ResourceName: "rel_Desert02_Castle", Theme: "Desert", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8, DisplayName: "沙漠秘密之城"},
+	{ResourceName: "rel_Forest02_Ravine", Theme: "Forest", Difficulty: 3, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8, DisplayName: "森林遗忘山涧"},
+	{ResourceName: "rel_Village02_waterPark", Theme: "Village", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: true, ItemMode: true, TeamSpawnCount: 8, DisplayName: "泡泡村水路公园"},
+	{ResourceName: "rel_zombie_01_bomb", Theme: "Village", Difficulty: 5, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: false, ItemMode: false, TeamSpawnCount: 8, DisplayName: "泡泡村防御大作战！"},
+	{ResourceName: "rel_Sudden06_Tank", Theme: "Sudden", Difficulty: 4, TimeLimitMilliseconds: 240000, ScoreLimit: 20, NormalMode: false, ItemMode: false, TeamSpawnCount: 8, DisplayName: "突袭第3供给仓库"},
 }
 
 // BombMaps returns the bomb mission's map pool, in the client's own order.

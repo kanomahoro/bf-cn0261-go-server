@@ -22,14 +22,20 @@ package world
 //	                              ZombiePve resource states no mission groups)
 //	rel_zombie05_Tear     Pirate   骷髅的眼泪僵尸袭击!
 //	rel_zombie06_Frontal  Pirate   僵尸！正面突破！！
+//
+// The names above are MapMeta's MapName column. DisplayName states the client's
+// translated name for the map's Directory instead (StringTable/TranslatedXmlTable),
+// which is the text the client itself writes into an ordinary room's setting and is
+// what the room card shows; the two differ for a few rows (守护积雪桥！ against
+// 守护雪桥！, for one).
 var pveMapPool = []Map{
-	{ResourceName: "rel_zombie_01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie02_Twobridge", Theme: "Ice", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie03_Circle", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie04_Oneway", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie04_1_Oneway", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie05_Tear", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
-	{ResourceName: "rel_zombie06_Frontal", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8},
+	{ResourceName: "rel_zombie_01", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "泡泡村防御大作战！"},
+	{ResourceName: "rel_zombie02_Twobridge", Theme: "Ice", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "守护雪桥！"},
+	{ResourceName: "rel_zombie03_Circle", Theme: "Village", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "僵尸公园"},
+	{ResourceName: "rel_zombie04_Oneway", Theme: "Desert", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "沙漠小路僵尸袭击！"},
+	{ResourceName: "rel_zombie04_1_Oneway", Theme: "Desert", Difficulty: 2, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "[进阶]沙漠小路袭击！"},
+	{ResourceName: "rel_zombie05_Tear", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "骷髅的眼泪僵尸袭击!"},
+	{ResourceName: "rel_zombie06_Frontal", Theme: "Pirate", Difficulty: 1, TimeLimitMilliseconds: 600000, TeamSpawnCount: 8, DisplayName: "僵尸！正面突破！！"},
 }
 
 // PveMaps returns the cooperative zombie raid's map pool, in the client's order.

@@ -236,6 +236,10 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 
 	var chosen world.Map
 	found := false
+	// substituted records that the request named a map the mode cannot run (every
+	// create dialog starts on the startup map) and the mode's own pool replaced it.
+	// The card must then state the name of the map that is actually loaded.
+	substituted := false
 	if random {
 		candidates := maps.Candidates(request.Mode, theme)
 		if request.Mode == pirateModeID {
@@ -268,6 +272,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 					return setting, fmt.Errorf("no pirate map candidates for the requested theme")
 				}
 				entry = candidates[0]
+				substituted = true
 			}
 		case bombModeID:
 			// The bomb mission's own pool is the authority: two of its six maps
@@ -281,6 +286,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 					return setting, fmt.Errorf("no bomb map candidates for the requested theme")
 				}
 				entry = candidates[0]
+				substituted = true
 			}
 		case itemModeID:
 			if !entry.ItemMode {
@@ -296,6 +302,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 					return setting, fmt.Errorf("no raid map candidates for the requested theme")
 				}
 				entry = candidates[0]
+				substituted = true
 			}
 		default:
 			// Modes 8/12/13 also list one map that carries neither competitive flag
@@ -360,8 +367,17 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		// current_map is the string gspRoomEnterGame overwrites at match start, and it is
 		// what feeds the NPC Lua map name, so the scene belongs there; the mission key stays
 		// in the fourth slot -- the author's "有一个要发 npc_xxxx, 要跟它的 lua 对应".
-		display := protocol.FromU16(request.Strings16[0])
-		if display == "" || maps.IsHordeMap(display) {
+		display := chosen.DisplayName
+		// The card draws the first string as the map's name. It is taken from the pool
+		// row, not from the request: this build's pirate picker states the map's
+		// untranslated name (Korean), and a create still names the startup map that the
+		// room was replaced away from. The row carries the name the client's own string
+		// table gives the map's Directory -- the same text it writes into an ordinary
+		// room's setting -- so that is what a pirate card states.
+		if display == "" {
+			display = protocol.FromU16(request.Strings16[0])
+		}
+		if display == "" {
 			display = chosen.ResourceName
 		}
 		scene := world.HordeStageKey(chosen.ResourceName)
@@ -402,6 +418,16 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		}
 	} else {
 		label := protocol.FromU16(request.Strings16[0])
+		// The card draws this string as the map's name, and a client cannot resolve a
+		// resource key to one. An empty slot, a slot carrying the key and a request the
+		// pool replaced all fall back to the map's own name: the string the client's
+		// string table gives the map's Directory, which is what it writes into an
+		// ordinary room itself.
+		if _, isKey := maps.Find(label); label == "" || substituted || isKey {
+			if name := chosen.DisplayName; name != "" {
+				label = name
+			}
+		}
 		if label == "" {
 			label = chosen.ResourceName
 		}

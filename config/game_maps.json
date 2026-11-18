@@ -9,7 +9,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "Apex Diorama"
     },
     {
       "resourceName": "rel_Apex02_LostTown",
@@ -19,7 +20,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "Apex Lost town"
     },
     {
       "resourceName": "rel_Cemetery01",
@@ -29,7 +31,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "幽灵谷 尖叫小屋"
     },
     {
       "resourceName": "rel_Cemetery02_Altar",
@@ -39,7 +42,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "墓地 异教祭坛"
     },
     {
       "resourceName": "rel_Cemetery03_Vampire",
@@ -49,7 +53,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "公墓吸血鬼宅院"
     },
     {
       "resourceName": "rel_Combat01_Junk",
@@ -59,7 +64,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "Combat Arms Junk Flea"
     },
     {
       "resourceName": "rel_Combat02_Oil",
@@ -69,7 +75,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "Combat Arms Oil Rig"
     },
     {
       "resourceName": "rel_Desert01_Oneway",
@@ -79,7 +86,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠之路上的决斗"
     },
     {
       "resourceName": "rel_Desert02_Castle",
@@ -89,7 +97,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠秘密之城"
     },
     {
       "resourceName": "rel_Desert03_Temple",
@@ -99,7 +108,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠寂静寺院"
     },
     {
       "resourceName": "rel_Desert04_Pharaoh",
@@ -109,7 +119,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠法老的秘密墓地"
     },
     {
       "resourceName": "rel_Desert05_mummy",
@@ -119,7 +130,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠木乃伊之诅咒"
     },
     {
       "resourceName": "rel_Desert06_Market",
@@ -129,7 +141,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "沙漠市场"
     },
     {
       "resourceName": "rel_Forest01_Hill",
@@ -139,7 +152,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林小乐园"
     },
     {
       "resourceName": "rel_Forest02_Ravine",
@@ -149,7 +163,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林遗忘山涧"
     },
     {
       "resourceName": "rel_Forest03_Waterfall",
@@ -159,7 +174,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林清澈瀑布"
     },
     {
       "resourceName": "rel_Forest04_PeterPan",
@@ -169,7 +185,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林海盗秘密基地"
     },
     {
       "resourceName": "rel_Forest05_CaveTemple",
@@ -179,7 +196,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林狸猫团神殿"
     },
     {
       "resourceName": "rel_Forest06_Bootcamp",
@@ -189,7 +207,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "森林秘密训练场"
     },
     {
       "resourceName": "rel_Ice01_Cave",
@@ -199,7 +218,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "隐藏在北极的冰窟"
     },
     {
       "resourceName": "rel_Ice02_Icepit",
@@ -209,7 +229,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "严寒之地冰矿山"
     },
     {
       "resourceName": "rel_Ice03_Valley",
@@ -219,7 +240,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "严寒之地冰城"
     },
     {
       "resourceName": "rel_Ice04_Twist",
@@ -229,7 +251,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "严寒之地冰封峡谷"
     },
     {
       "resourceName": "rel_Ice05_Twobridge",
@@ -239,7 +262,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "严寒之地积雪桥"
     },
     {
       "resourceName": "rel_Ice06_Container",
@@ -249,7 +273,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "严寒之地集装箱码头"
     },
     {
       "resourceName": "rel_Ice07_Santavillage",
@@ -259,7 +284,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "冰雪圣诞村"
     },
     {
       "resourceName": "rel_Space01_Spaceship",
@@ -269,7 +295,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "阿瑞斯号宇宙飞船"
     },
     {
       "resourceName": "rel_Space02_Station",
@@ -279,7 +306,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "宇宙空间站"
     },
     {
       "resourceName": "rel_Space03_Garage",
@@ -289,7 +317,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "宇宙维修站"
     },
     {
       "resourceName": "rel_Stadium01_Pangpang",
@@ -299,7 +328,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "砰砰竞技场"
     },
     {
       "resourceName": "rel_Stadium02_Dome",
@@ -309,7 +339,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "竞技场泡泡之战"
     },
     {
       "resourceName": "rel_Stadium04_Extreme",
@@ -319,7 +350,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "竞技场极端超级圆顶"
     },
     {
       "resourceName": "rel_Stadium05_hill",
@@ -329,7 +361,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "欢乐竞技场"
     },
     {
       "resourceName": "rel_Stadium06_Aqua",
@@ -339,7 +372,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "水世界竞技场"
     },
     {
       "resourceName": "rel_Stadium07_Seven",
@@ -349,7 +383,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "竞技场 砰砰7号"
     },
     {
       "resourceName": "rel_Sudden01_Warehouse",
@@ -359,7 +394,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "突袭 货栈"
     },
     {
       "resourceName": "rel_Sudden02_Aroom",
@@ -369,7 +405,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "突袭 A级供给仓库"
     },
     {
       "resourceName": "rel_Sudden03_Provence",
@@ -379,7 +416,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "突袭 普罗旺斯"
     },
     {
       "resourceName": "rel_Sudden04_angkor",
@@ -389,7 +427,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "突袭 猴子乐园"
     },
     {
       "resourceName": "rel_Sudden05_CrossCounter",
@@ -399,7 +438,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "突袭 绝地反击"
     },
     {
       "resourceName": "rel_Village01_Byway",
@@ -409,7 +449,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村胡同"
     },
     {
       "resourceName": "rel_Village02_waterPark",
@@ -419,7 +460,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村水路公园"
     },
     {
       "resourceName": "rel_Village03_CityHall",
@@ -429,7 +471,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村市政厅广场"
     },
     {
       "resourceName": "rel_Village04_Station",
@@ -439,7 +482,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村嘣嘣车站"
     },
     {
       "resourceName": "rel_Village05_Playground",
@@ -449,7 +493,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村贝贝乐园"
     },
     {
       "resourceName": "rel_Village06_CirclePark",
@@ -459,7 +504,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "小区圆形公园"
     },
     {
       "resourceName": "rel_Village07_Easy02",
@@ -469,7 +515,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "泡泡村小河边休闲区"
     },
     {
       "resourceName": "rel_Village09_Parking",
@@ -479,7 +526,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "小区圆形停车场"
     },
     {
       "resourceName": "rel_Village10_Rooftop",
@@ -489,7 +537,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "小区屋塔房"
     },
     {
       "resourceName": "rel_fairytale01_Beanstalk",
@@ -499,7 +548,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "童话 皮蛋与豌豆"
     },
     {
       "resourceName": "rel_fairytale02_AliceGarden",
@@ -509,7 +559,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "童话 爱丽丝女王的庭院"
     },
     {
       "resourceName": "rel_fairytale03_Oz",
@@ -519,7 +570,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "童话 多萝西的冒险"
     },
     {
       "resourceName": "rel_pirate01_tear",
@@ -529,7 +581,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "海盗岛 海盗的眼泪"
     },
     {
       "resourceName": "rel_pirate05_Dock",
@@ -539,7 +592,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "海盗岛秘密码头"
     },
     {
       "resourceName": "rel_pirate06_Navalbattle",
@@ -549,7 +603,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "惊涛骇浪"
     },
     {
       "resourceName": "rel_pirate07_Treasure",
@@ -559,7 +614,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "海盗岛 隐藏的宝藏"
     },
     {
       "resourceName": "rel_village08_daohouse",
@@ -569,7 +625,8 @@
       "scoreLimit": 20,
       "normalMode": true,
       "itemMode": true,
-      "teamSpawnCount": 8
+      "teamSpawnCount": 8,
+      "displayName": "皮蛋小屋"
     }
   ]
 }
