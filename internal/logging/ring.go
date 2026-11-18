@@ -37,9 +37,10 @@ var recent = &Ring{entries: make([]Entry, ringSize)}
 //
 // offset counts backwards from the newest record, so 0 is the live tail. The
 // second return value is how many records the filter matched in total, which is
-// what a pager needs; the offset is clamped to the last page when the ring shrank
-// between two requests.
-func Recent(limit, offset int, contains string) ([]Entry, int) {
+// what a pager needs, and the third is the offset this page was read at: the ring
+// clamps it onto the oldest page when it shrank between two requests, so the
+// console reports the window it actually served.
+func Recent(limit, offset int, contains string) ([]Entry, int, int) {
 	recent.mu.Lock()
 	defer recent.mu.Unlock()
 	if limit <= 0 || limit > ringSize {
@@ -61,13 +62,16 @@ func Recent(limit, offset int, contains string) ([]Entry, int) {
 	}
 	total := len(ordered)
 	if total <= limit {
-		return ordered, total
+		return ordered, total, 0
 	}
+	// This pager counts backwards from the newest record, so the oldest page it can
+	// serve starts at total-limit: an offset past that would run off the front of the
+	// slice, and snapping it onto a "page start" would make no sense here.
 	if offset > total-limit {
 		offset = total - limit
 	}
 	end := total - offset
-	return ordered[end-limit : end], total
+	return ordered[end-limit : end], total, offset
 }
 
 // orderedLocked returns the records oldest first.

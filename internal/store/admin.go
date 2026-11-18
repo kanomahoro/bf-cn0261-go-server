@@ -25,11 +25,16 @@ type AdminCharacter struct {
 // SearchCharacters finds players by account name, nickname, account id or
 // character id, one page at a time. The total is how many matched, so the console
 // can page through a broad nickname search instead of silently cutting it at 50.
-func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter, int, error) {
+func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter, int, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 20
+	}
+	// Clamp a too-large page instead of falling back to the default: a caller that
+	// asks for 300 rows gets the biggest page the console shows.
+	if limit > 200 {
+		limit = 200
 	}
 	if offset < 0 {
 		offset = 0
@@ -42,10 +47,10 @@ func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter
 		 JOIN accounts a ON a.id = c.account_id
 		 WHERE a.account_name LIKE ? OR c.nickname LIKE ? OR CAST(a.id AS CHAR) = ? OR CAST(c.id AS CHAR) = ?`,
 		like, like, term, term).Scan(&total); err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
-	if total > 0 && offset > total-1 {
-		offset = total - 1
+	if lastPage := (total - 1) / limit * limit; total > 0 && offset > lastPage {
+		offset = lastPage
 	}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT a.id, a.account_name, a.disabled,
@@ -59,7 +64,7 @@ func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter
 		 ORDER BY c.id
 		 LIMIT ? OFFSET ?`, like, like, term, term, limit, offset)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 	out := []AdminCharacter{}
@@ -68,11 +73,11 @@ func (db *DB) SearchCharacters(term string, limit, offset int) ([]AdminCharacter
 		if err := rows.Scan(&entry.AccountID, &entry.AccountName, &entry.Disabled,
 			&entry.CharacterID, &entry.Nickname, &entry.CharacterType,
 			&entry.Experience, &entry.Lucci, &entry.Cash, &entry.CreatedAt); err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 		out = append(out, entry)
 	}
-	return out, total, rows.Err()
+	return out, total, offset, rows.Err()
 }
 
 // SetBalance writes a character's wallet. It is the console's only wallet write:
@@ -151,11 +156,14 @@ type AdminBan struct {
 }
 
 // ListBans returns one page of disabled accounts, most recently changed first.
-func (db *DB) ListBans(limit, offset int) ([]AdminBan, int, error) {
+func (db *DB) ListBans(limit, offset int) ([]AdminBan, int, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
-	if limit <= 0 || limit > 200 {
+	if limit <= 0 {
 		limit = 20
+	}
+	if limit > 200 {
+		limit = 200
 	}
 	if offset < 0 {
 		offset = 0
@@ -163,10 +171,10 @@ func (db *DB) ListBans(limit, offset int) ([]AdminBan, int, error) {
 	var total int
 	if err := db.sql.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM accounts WHERE disabled = TRUE").Scan(&total); err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
-	if total > 0 && offset > total-1 {
-		offset = total - 1
+	if lastPage := (total - 1) / limit * limit; total > 0 && offset > lastPage {
+		offset = lastPage
 	}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT a.id, a.account_name, COALESCE(c.nickname, ''), a.updated_at
@@ -176,18 +184,18 @@ func (db *DB) ListBans(limit, offset int) ([]AdminBan, int, error) {
 		 ORDER BY a.updated_at DESC
 		 LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 	out := []AdminBan{}
 	for rows.Next() {
 		var entry AdminBan
 		if err := rows.Scan(&entry.AccountID, &entry.AccountName, &entry.Nickname, &entry.ChangedAt); err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 		out = append(out, entry)
 	}
-	return out, total, rows.Err()
+	return out, total, offset, rows.Err()
 }
 
 // AdminResult is one finished match as the console lists it.
@@ -218,7 +226,7 @@ type AdminResultPlayer struct {
 
 // ListResults pages through finished matches, newest first. A mode of 0 lists
 // every mode.
-func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, error) {
+func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, int, error) {
 	ctx, cancel := db.ctx()
 	defer cancel()
 	if limit <= 0 {
@@ -239,14 +247,17 @@ func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, e
 	}
 	var total int
 	if err := db.sql.QueryRowContext(ctx, "SELECT COUNT(*) FROM game_results"+where, args...).Scan(&total); err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
+	}
+	if lastPage := (total - 1) / limit * limit; total > 0 && offset > lastPage {
+		offset = lastPage
 	}
 	rows, err := db.sql.QueryContext(ctx,
 		`SELECT id, room_id, mode, map_name, first_team_score, second_team_score, winner, end_reason, completed_at
 		 FROM game_results`+where+` ORDER BY completed_at DESC LIMIT ? OFFSET ?`,
 		append(args, limit, offset)...)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, 0, err
 	}
 	defer rows.Close()
 	// A non-nil slice keeps the JSON body an empty array instead of null, so the
@@ -256,11 +267,11 @@ func (db *DB) ListResults(mode uint32, limit, offset int) ([]AdminResult, int, e
 		var entry AdminResult
 		if err := rows.Scan(&entry.ID, &entry.RoomID, &entry.Mode, &entry.MapName,
 			&entry.FirstScore, &entry.SecondScore, &entry.Winner, &entry.EndReason, &entry.CompletedAt); err != nil {
-			return nil, 0, err
+			return nil, 0, 0, err
 		}
 		out = append(out, entry)
 	}
-	return out, total, rows.Err()
+	return out, total, offset, rows.Err()
 }
 
 // ResultPlayers returns the seats of one finished match, in slot order.

@@ -195,6 +195,9 @@ func (s *Server) page(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	// The console is one file with its script inside, so a cached copy outlives an
+	// upgrade: never let the browser keep it.
+	w.Header().Set("Cache-Control", "no-store")
 	_, _ = w.Write(indexHTML)
 }
 
@@ -250,8 +253,11 @@ func window[T any](items []T, limit, offset int) ([]T, int, int) {
 	if limit <= 0 {
 		limit = total
 	}
-	if offset > total-1 {
-		offset = total - 1
+	// Snap an out-of-range offset onto the last page's first row: a page starts at
+	// a multiple of the limit, so the trailing page stays whole instead of shrinking
+	// to whatever single row the requested offset landed on.
+	if lastPage := (total - 1) / limit * limit; offset > lastPage {
+		offset = lastPage
 	}
 	end := offset + limit
 	if end > total {
@@ -338,8 +344,8 @@ const maxPageSize = 500
 
 func (s *Server) logs(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageArgs(r, 300)
-	items, total := logging.Recent(limit, offset, r.URL.Query().Get("q"))
-	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: items})
+	items, total, used := logging.Recent(limit, offset, r.URL.Query().Get("q"))
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: items})
 }
 
 func (s *Server) search(w http.ResponseWriter, r *http.Request) {
@@ -349,7 +355,10 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	limit, offset := pageArgs(r, 20)
-	found, total, err := s.game.AdminSearchCharacters(term, limit, offset)
+	if limit > 200 {
+		limit = 200
+	}
+	found, total, used, err := s.game.AdminSearchCharacters(term, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -370,17 +379,20 @@ func (s *Server) search(w http.ResponseWriter, r *http.Request) {
 			"createdAt":     entry.CreatedAt,
 		})
 	}
-	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: out})
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: out})
 }
 
 func (s *Server) bans(w http.ResponseWriter, r *http.Request) {
 	limit, offset := pageArgs(r, 20)
-	bans, total, err := s.db.ListBans(limit, offset)
+	if limit > 200 {
+		limit = 200
+	}
+	bans, total, used, err := s.db.ListBans(limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: bans})
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: bans})
 }
 
 func (s *Server) results(w http.ResponseWriter, r *http.Request) {
@@ -391,12 +403,12 @@ func (s *Server) results(w http.ResponseWriter, r *http.Request) {
 	if limit > 200 {
 		limit = 200
 	}
-	rows, total, err := s.db.ListResults(uint32(mode), limit, offset)
+	rows, total, used, err := s.db.ListResults(uint32(mode), limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, paged{Total: total, Offset: offset, Limit: limit, Items: rows})
+	writeJSON(w, paged{Total: total, Offset: used, Limit: limit, Items: rows})
 }
 
 func (s *Server) resultDetail(w http.ResponseWriter, r *http.Request) {
@@ -415,7 +427,7 @@ func (s *Server) resultDetail(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) resultsCSV(w http.ResponseWriter, r *http.Request) {
 	mode, _ := strconv.Atoi(r.URL.Query().Get("mode"))
-	rows, total, err := s.db.ListResults(uint32(mode), 200, 0)
+	rows, total, _, err := s.db.ListResults(uint32(mode), 200, 0)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

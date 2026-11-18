@@ -430,8 +430,8 @@ async function loadOverview() {
   $("foot-version").textContent = "v" + data.server.version;
   $("ov-server").innerHTML = [
     ["程序", "泡泡战士 CN0261 Go 服务端"],
-    ["版本", data.server.version],
-    ["构建提交", data.server.commit || "（未嵌入）"],
+    ["版本", "v" + data.server.version],
+    ["构建提交", data.server.commit || "（发布版）"],
     ["作者", "rurudoo（github.com/kanomahoro）"],
     ["仓库", '<a href="https://github.com/kanomahoro/bf-cn0261-go-server" target="_blank" rel="noopener">kanomahoro/bf-cn0261-go-server</a>'],
     ["Go 版本", data.server.goVersion],
