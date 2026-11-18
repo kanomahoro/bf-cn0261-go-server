@@ -204,6 +204,13 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	latency, err := s.db.Ping(pingCtx)
 	dbOk := err == nil
+	// The console shows the schema revision beside the build information, so the
+	// overview carries it too. A database that cannot answer it leaves the field
+	// out and the row keeps its own "not read" text instead of failing the page.
+	var schema *store.SchemaState
+	if state, err := s.db.SchemaVersions(); err == nil {
+		schema = &state
+	}
 	writeJSON(w, map[string]any{
 		"overview": overview,
 		"db": map[string]any{
@@ -216,6 +223,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			"goVersion":  runtime.Version(),
 			"configPath": s.cfgPath,
 			"commit":     commitHash(),
+			"schema":     schema,
 		},
 	})
 }
