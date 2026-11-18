@@ -143,7 +143,7 @@
     <p class="sub">
       「阶段」是房间当前所处的流程；「密码」表示房主给房间设了密码锁（客户端列表里显示一把锁），
       与房间是否开局无关。「人数」的分母是「可用座位」（总座位减去房主关闭的座位），
-      与客户端房间列表一致；有关闭座位时会额外标出关闭数量。
+      与客户端房间列表一致。
     </p>
     <div class="table-wrap">
       <table>
@@ -477,9 +477,7 @@ async function loadRooms() {
       <td>${esc(r.title)}</td>
       <td>${modeName(r.mode)}</td>
       <td class="hide-sm">${r.map ? esc(r.map) : '<span class="hint">未选图</span>'}</td>
-      <td>${r.occupied}/${typeof r.open === "number" ? r.open : r.capacity}${r.closed
-        ? ` <span class="tag mute" title="房主关闭了 ${r.closed} 个座位，其他人不能坐进去">关${r.closed}</span>`
-        : ""}</td>
+      <td>${r.occupied}/${typeof r.open === "number" ? r.open : r.capacity}</td>
       <td title="座位 ${r.master}">${r.masterName
         ? esc(r.masterName)
         : '<span class="hint" title="房主刚离开，正在移交给下一个座位">（移交中）</span>'}</td>
