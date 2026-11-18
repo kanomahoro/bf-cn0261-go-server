@@ -59,6 +59,11 @@ type Room struct {
 	ChannelIndex uint32
 
 	slots [maxRoomSlots]roomSlot
+	// closed marks the waiting-room seats the master shut (C509). A closed seat is
+	// never offered to a joiner and is not counted as an available seat: the lobby
+	// row states the room's capacity minus these, and a join stops at them. Only
+	// seats below the room's capacity can be closed at all.
+	closed [maxRoomSlots]bool
 	// password is the text the creator sent in C402, kept out of Setting so it is
 	// never written into a lobby row or a room snapshot. Empty when the room is
 	// open; a locked room with no text accepts any password (the wire allows it).
@@ -246,15 +251,25 @@ func (r *Room) ReserveSlot(session *Session, capacity int) (int, uint8, error) {
 	if capacity <= 0 || capacity > len(r.slots) {
 		capacity = len(r.slots)
 	}
-	if r.occupiedLocked() >= capacity {
+	// A closed seat is not a seat a joiner can take: it lowers both the free-seat
+	// count and the range the search walks, so a four-seat raid room with two
+	// seats shut admits two players, not four.
+	open := 0
+	for index := 0; index < capacity; index++ {
+		if !r.closed[index] {
+			open++
+		}
+	}
+	if open == 0 || r.occupiedLocked() >= open {
 		return -1, 0, errRoomFull
 	}
 	slot := -1
-	for index, entry := range r.slots {
-		if entry.session == nil {
-			slot = index
-			break
+	for index := 0; index < capacity; index++ {
+		if r.closed[index] || r.slots[index].session != nil {
+			continue
 		}
+		slot = index
+		break
 	}
 	if slot < 0 {
 		return -1, 0, errRoomFull
@@ -283,6 +298,68 @@ func (r *Room) ReserveSlot(session *Session, capacity int) (int, uint8, error) {
 	r.slots[slot] = roomSlot{session: session, team: team,
 		character: session.Character, items: session.Items}
 	return slot, team, nil
+}
+
+// capacityLocked is the room's seat count as the protocol states it: ordinary
+// rooms are eight seats, the pirate battle and the raid are four.
+func (r *Room) capacityLocked() int {
+	capacity := int(r.Setting.Capacity)
+	if capacity <= 0 || capacity > maxRoomSlots {
+		capacity = maxRoomSlots
+	}
+	return capacity
+}
+
+// openSeats reports the seats a joiner can still take: the room's capacity minus
+// the seats the master closed. The lobby row states this instead of the raw
+// capacity, which is what the client's own list shows after a seat is shut.
+func (r *Room) openSeats() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.openSeatsLocked()
+}
+
+func (r *Room) openSeatsLocked() int {
+	open := r.capacityLocked()
+	for slot := 0; slot < maxRoomSlots; slot++ {
+		if r.closed[slot] {
+			open--
+		}
+	}
+	if open < 0 {
+		open = 0
+	}
+	return open
+}
+
+// ClosedSeats returns the seats the master shut, in slot order.
+func (r *Room) ClosedSeats() []int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []int
+	for slot := 0; slot < maxRoomSlots; slot++ {
+		if r.closed[slot] {
+			out = append(out, slot)
+		}
+	}
+	return out
+}
+
+// SetSlotClosed shuts or reopens an empty seat. It refuses the cases the client's
+// own toggle refuses as well: a seat outside the room's capacity (eight in an
+// ordinary room, four in the pirate battle and the raid), a seat that holds a
+// player, and a seat that already has the requested state.
+func (r *Room) SetSlotClosed(slot int, closed bool) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if slot < 0 || slot >= r.capacityLocked() {
+		return false
+	}
+	if r.slots[slot].session != nil || r.closed[slot] == closed {
+		return false
+	}
+	r.closed[slot] = closed
+	return true
 }
 
 // Add places a session into a slot.
@@ -793,6 +870,10 @@ func (s *Server) handleSessionList(session *Session, packet protocol.Packet) err
 		// sub_6D3770 reads +12, +48 and the map name into the row's three columns),
 		// so the list states it even after the room changed hands.
 		card.MasterNickname = room.masterNickname()
+		// The row states the seats a joiner can still take -- the room's capacity
+		// minus the seats the master closed -- which is what the client's own list
+		// shows after a seat is shut.
+		card.Capacity = uint16(room.openSeats())
 		writer := protocol.NewWriter()
 		if err := protocol.WriteSessionSetting(writer, card); err != nil {
 			return err
@@ -967,6 +1048,13 @@ func (s *Server) handleJoinRoom(session *Session, packet protocol.Packet) error 
 			if member.Occupied && member.Slot != slot {
 				_ = member.Session.Send(settingReply)
 			}
+		}
+	}
+	// A joiner learns about the seats the master shut the same way it learns about
+	// a seat that just emptied: one S511 per closed seat.
+	for _, seat := range room.ClosedSeats() {
+		if closedReply, err := protocol.CreateRoomSeatClosedReply(uint32(seat)); err == nil {
+			_ = session.Send(closedReply)
 		}
 	}
 	return nil
@@ -1176,6 +1264,43 @@ func (s *Server) handleMasterChange(session *Session, packet protocol.Packet) er
 		return nil
 	}
 	return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeUnavailable))
+}
+
+// handleOpenCloseSlot shuts or reopens an empty waiting-room seat (C509). The
+// reference's own handler accepts it from the current master only, in the waiting
+// phase, for a seat inside the room that holds nobody and only when the state
+// actually changes; every other case is dropped without an answer, the way the
+// client's toggle expects.
+func (s *Server) handleOpenCloseSlot(session *Session, packet protocol.Packet) error {
+	request, err := protocol.ReadSeatLock(packet)
+	if err != nil {
+		return err
+	}
+	room := session.room
+	if room == nil {
+		return nil
+	}
+	if room.MasterSlot() != session.slot || room.SettingCopy().State != phaseOpen {
+		s.log.Debug("[Room] seat lock refused, not the waiting room's master",
+			"room", room.ID, "slot", session.slot, "seat", request.Slot)
+		return nil
+	}
+	if request.Slot >= uint32(maxRoomSlots) || !room.SetSlotClosed(int(request.Slot), request.Closed) {
+		s.log.Debug("[Room] seat lock refused",
+			"room", room.ID, "seat", request.Slot, "closed", request.Closed)
+		return nil
+	}
+	reply, err := protocol.CreateRoomSeatLockReply(request.Slot, request.Closed)
+	if err != nil {
+		return err
+	}
+	// Every member sees the lock, the master included: its own seat table is the
+	// one the toggle came from.
+	room.Broadcast(reply)
+	// The lobby row states the seats a joiner can still take, so it changes with
+	// the lock; the room's own seat count does not.
+	room.refreshSetting()
+	return nil
 }
 
 func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) error {
@@ -2250,6 +2375,14 @@ func (s *Server) cancelRound(room *Room) {
 		}
 		if slotReply, err := protocol.CreateRoomSlotReply(uint32(member.Slot), roster[member.Slot]); err == nil {
 			room.Broadcast(slotReply)
+		}
+	}
+	// The room screen is rebuilt from the setting and the seat cards above, so the
+	// seats the master shut are restated with it: without this the room came back
+	// from a round showing those seats as simply empty.
+	for _, seat := range room.ClosedSeats() {
+		if notice, err := protocol.CreateRoomSeatClosedReply(uint32(seat)); err == nil {
+			room.Broadcast(notice)
 		}
 	}
 }

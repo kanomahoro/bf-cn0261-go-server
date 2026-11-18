@@ -132,6 +132,58 @@ func CreateRoomSlotReply(slot uint32, member SessionMember) (Packet, error) {
 	return Packet{ID: 503, Payload: w.Payload()}, nil
 }
 
+// SeatLockRequest is the body of C509 gcpRoomReqOpenCloseSlot: the seat the master
+// toggles and the state it should take. cn-717's own request writes the same two
+// fields its reply does (RoomSeatLock, kr-812 sub_980300).
+type SeatLockRequest struct {
+	Slot   uint32
+	Closed bool
+}
+
+// ReadSeatLock reads the C509 open/close seat request.
+func ReadSeatLock(packet Packet) (SeatLockRequest, error) {
+	request := SeatLockRequest{}
+	r := NewReader(packet.Payload)
+	var err error
+	if request.Slot, err = r.Unsigned(); err != nil {
+		return request, err
+	}
+	if request.Closed, err = r.Boolean(); err != nil {
+		return request, err
+	}
+	if err := r.RequireEnd(); err != nil {
+		return request, err
+	}
+	return request, nil
+}
+
+// CreateRoomSeatLockReply builds S512 gspRoomOpenCloseSlot: the seat and the state
+// it now has, sent to every member of the room (the master included).
+func CreateRoomSeatLockReply(slot uint32, closed bool) (Packet, error) {
+	if slot >= 32 {
+		return Packet{}, fmt.Errorf("%w: seat lock slot", ErrInvalidPacket)
+	}
+	w := NewWriter()
+	w.Unsigned(slot)
+	w.Boolean(closed)
+	return Packet{ID: 512, Payload: w.Payload()}, nil
+}
+
+// CreateRoomSeatClosedReply builds the S511 that marks a seat as closed. A joiner
+// is told about every seat the master shut the same way it is told about a seat
+// that just emptied.
+func CreateRoomSeatClosedReply(slot uint32) (Packet, error) {
+	if slot >= 32 {
+		return Packet{}, fmt.Errorf("%w: closed seat slot", ErrInvalidPacket)
+	}
+	w := NewWriter()
+	w.Unsigned(slot)
+	if err := WriteSessionMember(w, SessionMember{Closed: true}, slot); err != nil {
+		return Packet{}, err
+	}
+	return Packet{ID: 511, Payload: w.Payload()}, nil
+}
+
 // CreateRoomDepartureReply builds S511.
 func CreateRoomDepartureReply(slot uint32) (Packet, error) {
 	if slot >= 32 {

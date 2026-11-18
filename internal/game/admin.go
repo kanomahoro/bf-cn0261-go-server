@@ -44,8 +44,14 @@ type AdminRoom struct {
 	MasterName string `json:"masterName"`
 	Occupied   int    `json:"occupied"`
 	Capacity   uint16 `json:"capacity"`
-	Phase      string `json:"phase"`
-	Locked     bool   `json:"locked"`
+	// Open is the seats a joiner can still take: the capacity minus the seats the
+	// master closed, which is the number the client's own room list shows.
+	Open int `json:"open"`
+	// Closed counts the seats the master shut; they stay in Capacity but are never
+	// offered to a joiner.
+	Closed int    `json:"closed"`
+	Phase  string `json:"phase"`
+	Locked bool   `json:"locked"`
 }
 
 // Snapshot reports the live state the console shows.
@@ -143,6 +149,8 @@ func (s *Server) AdminRooms() []AdminRoom {
 			MasterName: protocol.FromU16(room.masterNickname()),
 			Occupied:   room.Occupied(),
 			Capacity:   setting.Capacity,
+			Open:       room.openSeats(),
+			Closed:     len(room.ClosedSeats()),
 			Phase:      room.phaseName(),
 			Locked:     setting.PasswordRequired,
 		})
