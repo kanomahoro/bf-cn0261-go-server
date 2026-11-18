@@ -495,6 +495,19 @@ func (r *Room) ReassignMasterIfNeeded() int {
 	return r.Master
 }
 
+// TransferMaster hands the room to another seated member. The new master never
+// counts as ready, the way the original clears that flag when the owner moves.
+func (r *Room) TransferMaster(slot int) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if slot < 0 || slot >= maxRoomSlots || slot == r.Master || r.slots[slot].session == nil {
+		return false
+	}
+	r.Master = slot
+	r.slots[slot].ready = false
+	return true
+}
+
 // SettingCopy returns a copy of the room card.
 func (r *Room) SettingCopy() protocol.SessionSetting {
 	r.mu.RLock()
@@ -1112,6 +1125,57 @@ func (s *Server) handleKick(session *Session, packet protocol.Packet) error {
 		return s.enterPlaza(victim)
 	}
 	return session.Send(protocol.CreateRoomKickReply(requester, target, protocol.KickNotInRoom))
+}
+
+// handleMasterChange hands a waiting room to another seated member. The request
+// carries the target nickname alone; the answer names it back to the requester,
+// and the room learns the new owner from S502 (the same notice it already sends
+// when a master leaves) plus that seat's refreshed card.
+func (s *Server) handleMasterChange(session *Session, packet protocol.Packet) error {
+	r := protocol.NewReader(packet.Payload)
+	target, err := r.String(protocol.SessionStringLimit)
+	if err != nil {
+		return err
+	}
+	if err := r.RequireEnd(); err != nil {
+		return err
+	}
+	room := session.room
+	if room == nil {
+		return nil
+	}
+	if room.MasterSlot() != session.slot {
+		return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeNotMaster))
+	}
+	// Only while the room is waiting may the owner hand it over: a playing round
+	// has no seat transfer to make, and its wave and stage traffic stays with the
+	// seat the round started under.
+	if room.SettingCopy().State != 2 {
+		return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeUnavailable))
+	}
+	nickname := protocol.FromU16(target)
+	if nickname == session.Character.Nickname {
+		return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeAlreadySelf))
+	}
+	for _, member := range room.View() {
+		if !member.Occupied || member.Session.Nickname() != nickname {
+			continue
+		}
+		if !room.TransferMaster(member.Slot) {
+			return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeUnavailable))
+		}
+		_ = session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeSuccess))
+		// The transfer clears the new master's ready mark, so its seat card follows
+		// the S502 that moves the crown.
+		if reply, err := protocol.CreateRoomMasterReply(uint32(member.Slot)); err == nil {
+			room.Broadcast(reply)
+		}
+		if seat, err := protocol.CreateRoomSlotReply(uint32(member.Slot), s.members(room)[member.Slot]); err == nil {
+			room.Broadcast(seat)
+		}
+		return nil
+	}
+	return session.Send(protocol.CreateRoomMasterChangeReply(target, protocol.MasterChangeUnavailable))
 }
 
 func (s *Server) handleChangeTeam(session *Session, packet protocol.Packet) error {

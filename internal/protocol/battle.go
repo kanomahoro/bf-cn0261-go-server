@@ -178,6 +178,25 @@ func CreateRoomKickReply(requester, target []uint16, result RoomKickResult) Pack
 	return Packet{ID: 513, Payload: w.Payload()}
 }
 
+// RoomMasterChangeResult is the S507 result.
+type RoomMasterChangeResult uint32
+
+// Master-change results.
+const (
+	MasterChangeSuccess     RoomMasterChangeResult = 0
+	MasterChangeUnavailable RoomMasterChangeResult = 1
+	MasterChangeNotMaster   RoomMasterChangeResult = 2
+	MasterChangeAlreadySelf RoomMasterChangeResult = 3
+)
+
+// CreateRoomMasterChangeReply builds S507: the target nickname and the result.
+func CreateRoomMasterChangeReply(target []uint16, result RoomMasterChangeResult) Packet {
+	w := NewWriter()
+	w.String(target)
+	w.Unsigned(uint32(result))
+	return Packet{ID: 507, Payload: w.Payload()}
+}
+
 // ReadyStatus is C505.
 type ReadyStatus struct {
 	Ready         bool

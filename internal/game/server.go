@@ -458,6 +458,8 @@ func (s *Server) Handle(session *Session, packet protocol.Packet) error {
 		return s.handleReady(session, packet)
 	case 510: // ReqKickFromSession
 		return s.handleKick(session, packet)
+	case 508: // RoomReqChangeMaster
+		return s.handleMasterChange(session, packet)
 	case 515: // RoomChangeTeam
 		return s.handleChangeTeam(session, packet)
 	case 513: // RoomChangeGameSetting
