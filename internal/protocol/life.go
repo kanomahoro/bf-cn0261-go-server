@@ -84,14 +84,23 @@ type PeerLifePoint struct {
 	Effect          uint32
 }
 
-// ValidateObject checks the per-slot object partition.
 // PlayerSlots is the number of player partitions a round carries: slot n owns
 // the object range 1000000 + n*100000, so every slot-derived id (player object,
 // relay slot, result row) is bounded by it. A room holds one player per slot.
-const PlayerSlots = 8
+//
+// Twelve is the retail 2014 expansion size: the legacy bundles state it as
+// LEGACY_SEATS (12) and cn-717 does not override it, so a 2015 client seats
+// twelve players. The MapMeta MaxUser column (8/6/4) was never updated with the
+// expansion and is not a capacity source.
+const PlayerSlots = 12
 
+// PlayerObjectLimit is the first object id outside the player partitions. An
+// object id above it belongs to a box, an NPC or a Lucci item, never to a seat.
+const PlayerObjectLimit = 1000000 + PlayerSlots*100000
+
+// ValidateObject checks the per-slot object partition.
 func ValidateObject(object uint32) error {
-	if object < 1000000 || (object-1000000)/100000 >= PlayerSlots {
+	if object < 1000000 || object >= PlayerObjectLimit {
 		return fmt.Errorf("%w: object outside the player partitions", ErrInvalidPacket)
 	}
 	return nil
@@ -241,7 +250,7 @@ func ReadPeerLife(p Packet) (PeerLifeEvent, error) {
 
 // ReadPeerLifePoint parses C32920.
 func ReadPeerLifePoint(p Packet, sourceSlot uint8) (PeerLifePoint, error) {
-	if p.ID != 32920 || sourceSlot >= 8 {
+	if p.ID != 32920 || sourceSlot >= PlayerSlots {
 		return PeerLifePoint{}, fmt.Errorf("%w: unsupported life point packet", ErrInvalidPacket)
 	}
 	r := NewReader(p.Payload)

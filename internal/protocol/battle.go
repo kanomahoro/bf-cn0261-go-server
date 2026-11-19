@@ -698,7 +698,7 @@ func ReadRespawnRequest(p Packet) (RespawnRequest, error) {
 	if req.Value, err = r.Unsigned(); err != nil {
 		return req, err
 	}
-	if req.ObjectID < 1000000 || (req.ObjectID-1000000)/100000 >= 8 {
+	if req.ObjectID < 1000000 || req.ObjectID >= PlayerObjectLimit {
 		return req, fmt.Errorf("%w: respawn object", ErrInvalidPacket)
 	}
 	if (p.ID == 713 || p.ID == 32904) && req.Value > 60000 {

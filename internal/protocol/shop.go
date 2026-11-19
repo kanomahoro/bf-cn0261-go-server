@@ -359,7 +359,7 @@ func ReadRelayReport(p Packet, sourceSlot uint8, resource string) (uint32, error
 
 // CreateDefenseSeedReply builds S5 (sampled mitigation table).
 func CreateDefenseSeedReply(characterObject uint32, defense []byte) (Packet, error) {
-	if characterObject < 1000000 || characterObject >= 1800000 {
+	if characterObject < 1000000 || characterObject >= PlayerObjectLimit {
 		return Packet{}, fmt.Errorf("%w: defense seed owner", ErrInvalidPacket)
 	}
 	w := NewWriter()
@@ -371,7 +371,7 @@ func CreateDefenseSeedReply(characterObject uint32, defense []byte) (Packet, err
 
 // CreateCancelSeedReply builds S6 (critical-cancel bitmap).
 func CreateCancelSeedReply(characterObject uint32, words []uint32) (Packet, error) {
-	if characterObject < 1000000 || characterObject >= 1800000 {
+	if characterObject < 1000000 || characterObject >= PlayerObjectLimit {
 		return Packet{}, fmt.Errorf("%w: cancel seed owner", ErrInvalidPacket)
 	}
 	w := NewWriter()

@@ -42,11 +42,21 @@ type memberView struct {
 	Items     []store.Item
 }
 
-// Room is one session (room) with up to eight slots. Every mutable field is
-// guarded by mu; network writes always happen outside the lock on a snapshot.
+// Room is one session (room) with up to maxRoomSlots slots. Every mutable field
+// is guarded by mu; network writes always happen outside the lock on a snapshot.
 // maxRoomSlots is the fixed roster size of a Bubble Fighter room: one player per
 // object partition, so it is the protocol's own slot count.
 const maxRoomSlots = protocol.PlayerSlots
+
+// roomSeatLimit is the seat count a room of this mode opens with. The retail
+// client seats twelve everywhere (the 2014 expansion); only the two NPC
+// families keep four, which is their own design and not a stale MapMeta number.
+func roomSeatLimit(mode uint32) int {
+	if mode == pirateModeID || mode == pveBossModeID {
+		return 4
+	}
+	return maxRoomSlots
+}
 
 type Room struct {
 	mu sync.RWMutex
@@ -300,8 +310,8 @@ func (r *Room) ReserveSlot(session *Session, capacity int) (int, uint8, error) {
 	return slot, team, nil
 }
 
-// capacityLocked is the room's seat count as the protocol states it: ordinary
-// rooms are eight seats, the pirate battle and the raid are four.
+// capacityLocked is the room's seat count as the protocol states it: twelve in
+// an ordinary room, four in the pirate battle and the raid.
 func (r *Room) capacityLocked() int {
 	capacity := int(r.Setting.Capacity)
 	if capacity <= 0 || capacity > maxRoomSlots {
@@ -346,7 +356,7 @@ func (r *Room) ClosedSeats() []int {
 }
 
 // SetSlotClosed shuts or reopens an empty seat. It refuses the cases the client's
-// own toggle refuses as well: a seat outside the room's capacity (eight in an
+// own toggle refuses as well: a seat outside the room's capacity (twelve in an
 // ordinary room, four in the pirate battle and the raid), a seat that holds a
 // player, and a seat that already has the requested state.
 func (r *Room) SetSlotClosed(slot int, closed bool) bool {
@@ -650,7 +660,8 @@ func (r *Room) NextSpawnIndex(slot int, teamSpawnCount uint32) uint32 {
 		// Only the first block is used. The second one (21-28) names the same
 		// places under different numbers -- a seat brought back on 26 stood exactly
 		// on 18 -- so mixing the two is what put two players on one spot. The first
-		// block's eight points are distinct, which covers a full room.
+		// block holds eight distinct points, so a room above eight seats reuses them
+		// in turn rather than handing out a second block.
 		now := time.Now()
 		free := make([]uint32, 0, span)
 		var oldest uint32
@@ -921,12 +932,7 @@ func (s *Server) handleCreateRoom(session *Session, packet protocol.Packet) erro
 	setting.State = 2
 	setting.Kind = 2
 	setting.Game = game
-	setting.Capacity = uint16(maxRoomSlots)
-	// The pirate battle's MapMeta rows carry MaxUser 4, so its room card and its
-	// join limit are four seats. The raid's rows say the same.
-	if setting.Game.Mode == pirateModeID || setting.Game.Mode == pveBossModeID {
-		setting.Capacity = 4
-	}
+	setting.Capacity = uint16(roomSeatLimit(game.Mode))
 	// The password arrived outside the setting (C402 carries it after the last
 	// field), so the client's own +46 flag is only a hint; the text decides.
 	setting.PasswordRequired = len(request.Password) > 0

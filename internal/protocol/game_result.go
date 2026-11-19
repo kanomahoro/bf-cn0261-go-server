@@ -56,9 +56,9 @@ func CreateGameResultReply(teamScores [2]uint16, winner uint8, players []GameRes
 }
 
 // resultSlots validates the result rows and places them in the client's
-// sixteen-slot table. The client's ScoreData record has sixteen slots; only eight
-// can be occupied, the rest must still be written as empty rows or the client
-// reads past the payload and crashes on the result screen.
+// sixteen-slot table. The client's ScoreData record has sixteen slots; only
+// PlayerSlots can be occupied, the rest must still be written as empty rows or
+// the client reads past the payload and crashes on the result screen.
 func resultSlots(players []GameResultPlayer) ([]*GameResultPlayer, error) {
 	if len(players) == 0 || len(players) > PlayerSlots {
 		return nil, fmt.Errorf("%w: game result capacity", ErrInvalidPacket)

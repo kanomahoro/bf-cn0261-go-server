@@ -57,7 +57,7 @@ func ReadPeerHit(p Packet) (PeerHit, error) {
 		return hit, err
 	}
 	if hit.ProjectileID >= 800000 || hit.TargetObject < 1000000 ||
-		(hit.TargetObject-1000000)/100000 >= 8 {
+		hit.TargetObject >= PlayerObjectLimit {
 		return hit, fmt.Errorf("%w: hit identifier partition", ErrInvalidPacket)
 	}
 	hit.TargetSlot = uint8((hit.TargetObject - 1000000) / 100000)
@@ -89,7 +89,7 @@ func ReadPeerExplosion(p Packet) (PeerExplosion, error) {
 	}
 	// The original destroys the bullet without a victim when the target is -1.
 	if target != Unset {
-		if target < 1000000 || (target-1000000)/100000 >= 8 {
+		if target < 1000000 || target >= PlayerObjectLimit {
 			return explosion, fmt.Errorf("%w: explosion target partition", ErrInvalidPacket)
 		}
 		explosion.TargetObject = target
@@ -199,7 +199,8 @@ func ReadPeerNearAttack(p Packet, sourceSlot uint8, equippedDefinition uint32) (
 	if err := r.RequireEnd(); err != nil {
 		return attack, err
 	}
-	if sourceSlot >= 8 || attack.SourceObject < 1000000 ||
+	if sourceSlot >= PlayerSlots || attack.SourceObject < 1000000 ||
+		attack.SourceObject >= PlayerObjectLimit ||
 		(attack.SourceObject-1000000)/100000 != uint32(sourceSlot) ||
 		attack.DamagerID/100000 != uint32(sourceSlot) {
 		return attack, fmt.Errorf("%w: near weapon partition", ErrInvalidPacket)
@@ -218,7 +219,7 @@ type PeerPing struct {
 
 // ReadPeerPing parses C32840 and validates the sender slot.
 func ReadPeerPing(p Packet, sourceSlot uint8) (PeerPing, error) {
-	if p.ID != 32840 || sourceSlot >= 8 {
+	if p.ID != 32840 || sourceSlot >= PlayerSlots {
 		return PeerPing{}, fmt.Errorf("%w: unsupported peer ping", ErrInvalidPacket)
 	}
 	r := NewReader(p.Payload)

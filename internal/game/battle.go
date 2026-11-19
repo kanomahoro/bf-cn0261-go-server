@@ -549,7 +549,7 @@ func (s *Server) handleHealthReport(session *Session, packet protocol.Packet) er
 		if err := r.RequireEnd(); err != nil {
 			return err
 		}
-		if objectID < 1000000 || objectID >= 1800000 ||
+		if objectID < 1000000 || objectID >= protocol.PlayerObjectLimit ||
 			(objectID-1000000)/100000 != uint32(session.slot) || kind > 13 {
 			return fmt.Errorf("%w: health recovery partition", protocol.ErrInvalidPacket)
 		}
@@ -565,7 +565,7 @@ func (s *Server) handleHealthReport(session *Session, packet protocol.Packet) er
 		if err := r.RequireEnd(); err != nil {
 			return err
 		}
-		if objectID < 1000000 || objectID >= 1800000 ||
+		if objectID < 1000000 || objectID >= protocol.PlayerObjectLimit ||
 			(objectID-1000000)/100000 != uint32(session.slot) {
 			return fmt.Errorf("%w: health reset partition", protocol.ErrInvalidPacket)
 		}
