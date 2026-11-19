@@ -23,7 +23,7 @@
 | --- | --- |
 | [`design.md`](design.md) | 连接、会话、房间、回合的生命周期与并发模型 |
 | [`logging.md`](logging.md) | **日志级别约定**：哪些事件走 Info、哪些只能 Debug，以及各模式的分类表 |
-| [`../CHANGELOG.md`](../CHANGELOG.md) | **每个版本改了什么、为什么改**（含现象、根因、真机日志），最新在最上面 |
+| [`../CHANGELOG.md`](../CHANGELOG.md) | **每个版本改了什么、为什么改**（含现象、根因、真机日志），最新在最上面；没有出号前先累积在顶部「未发布」段 |
 
 ## 3. 模式文档
 
@@ -61,3 +61,5 @@ CHANGELOG 对应版本里（12/18 的强制狙击枪、13 的无队伍结算、3
 - 真机结论要写「日期 + 日志文件 + 结论」，方便以后回查
 - 新增功能时**三处一起改**：README 的模式一览、CHANGELOG 的版本段、对应模式的 `<MODE>.md`（如果有）
 - 修复不往 README 里堆：README 只放模式与里程碑，逐条修复（现象/根因/证据）一律进 CHANGELOG
+- **出号前**：把 CHANGELOG 顶部「未发布」段整段换成 `## vX.Y.Z（YYYY-MM-DD 发布）`，同时改 README badge、
+  正文版本号与 `tools/bfserver-install.sh` 的 `VERSION`（四处一致，否则一键脚本 404）
