@@ -165,6 +165,16 @@ const (
 // as a draw -- the retail client ranks the seats itself from the score rows.
 const singlePvpModeID = 13
 
+// matchScoreLimit is the kill limit every versus mode runs: the round ends as soon
+// as one team's pang total reaches it. The individual hot-blood battle has no team
+// total, so there the limit is one seat's own pang count.
+//
+// It is the server's rule and not the client's: a create dialog copies MapMeta's
+// DeathMatchKillLimit (20) into Values128[0], and twenty team pangs is a short
+// round once twelve seats sit in the room. The two cooperative modes run no kill
+// limit at all -- their objective decides the round.
+const matchScoreLimit uint32 = 40
+
 // normalizeGameSetting reproduces RoomDirectory::NormalizeGameSetting: it keeps
 // only confirmed ordinary-room inputs and resolves the map, theme, time limit
 // and score limit.
@@ -330,10 +340,11 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	if limit == 0 {
 		limit = chosen.TimeLimitMilliseconds
 	}
-	score := request.Values128[0]
-	if score == 0 {
-		score = chosen.ScoreLimit
-	}
+	// The kill limit is this server's own: every create dialog copies MapMeta's
+	// stale DeathMatchKillLimit (20) into Values128[0], and the reference echoed it
+	// untouched. Twenty team pangs is a short round for twelve seats, so the versus
+	// modes run the server's limit instead of whatever the client wrote.
+	score := matchScoreLimit
 	// The zombie battle always runs the mode's own length: the client forces 180 s
 	// into the rule record at create time and keeps no rule of its own.
 	if request.Mode == zombieModeID {

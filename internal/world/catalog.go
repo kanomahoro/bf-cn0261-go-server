@@ -15,10 +15,14 @@ type Map struct {
 	Theme                 string `json:"theme"`
 	Difficulty            uint32 `json:"difficulty"`
 	TimeLimitMilliseconds uint32 `json:"timeLimitMilliseconds"`
-	ScoreLimit            uint32 `json:"scoreLimit"`
-	NormalMode            bool   `json:"normalMode"`
-	ItemMode              bool   `json:"itemMode"`
-	TeamSpawnCount        uint32 `json:"teamSpawnCount"`
+	// ScoreLimit is the MapMeta row's DeathMatchKillLimit (20 on every map). It is
+	// catalog data only: the round's kill limit is the server's own
+	// (internal/game.matchScoreLimit), because a create dialog would otherwise put
+	// this stale twenty back into every room's rule record.
+	ScoreLimit     uint32 `json:"scoreLimit"`
+	NormalMode     bool   `json:"normalMode"`
+	ItemMode       bool   `json:"itemMode"`
+	TeamSpawnCount uint32 `json:"teamSpawnCount"`
 	// DisplayName is the name the room card shows for this map: the string the
 	// client's own string table gives the map's Directory (StringTable/
 	// TranslatedXmlTable), which is also the text the client writes into a room

@@ -53,7 +53,8 @@ func (s *Server) broadcastScores(room *Room) bool {
 	var teamScores [2]uint32
 	limit := room.Setting.Game.Values128[0]
 	if limit == 0 {
-		limit = 20
+		// A room whose card states no kill limit still races one: the server's own.
+		limit = matchScoreLimit
 	}
 	teamless := room.Setting.Game.Mode == singlePvpModeID
 	limitReached := false

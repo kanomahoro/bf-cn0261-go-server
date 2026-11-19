@@ -156,7 +156,7 @@ INFO 只留一局一次的 `[Supplies] map report`。
 | 文件 | 内容规模 | 管什么 |
 | --- | --- | --- |
 | `server.json` | 服务端配置 | 上面所有字段 |
-| `game_maps.json` | 57 张地图 | 地图池、主题、每图的默认比分上限与时限，以及卡片显示名 `displayName` |
+| `game_maps.json` | 57 张地图 | 地图池、主题、每图的默认时限，以及卡片显示名 `displayName`。里面的 `scoreLimit` 是 MapMeta 的 `DeathMatchKillLimit`（全表 20），**已不参与对局**：击杀上限固定由服务端的 `matchScoreLimit` 决定（当前 40） |
 | `game_weapons.json` | 466 把武器 | 武器 ID 白名单与伤害系数（服务端只校验 ID，不计算伤害） |
 | `game_defense.json` | 448 件防具 | 防御修正，开对局时据此生成防御种子表下发 |
 | `game_characters.json` | 11 角色 / 12 频道 / 2 模式 | 角色血量修正、频道与模式元信息 |
