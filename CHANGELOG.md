@@ -1,5 +1,17 @@
 # Changelog
 
+## 未发布 — 爆破：中继宽限对齐到 60 秒
+
+`bombRelayGraceWait` 由 **20 秒 → 60 秒**。
+
+爆破小局切换时，客户端在切场景的一瞬（实测切场景后 49 ms）就拆掉 relay，要等地图加载完才用同一个
+key 重新注册。原来的 20 秒把「场景重载 + 地图加载 + 重连注册」全压在一个偏紧的窗口里：慢盘/
+机器繁忙时加载超过 20 秒，座位会被释放，队员这一小局直接掉线。
+
+现在与中继自己的注册窗口（`internal/net.relayRegistrationTimeout = 60 s`，原版实测值）对齐：
+同一个等待从服务端另一侧看就是 60 秒。代价只是真掉线的人多占 25 秒座位（爆破本来要人齐才能继续），
+远小于加载闸的 90 秒（`loadingTimeout`）。
+
 ## 未发布 — 普通模式扩到十二座
 
 2014 年 Nexon 把游戏强行扩到 12 人，但地图描述数据（MapMeta 的 `MaxUser`）没跟着改，那些
@@ -857,6 +869,7 @@ r8 真机测出的两个问题，改动全部落在 `mode == 19` 内，老模式
   `roundAfterDeparture` 又因 `phase != playing` 直接 `cancelRound`，客户端停在「准备 / 禁止退出」界面。
   现在爆破系列进行中（`BombSeriesActive`）先**保留座位**并起 20 秒宽限（`bombRelayGraceWait`），
   客户端用同一个 relay key 重新注册即可接上；宽限到点仍无 relay 且游戏连接还在，才按原逻辑释放
+  （该宽限后于未发布修正**改为 60 秒**，与中继注册窗口对齐）
 - **诊断日志**：`[Bomb] series started` / `[Bomb] next sub-round` 带 `map`；复活打 `[Bomb] revive used`；
   relay 宽限打 `[Bomb] relay transport dropped during the series; holding the seat` / `came back` /
   `did not come back`

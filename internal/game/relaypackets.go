@@ -234,9 +234,15 @@ func (s *Server) RelayDisconnected(roomID uint16, slot uint8) {
 }
 
 // bombRelayGraceWait is how long a bomb seat survives without a relay transport.
-// A client that reloads the next sub-round reconnects well inside it, and one that
-// does not is gone for good.
-const bombRelayGraceWait = 20 * time.Second
+//
+// The client tears its relay connection down the moment it switches to the next
+// sub-round's scene (2026-11-10: the drop arrived 49 ms after "next sub-round"),
+// and only re-registers once the map finished loading -- so this window covers the
+// whole reload. It is aligned with the relay's own registration window
+// (internal/net.relayRegistrationTimeout, 60 s), because the bomb grace is the same
+// wait seen from the other side: a slow disk that takes 30 s to load must not cost
+// the seat the round it was still loading into.
+const bombRelayGraceWait = 60 * time.Second
 
 // bombRelayGrace releases a bomb seat whose relay transport never came back.
 func (s *Server) bombRelayGrace(room *Room, slot uint8, target *Session) {
