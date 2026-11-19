@@ -7,6 +7,7 @@
 
 | 版本 | commit | tag | 交付包 | 状态 |
 | --- | --- | --- | --- | --- |
+| v1.2.0 | 见下 | `v1.2.0` | `bfserver-linux-amd64-v1.2.0.tar.gz` 等 5 个资产 + `SHA256SUMS` | **已出号，待上传资产**（十二座 + 比分上限 40 + 广场换装修复） |
 | v1.1.0 | 见下 | `v1.1.0` | `bfserver-linux-amd64-v1.1.0.tar.gz` 等资产 | **待发布**（数据库基线 + 中继透传 + 结构校验） |
 | v1.0.0 | 见下 | `v1.0.0` | `bfserver-linux-amd64-v1.0.0.tar.gz` 等 5 个资产 | **正式发布**（11 个模式全部验收） |
 | v0.9.18 | `b72db9c` 线 | `v0.9.18` | —（海盗多人收尾，已发布） | 稳定 |
@@ -79,6 +80,28 @@ PVE 积分诊断：分数单位前 5 条 Info + 结算计数 + 未认领房级�
 | `bfserver-win64-v0.9.19-pveboss-r4-20261114.zip` | `5d76e170558ab1e38b56e79a5e32a703623a8c0ec72647f0bb80cefaef55c4ad` |
 | `bfserver.exe`（包内） | `36d07c7a2ce282ec0757eeba3da7eec1a858ed0168436abff94ad0e6b17fd928` |
 | `bfserver-linux-amd64` | `6a7a86fb1215aa7910b7cf3ad8302302a2fdad897925e5feb492a168f7e768ec` |
+
+## v1.2.0 — 十二座 + 比分上限 40 + 广场换装修复
+
+覆盖 19 个提交（`5c47eeb..ddc058e`）：
+
+1. **十二座**：普通模式房间 8 → 12 座（海盗 101 / 僵尸 BOSS 16 仍 4 座），`PlayerSlots = 12`、
+   `PlayerObjectLimit`、四处 `>= 1800000` 硬上限、C509 边界 0..11；老库需手工把
+   `chk_game_result_players_slot` 放宽到 `slot < 12`（`database/` 不在启动比对范围）
+2. **比分上限 40**：`matchScoreLimit` 不再回显客户端的 20；僵尸局不吃击杀上限
+3. **爆破中继宽限** 20 s → 60 s；**广场换装** 现在会给其他成员重发座位卡
+4. 文档同步：README / CHANGELOG / docs（admin、configuration、database、design、releases）
+
+| 资产 | sha256 |
+| --- | --- |
+| `bfserver-linux-amd64-v1.2.0.tar.gz` | `31ab80594e46e56b1d841dbe72af68ea4a4e3bc24c3eb0684f223ab03759f710` |
+| `bfserver-linux-arm64-v1.2.0.tar.gz` | `e43df13fc2122c310a8a857bbb71d700ac450fbec3108f4a10b673a004172322` |
+| `bfserver-android-arm64-v1.2.0.tar.gz` | `237a51d342624f31f96670b4d09b42c1a3f6b9058ca0d3210b970a632e39ce25` |
+| `bfserver-windows-amd64-v1.2.0.zip` | `f4288bb72ea2f343bef88afbd2833f26bb73b29945f976b2abddc711fecb4565` |
+| `bfserver-windows-arm64-v1.2.0.zip` | `0738ab38aeff31ae4494eec3930a499a274567ff0c9f8b39aa0ddc6a0e11d7ab` |
+
+构建参数：`CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w"`；tar.gz 用固定
+`--mtime/--owner/--group`，zip 固定 `date_time=(2026,1,1)`，同一提交可复现。
 
 ## v1.1.0 — 数据库重构 + 中继对齐参考实现
 

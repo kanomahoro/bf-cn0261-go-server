@@ -13,7 +13,7 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 
 [![MIT License](https://img.shields.io/badge/License-MIT-D22128?style=flat-square)](LICENSE)
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
-![Version](https://img.shields.io/badge/version-v1.1.0-blue?style=flat-square)
+![Version](https://img.shields.io/badge/version-v1.2.0-blue?style=flat-square)
 
 Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
 协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致，
@@ -21,12 +21,13 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v1.1.0**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环（海盗与僵尸 BOSS 战的单人局、双人局均已在真机验收）。**客户端 11 个可选模式至此全部实现。**
+当前版本 **v1.2.0**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。**客户端 11 个可选模式至此全部实现。**
+本版把普通模式房间扩到 **12 座**（海盗 101 / 僵尸 BOSS 16 仍是 4 座）、击杀上限改为服务端自定的 **40**，并修掉广场换装不刷新。
 
 > 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
 > `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
 
-- **未发布（准备推送）** 普通模式扩到 **12 座**、比分上限改为服务端自己的 **40**、僵尸局不再吃击杀上限、
+- **v1.2.0** 普通模式扩到 **12 座**、比分上限改为服务端自己的 **40**、僵尸局不再吃击杀上限、
   爆破中继宽限 20 s → 60 s、广场换装后其他人立刻看到；老库需手工放宽结算座位的 CHECK（`slot < 12`），
   详见 [`CHANGELOG.md`](CHANGELOG.md) 顶部
 - **v0.9.19** 僵尸袭击 BOSS 战（16）落地：救援任务闹钟（924/925/926/927）、PVE 点数（923 → 928/929）、
@@ -56,7 +57,7 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 ## 模式一览
 
 客户端一共只提供 11 个可选模式（多出来的那些是别的版本才有的，**不要拿参考实现的配置当客户端能力证据**）。
-「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 已经走到 `v1.1.0`**，
+「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 已经走到 `v1.2.0`**，
 下表中已完成的模式全部随主线发布。
 
 | 模式 | 名称 | 服务端负责的部分 | 加入版本 | 状态 | 文档 |
@@ -191,7 +192,7 @@ go build -o bin/bfserver ./cmd/bfserver
 # 发布构建（-s -w 不能省：否则 exe 多出约 4 MB 符号表与 DWARF）
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o bfserver ./cmd/bfserver
 ./bfserver --version
-# BubbleFighter CN0261 Go Server v1.1.0  By:rurudoo
+# BubbleFighter CN0261 Go Server v1.2.0  By:rurudoo
 
 # 版本号写在 cmd/bfserver/main.go 的 Version 变量里；需要出号时再改，
 # 不要用 -X main.Version 在命令行覆盖（会与 CHANGELOG/发布包不一致）

@@ -3,10 +3,10 @@
 # 用法与参数说明：bash bfserver-install.sh --help（文本在下面的 usage() 里）
 set -Eeuo pipefail
 
-VERSION="1.1.0"
+VERSION="1.2.0"
 REPO="kanomahoro/bf-cn0261-go-server"
 BIN_ASSET="bfserver-linux-amd64-v${VERSION}.tar.gz"
-BIN_SHA256="a35680ef125d3dcba4a8df250348841d6872c5f7b38ce5db68c27c16b803d084"
+BIN_SHA256="31ab80594e46e56b1d841dbe72af68ea4a4e3bc24c3eb0684f223ab03759f710"
 PREFIX="/opt/bfserver"
 SERVICE="bfserver"
 DB_NAME="bubblefighter_cn0261"
