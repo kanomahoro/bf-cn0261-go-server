@@ -518,20 +518,51 @@ func (d *PlazaDirectory) completePing(sessionID uint64, responderSlot, requester
 	return tracker.Complete(sessionID, responderSlot, requesterSlot, members, time.Now())
 }
 
-// updatePlazaPresence refreshes a lobby character after equipment or level
-// changes. Callers load the data first so no database call happens under the
-// plaza lock.
+// updatePlazaPresence replaces one player's cached appearance and tells the rest of
+// the plaza, so an equipment change is visible without leaving and re-entering the
+// lobby. Callers load the data first so no database call happens under the plaza
+// lock.
+//
+// The member rows are a value array, so the update has to be written back into it --
+// ranging over the array only edits the loop copy. The broadcast waits until the
+// directory lock is released, because broadcastTargets takes that same lock.
 func (s *Server) updatePlazaPresence(characterID uint32, items []store.Item, character store.Character) {
+	wireCharacter := s.svc.WireCharacter(character)
+	updated := protocol.SessionMember{
+		Character: &wireCharacter,
+		Items:     s.svc.WireItems(items),
+		// Plaza seats report team 1, exactly like plazaMembers does for the entry
+		// roster; the client reads the seat's team from this field.
+		Team: 1,
+	}
+	type notice struct {
+		plaza  *Plaza
+		slot   int
+		sender uint64
+	}
+	var notices []notice
 	s.plazas.mu.Lock()
-	defer s.plazas.mu.Unlock()
 	for _, plaza := range s.plazas.plazas {
-		for _, member := range plaza.Members {
-			if member.session == nil || member.session.CharacterID() != characterID {
+		for slot := range plaza.Members {
+			entry := plaza.Members[slot]
+			if entry.session == nil || entry.session.CharacterID() != characterID {
 				continue
 			}
-			member.items = items
-			member.character = character
+			entry.items = items
+			entry.character = character
+			plaza.Members[slot] = entry
+			notices = append(notices, notice{plaza: plaza, slot: slot, sender: entry.session.ID})
 		}
+	}
+	s.plazas.mu.Unlock()
+	for _, entry := range notices {
+		reply, err := protocol.CreateRoomSlotReply(uint32(entry.slot), updated)
+		if err != nil {
+			continue
+		}
+		// The changed player's own client already rebuilt from S801/S805; every other
+		// member needs the seat card or it keeps drawing the old appearance.
+		s.broadcastPlaza(entry.plaza, reply, entry.sender)
 	}
 }
 
