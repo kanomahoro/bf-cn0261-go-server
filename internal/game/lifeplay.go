@@ -191,8 +191,13 @@ func (s *Server) handlePeerLife(session *Session, packet protocol.Packet, fromRe
 			s.pveBossDeathOfObject(room, event.VictimObject)
 		}
 		// The bomb mission is decided by the objective, never by a kill total: its
-		// score limit must not end a sub-round, the series decides the match.
-		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() && !room.PveBossRound() {
+		// score limit must not end a sub-round, the series decides the match. The
+		// zombie battle is decided by its own rules too -- the king's fall, the last
+		// human turning, or its 180 s -- so a human-side pang total must not settle it
+		// early (2026-11-19; the zombie side never adds to a team total, so that check
+		// could only ever hand the humans a premature win).
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() &&
+			!room.PveBossRound() && !room.ZombieRound() {
 			s.finishRound(room, false)
 			return nil
 		}
@@ -236,7 +241,8 @@ func (s *Server) handlePeerKick(session *Session, packet protocol.Packet, fromRe
 		"succeeded", event.Succeeded, "special", event.SpecialKick, "style", event.Style,
 		"room", room.ID)
 	if accepted {
-		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() && !room.PveBossRound() {
+		if s.broadcastScores(room) && !room.BombRound() && !room.PirateRound() &&
+			!room.PveBossRound() && !room.ZombieRound() {
 			s.log.Debug("score limit reached", "room", room.ID)
 			s.finishRound(room, false)
 		}
