@@ -321,5 +321,4 @@ if !room.PveBossRound() || !pveCountedKind(boxKind) {
 | `bfserver.exe`（包内） | `2f665ed334cbaecc5987d83889e8e04fd633646b69af01e10c26c66fe710ef6a` |
 | `bfserver-linux-amd64` | `8a4d6fb21d1f3997bb1d886a0fe9430f996a5e79913a90c8e7092b494c190838` |
 
-**这一版的单元测试**（14 个，`*_test.go` 不进版本库）留档在
-`~/.openclaw/workspace/artifacts/2026-11-14-pveboss/`。
+**这一版的单元测试**（14 个，`*_test.go` 不进版本库）已从历史取回留档，不随仓库分发。

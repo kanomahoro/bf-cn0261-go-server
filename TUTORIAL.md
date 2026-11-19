@@ -78,7 +78,7 @@
 | 击爆-狙击 | 8 | 8/18/28 | `goalPangCount` 20/30/40 + `goalPointArrive=1` | 210 |
 | 프롤로그 | — | **0** | 波次教程（无 goal 字段） | 99999 |
 
-明细：`workspace/notes/data-bf-tutorial-stages.csv`。
+明细来自客户端数据里的 25 关 MapMeta 行（不随仓库分发）。
 
 **prologue（`rel_prologue_01`）**：海盗据点救人剧情，纯单人（1/1），首通奖励 `2110130`（我们不发），
 怪来自 `NpcMode/rel_prologue_01*.lua` 的刷怪点。它和海盗模式（101）同一套波次链路。

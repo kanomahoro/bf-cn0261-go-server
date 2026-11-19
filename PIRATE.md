@@ -2,8 +2,8 @@
 
 **状态：单人局 + 双人局真机通过**（v0.9.18 定版）：波次、怪物同步、仇恨、结算、计分（泡封 / 击爆 / 营救）均已验收。
 
-- 客户端数据：`artifacts/2026-11-04-clientdata/`（国服 2015 `MapMeta.xml`、`HotRandomMap.ini`）
-- 参考实现：`workspace/tmp/fantasy`（`packets/horde*.yaml`、`NpcBinding.cs`、`RoundFlow.Npc.cs`、`profiles/cn-717/`）
+- 客户端数据：国服 2015 客户端解包件（`MapMeta.xml`、`HotRandomMap.ini`），客户端数据不随仓库分发
+- 参考实现：`BubbleFighter.Fantasy` 源码（`packets/horde*.yaml`、`NpcBinding.cs`、`RoundFlow.Npc.cs`、`profiles/cn-717/`）
 - 代码：`internal/game/pirate.go`、`internal/world/hordemaps.go`、`internal/game/life.go`（`npcRounds` 分支）
 
 ## 1. 方案
@@ -25,7 +25,7 @@
 | 随机池 | `HotRandomMap.ini` 的 `HordeLv0NMapCnt`，每档 6 张 |
 | 房主随机标记 | 客户端发 `Random_Hot_Dif1/2/3` |
 
-33 张清单：`workspace/notes/data-bf-horde-maps.csv`（4 张 `npc_Zombie_*` 是 102 遗留，不进池）。
+33 张清单来自客户端数据里的 `HotRandomMap.ini` 与地图目录（4 张 `npc_Zombie_*` 是 102 遗留，不进池）。
 
 ## 3. 协议
 

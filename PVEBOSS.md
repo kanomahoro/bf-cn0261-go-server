@@ -3,9 +3,9 @@
 **状态：已定版（`v1.0.0`）**——单人两局（一负一胜）、双人两局（一负一胜）真机通过；
 计数道具、掉落拾取、感染转队、僵尸座位复活、通关/判负、双人结算均已验证。
 
-- 客户端数据：`artifacts/2026-11-04-clientdata/`（国服 2015 `MapMeta.xml`、`HotRandomMap.ini`、
-  7 张图的 `<dir>_ZombiePve.ini`）
-- 参考实现：`workspace/tmp/fantasy`（`packets/pve-rescue-missions.yaml`、`packets/pve-counted-items.yaml`、
+- 客户端数据：国服 2015 客户端解包件（`MapMeta.xml`、`HotRandomMap.ini`、7 张图的 `<dir>_ZombiePve.ini`），
+  客户端数据不随仓库分发
+- 参考实现：`BubbleFighter.Fantasy` 源码（`packets/pve-rescue-missions.yaml`、`packets/pve-counted-items.yaml`、
   `packets/pve-points.yaml`、`RoundFlow.Rescue.cs`、`RoundFlow.PvePoints.cs`、`profiles/cn-717/`）
 - 代码：`internal/game/pveboss.go`、`internal/world/pvemaps.go`、`internal/protocol/pve.go`
 

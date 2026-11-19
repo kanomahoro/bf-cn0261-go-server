@@ -578,7 +578,7 @@ C724 → S729 → S705 → …3s… → S729（重发，内容相同）→ S733 
   但爆破不在 `ammoSupplyMode` 里，上报被丢弃、箱子从未生成。现与其他弹药模式同链路；
   另外 `startSupplies` 每轮重置 `ActiveID`，否则上一小局残留的箱子 id 会让该点下一小局整局不刷。
 - `405db4a` **爆破：整场结算不发 S732**。第三局结束后 `endAnnouncement` 阶段广播 S732，而爆破的
-  `teamScores` 恒为 0:0，胜利方非房主在 2.84 s 后掉线（真机日志 `artifacts/logs/2026-11-11/bomb-2v2-3rd-round-crash-2218.log`）。
+  `teamScores` 恒为 0:0，胜利方非房主在 2.84 s 后掉线（真机日志 `bomb-2v2-3rd-round-crash-2218.log`）。
   现 `sendsWinnerAnnouncement(mode)` 让爆破跳过；S729 结果屏 / S733 / S736 链条不变。
 - **爆破定稿**：小局结果横幅与 HUD 队伍比分不再尝试（见 `BOMB.md` 的验收结论）。
 

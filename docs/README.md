@@ -44,14 +44,10 @@ CHANGELOG 对应版本里（12/18 的强制狙击枪、13 的无队伍结算、3
 客户端可选模式共 11 个，**已全部实现**：1 / 3 / 8 / 12 / 13 / 14 / 18 / 19 / 20 / 101 / 16，外加单人教程（25 关）。
 16 僵尸 BOSS 战是最后一个，已随 v0.9.19 落地，单人+双人真机通过，v1.0.0 定版（含地图传送点）。
 
-## 4. 调研与素材（在 agent workspace，不在本仓库）
+## 4. 调研与素材（不随仓库分发）
 
-| 路径 | 内容 |
-| --- | --- |
-| `workspace/notes/bf-tutorial-mode-research.md` | 教程模式的调研过程与证据 |
-| `workspace/notes/data-bf-tutorial-stages.csv` | 25 关的 MapMeta 数据 |
-| `workspace/artifacts/2026-11-04-clientdata/` | 国服 2015 客户端数据解包件（MapMeta、Config.bfz 工具等，**别删**） |
-| `workspace/artifacts/logs/2026-11-11/` | 真机日志归档 + 每份日志证明了什么 |
+客户端数据（`MapMeta.xml`、`HotRandomMap.ini`、`Config.bfz` 等）、各模式的调研笔记与真机日志归档
+都属于本地素材，不随仓库分发；需要对照时向维护者索取。
 
 ## 5. 写作约定
 
