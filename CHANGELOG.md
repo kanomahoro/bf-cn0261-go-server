@@ -18,6 +18,18 @@
 - **开关座位（C509）** 的边界从 0..7 变成 0..11；海盗/僵尸BOSS 仍只能关 0..3
 - 出生点每队仍是 8 个（MapMeta 的 `TeamSpawnCount`），6v6 够用；`RoomStagePosition.ini`
   有 red01..red16；对象号不冲突（盒子 0x62000000、道具 0x63000000）
+- **数据库**：`game_result_players` 的 `chk_game_result_players_slot` 从 `slot < 8` 放宽到
+  **`slot < 12`**。不改的话，9 号及以后的座位一结算就违约 → 整笔事务回滚（经验/金币/战绩
+  全部不入库）→ 服务端重试 3 次后 `cancelRound`，玩家没有结算画面
+  ——注意 8 人局也可能坐到 9 号：房主离场腾空低号位后，补位的人会落到高号位。
+  **老库需要手动执行**（启动只比对表/列结构，不会自动发现 CHECK 变了）：
+  ```sql
+  ALTER TABLE game_result_players
+    DROP CONSTRAINT chk_game_result_players_slot,
+    ADD CONSTRAINT chk_game_result_players_slot CHECK (slot < 12);
+  ```
+  （MariaDB 用 `DROP CONSTRAINT`；只支持 10.2.22+。或用 `database/migrate.sh --force` 重建，
+  但会清库）
 - **已知未做**：比分上限仍是客户端写进 `Values128[0]` 的 20（12 人局会明显更短）；
   个人热血（13）的出生点只有第一块 8 个点，12 人必然复用
 - **待真机确认**：S110 会发 12 条座位记录（客户端等待室能否画出 12 格）、C509 的 slot

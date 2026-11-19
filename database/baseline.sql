@@ -268,7 +268,7 @@ CREATE TABLE `game_result_players` (
   KEY `idx_game_result_players_character_id` (`character_id`),
   CONSTRAINT `fk_game_result_players_character_id` FOREIGN KEY (`character_id`) REFERENCES `characters` (`id`),
   CONSTRAINT `fk_game_result_players_game_result_id` FOREIGN KEY (`game_result_id`) REFERENCES `game_results` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `chk_game_result_players_slot` CHECK (`slot` < 8),
+  CONSTRAINT `chk_game_result_players_slot` CHECK (`slot` < 12),
   CONSTRAINT `chk_game_result_players_team` CHECK (`team` in (1,2)),
   CONSTRAINT `chk_game_result_players_experience_after` CHECK (`experience_after` <= 2147483647),
   CONSTRAINT `chk_game_result_players_lucci_after` CHECK (`lucci_after` <= 2147483647),
