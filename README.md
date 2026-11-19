@@ -3,10 +3,8 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 > 仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营或任何侵犯他人权利的场景。
 > 游戏名称、商标、美术与音频等素材的权利归原权利人所有。
 >
-> 部分协议行为与数据库结构参考 C++ 原版
-> [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（MIT，Copyright (c) 2026 Albert Gong）；
-> 中继转发语义、包表与部分模式规则参考同为 cn-717 的 C# 实现
-> [Wasabi-FantasyTaleDev/BubbleFighter.Fantasy](https://github.com/Wasabi-FantasyTaleDev/BubbleFighter.Fantasy)（MIT，Copyright (c) 2026 Fantasy Tale Studio）。
+> 部分协议行为与数据库结构参考 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版，MIT）；
+> 中继语义、包表与部分模式规则参考 [Wasabi-FantasyTaleDev/BubbleFighter.Fantasy](https://github.com/Wasabi-FantasyTaleDev/BubbleFighter.Fantasy)（同为 cn-717 的 C# 实现，MIT）。
 > 两处参考都只取协议事实与行为约定，没有引入其代码。
 
 # Bubble Fighter CN0261(cn-717) Server (Go)
@@ -15,50 +13,23 @@ Copyright (c) 2026 kanomahoro. 本项目以 MIT 协议开源，全文见 [LICENS
 ![Go](https://img.shields.io/badge/Go-1.27+-00ADD8?style=flat-square&logo=go)
 ![Version](https://img.shields.io/badge/version-v1.2.0-blue?style=flat-square)
 
-Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo，
-协议与数据库结构与 [K1roSama/BubbleFighter_CN0261_Server](https://github.com/K1roSama/BubbleFighter_CN0261_Server)（C++ 原版）保持一致，
-中继与部分模式的网络行为对齐 [BubbleFighter.Fantasy](https://github.com/Wasabi-FantasyTaleDev/BubbleFighter.Fantasy)（同版本的 C# 实现）。
-
+Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版：单二进制、无 cgo，协议与数据库结构对齐 C++ 原版，
+中继与部分模式的网络行为对齐 `BubbleFighter.Fantasy`。
 仓库：<https://github.com/kanomahoro/bf-cn0261-go-server>
 
-当前版本 **v1.2.0**：竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸袭击 BOSS 战（16），外加单人教程（25 关）；均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。**客户端 11 个可选模式至此全部实现。**
-本版把普通模式房间扩到 **12 座**（海盗 101 / 僵尸 BOSS 16 仍是 4 座）、击杀上限改为服务端自定的 **40**，并修掉广场换装不刷新。
+当前版本 **v1.2.0**：客户端 11 个可选模式全部实现，外加单人教程（25 关），
+均已跑通「登录 → 广场 → 建房 → 对局 → 结算落库 → 回房」完整闭环。
+本版把普通模式房间扩到 **12 座**（海盗 101 / 僵尸 BOSS 16 仍是 4 座）、击杀上限改为服务端自定的 **40**，
+并修掉广场换装不刷新。逐条变更以 [`CHANGELOG.md`](CHANGELOG.md) 为准。
 
-> 详细变更一律以 [`CHANGELOG.md`](CHANGELOG.md) 为准，本文件只列里程碑。版本号在
-> `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG 三处一起改。
-
-- **v1.2.0** 普通模式扩到 **12 座**、比分上限改为服务端自己的 **40**、僵尸局不再吃击杀上限、
-  爆破中继宽限 20 s → 60 s、广场换装后其他人立刻看到；老库需手工放宽结算座位的 CHECK（`slot < 12`），
-  详见 [`CHANGELOG.md`](CHANGELOG.md) 顶部
-- **v0.9.19** 僵尸袭击 BOSS 战（16）落地：救援任务闹钟（924/925/926/927）、PVE 点数（923 → 928/929）、
-  三格计数道具（930 + 921 → 715）、感染转队（C515 → S504）、7 张 `rel_zombie*` 图与 600 s 时限、结算不发奖励；
-  规则与协议见 [`PVEBOSS.md`](PVEBOSS.md)
-- **v0.9.18** 海盗多人收尾：双人结算（`906` 广播全房）、结算序列对齐参考实现（不发 `S732`、`S733` 前重发 `S729`）、
-  结算面板计分（泡封 / 击爆三条路径 / 营救）、随机图回房间的卡片闪退修复；日志前缀与级别统一（见 `docs/logging.md`）
-- **v0.9.0** 单人教程（25 关）入版、海盗模式（101）落地（首次实现，待真机）；修掉爆破整场结算掉线、爆破地图没有弹药箱、狙击射爆泡封不计分；
-  日志级别按 `docs/logging.md` 重新梳理；单元测试移出版本库
-- **v0.8.5** relay 改动收敛到爆破：预留期回到 2 分钟、同 key 接管只对标记可复用的 key 生效
-- **v0.8.x** 爆破真机迭代：小局之间只发 `S705`（横幅与 HUD 队伍比分确认无法安全实现，定稿放弃）；
-  复活预算改为每小局 2 次；relay 预留期与接管收敛到只在爆破生效
-- **v0.7.x** 爆破小局重开：客户端重载场景会拆 relay，服务端改为宽限 20 秒不释放座位；
-  观察者（`S974`）、爆炸先于时钟的判定、地图池校验（6 张，含两张只属于爆破的图）
-- **v0.6.0** 爆破（19）落地：三局两胜、每小局攻守互换、炸弹装机/拆弹/爆炸状态机（2012/2011 → 973）、
-  死亡转观察者（S974）、小局之间只重载场景不重进房间、整场只结算一次。规则见 [`BOMB.md`](BOMB.md)
-- **v0.5.0** 队长战（20）真机验收通过：开局点名（S982）、阵亡转交（泡封队友不接任）、
-  队长 ULTRA（C707 无对象 + kind 104 → S715）；Relay 注册窗口放宽到 60 秒；
-  管理后台修复日志/对局记录翻页与钱包负数提示。规则见 [`CAPTAIN.md`](CAPTAIN.md)
-- **v0.4.0** 狙击 / 热血个人 / 热血团队 / 热血狙击四种模式、管理后台完善（翻页、钱包核实、战绩布局）、
-  弹药箱扩到狙击与热血、复活点轮换、感应地雷 id 修正、广场幽灵座位修复
-- **v0.3.2** 管理控制台、房间密码、重复登录接管、广场幽灵座位与退房并发修复
-- **v0.3.1** 仓库合并与日志/文档整理，**无协议与玩法改动**
-- **v0.3.0** 僵尸模式（真机验收定稿，规则见 [`ZOMBIE.md`](ZOMBIE.md)）
-- **v0.2.0** 道具战；更早的变更见 [`CHANGELOG.md`](CHANGELOG.md)
+- **v1.2.0** 十二座 / 击杀上限 40 / 僵尸局不吃击杀上限 / 爆破中继宽限 60 s / 广场换装即时可见；
+  老库需手工把结算座位的 `CHECK` 放宽到 `slot < 12`（见 [`database/README.md`](database/README.md)）
+- **v1.1.0** 单一数据库基线 + 表结构校验；中继改为参考实现的透传策略（≥`0x8000` 原样转发）
+- **v1.0.0** 11 个模式全部真机验收，发布第一个正式版；更早的里程碑见 [`CHANGELOG.md`](CHANGELOG.md)
 
 ## 模式一览
 
 客户端一共只提供 11 个可选模式（多出来的那些是别的版本才有的，**不要拿参考实现的配置当客户端能力证据**）。
-「加入版本」是这套服务端里第一次能开局并落库的版本；**GitHub 主线 `main` 已经走到 `v1.2.0`**，
-下表中已完成的模式全部随主线发布。
 
 | 模式 | 名称 | 服务端负责的部分 | 加入版本 | 状态 | 文档 |
 | --- | --- | --- | --- | --- | --- |
@@ -70,139 +41,75 @@ Bubble Fighter CN0261(cn-717) 服务端的 Go 重写版。单二进制、无 cgo
 | 14 | 热血团队 | 去掉泡封—营救的竞技，最后一击直接死亡并计分 | v0.4.0 | 稳定 · 已发布 | — |
 | 18 | 热血狙击 | 同 14 + 强制狙击枪 + 弹药箱 | v0.4.0 | 稳定 · 已发布 | — |
 | 20 | 队长战 | 开局点名（S982）、阵亡转交（泡封中不接任）、队长 ULTRA | v0.5.0 | 定稿 · 已发布 | [`CAPTAIN.md`](CAPTAIN.md) |
-| 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | **定稿 · 已发布** | [`BOMB.md`](BOMB.md) |
-| 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 · 已发布（真机通过） | [`TUTORIAL.md`](TUTORIAL.md) |
-| 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算（不发奖励）、弹药箱、结算面板计分（泡封/击爆/营救） | v0.9.0 | **单人+双人真机通过 · 已发布**（v0.9.18） | [`PIRATE.md`](PIRATE.md) |
-| 16 | 僵尸袭击 BOSS 战（PVE 救援） | 7 张 `rel_zombie*` 图、1–4 人合作、救援任务闹钟、PVE 点数/排行、三格计数道具、感染转队、结算（不发奖励） | v0.9.19 | **单人+双人真机通过 · 定版**（`v1.0.0`） | [`PVEBOSS.md`](PVEBOSS.md) |
-
-逐条修复（现象 / 根因 / 改法 / 真机结论）记在 [`CHANGELOG.md`](CHANGELOG.md)，最新见顶部「未发布」段；
-本表只列模式与里程碑，不重复细节。
+| 19 | 爆破 | 三局两胜、攻守固定（本客户端不换边）、炸弹状态机、每小局 2 次复活、观察者 | v0.6.0 | 定稿 · 已发布 | [`BOMB.md`](BOMB.md) |
+| 15 / 103 | 教程（编号关 / prologue） | 25 关单人关卡、NPC 波次、计数与结算，**不建房、不落库** | v0.9.0 | 定稿 · 已发布 | [`TUTORIAL.md`](TUTORIAL.md) |
+| 101 | 海盗（wgtHorde） | 33 张 npc_* 图、1–4 人合作、房主跑波次与刷怪、服务端转发与结算、弹药箱、计分 | v0.9.0 | 单人+双人真机通过 | [`PIRATE.md`](PIRATE.md) |
+| 16 | 僵尸袭击 BOSS 战 | 7 张 `rel_zombie*` 图、1–4 人合作、救援任务闹钟、PVE 点数、三格计数道具、感染转队 | v0.9.19 | 单人+双人真机通过 | [`PVEBOSS.md`](PVEBOSS.md) |
 
 ## 功能范围
-
-**已实现**
 
 | 模块 | 内容 |
 | --- | --- |
 | 登录与角色 | 票据登录、建角、昵称校验、角色外观 |
-| 大厅 | 广场（每实例 16 人）、房间 **12 座**（海盗 101 / 僵尸 BOSS 16 仍是 4 座）、房间列表、建房/进房/换队/准备/踢人/聊天 |
+| 大厅 | 广场（每实例 16 人）、房间 **12 座**（海盗 / 僵尸 BOSS 4 座）、房间列表、建房/进房/换队/准备/踢人/聊天 |
 | 对局 | 加载门控、防御种子表、倒计时、生命状态机、复活、比分、结算 |
-| 模式 | 竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、热血狙击（18）、爆破（19）、队长战（20）、海盗（101）、僵尸 BOSS 战（16） |
-| 单人教程 | 落地页「教程」→ 选关（25 关全开）→ 编号关卡（mode 15）/ prologue（mode 103），不建房间 |
 | 结算 | 每局写 `game_results` / `game_result_players` / `game_result_awards`，经验与 Lucci 落库 |
 | 商店与背包 | 目录、购买（Lucci/点卷）、装备、武器预设、期限道具过期清理 |
 | 认证端 | 登录器自助注册（邀请码 + 按 IP 限流）、一次性登录票据 |
-| 中继 | 对局内 peer 转发（26104），按预约 key 与源 IP 绑定；≥0x8000 的对局内帧原样转发（对齐参考实现的 passthrough），只吃掉复活请求与延迟探测；成员中继不可用时不再回退到游戏连接 |
-| 补给 | 道具箱与弹药箱的点位上报、按间隔刷新、拾取广播（道具战、僵尸、狙击、热血、爆破、海盗） |
-| 管理后台 | 概览、在线玩家、房间、日志、战绩、公告、改钱包、封禁，列表均支持翻页（默认关闭） |
+| 中继 | 对局内 peer 转发（26104），按预约 key 与源 IP 绑定；≥`0x8000` 的帧原样转发，只吃复活请求与延迟探测 |
+| 补给 | 道具箱与弹药箱的点位上报、按间隔刷新、拾取广播 |
+| 管理后台 | 概览、在线玩家、房间、日志、战绩、公告、改钱包、封禁；列表均支持翻页（默认关闭） |
 
-**未实现**：客户端根本不提供的
-夺星 5/6、AOS 22 等（**不要拿参考实现的配置当客户端能力证据**）、
-多大厅频道、服务端反作弊（战斗判定沿用客户端上报，与 2015 原版一致）。
+**未实现**：客户端根本不提供的模式（夺星 5/6、AOS 22 等）、多大厅频道、服务端反作弊
+（战斗判定沿用客户端上报，与 2015 原版一致）。
 
 ## 环境要求
 
 - **数据库：MariaDB 10.11**（只在 MariaDB 上验证过，MySQL 未测试）
 - **Go 1.27+**（仅构建需要，运行只要二进制）
-- **客户端：Bubble Fighter CN0261(cn-717)**（BubbleFighter 2015 国服版）—— 需自备，本仓库不提供
+- **客户端：Bubble Fighter CN0261(cn-717)**（2015 国服版）——需自备，本仓库不提供
 - 依赖只有两个：`go-sql-driver/mysql`、`golang.org/x/crypto/scrypt`
-- 验证环境：Debian 12 x86_64 / MariaDB 10.11.19 / 2 vCPU 2 GB（对局与压测均在此规格下跑通）
+- 验证环境：Debian 12 x86_64 / MariaDB 10.11.19 / 2 vCPU 2 GB（对局与压测均在此规格跑通）
 
 ## 一键安装（Debian 12+）
 
-需要一台全新的 Debian 12（或更新）服务器，root 权限。三步：
-
 ```bash
-# 1. 更新系统，装好下载工具
-sudo apt update && sudo apt -y upgrade
-sudo apt install -y wget curl
-
-# 2. 拉取 main 分支上最新的安装脚本
+sudo apt update && sudo apt install -y wget curl
 wget -O bfserver-install.sh \
   https://raw.githubusercontent.com/kanomahoro/bf-cn0261-go-server/main/tools/bfserver-install.sh
-
-# 3. 运行（交互式：会问你公网 IP 和注册邀请码，回车即用默认值）
-sudo bash bfserver-install.sh
+sudo bash bfserver-install.sh        # 交互式：问公网 IP 与注册邀请码，回车用默认
 ```
 
-没有 `wget` 就用 `curl -fsSL -o bfserver-install.sh <同一个地址>`。
-脚本里写死了版本号和二进制的 sha256，所以从 `main` 拉脚本拿到的是**当前发布版**的安装器：
-它会去 Release 下载对应 `vX.Y.Z` 的资产并校验，不会因为 main 上多一个提交就装上未经发布的东西。
+八步全自动（检查系统 → 装 MariaDB → 建库建号 → 下载并校验发布包 → 导入基线 → 生成配置与 26102 自签证书 →
+注册 systemd 服务 → 自检端口）。脚本里写死了版本号与二进制 sha256，所以从 `main` 拿到的始终是**当前发布版**的安装器。
 
-八步全自动：检查系统 → 装 MariaDB → 建库建号 → 从 GitHub 下载发布版 → 导入数据库基线（schema revision 1）→
-生成配置与 26102 自签证书 → 注册 systemd 服务并启动 → 自检三个端口。
+- **更新**：重跑脚本即可——旧 `config/` 备份到 `config.bak.<时间>/`，`server.json` 与证书沿用，
+  库已是本版基线则跳过导入、数据保留；旧结构会**在动任何文件之前**停下
+- **重建**：`--rebuild-db`（先备份到 `/opt/bf-backup-<库名>-<时间>.sql.gz`，会清空账号与战绩）
+- 其它：`--ip <地址>`（NAT 云主机）、`--dry-run`、`--yes`、`--uninstall`、`--offline`（配 `--bin` / `--src` 用本地包）
+- 想固定装某个旧版本：把上面地址里的 `main` 换成对应 tag（但**脚本本身建议始终从 `main` 拉**，tag 里的是当时的快照）
+- **云主机放行 26100 / 26102 / 26104**；只放 26100 会出现「能登录、进对局转圈」
 
-**已经有安装在跑时重新执行**：脚本会把它当「更新」处理——旧 `config/` 整目录备份到
-`config.bak.<时间>/`，`server.json` 与证书沿用（只补缺失字段），`config/game_*.json` 等随版本更新，
-数据库如果已经是本版基线就**跳过导入**、数据原样保留。
-
-**从旧版（比如 v1.0.0 的 14 表结构）升上来**：本版不做原地升级。脚本会在动任何文件之前停下并说明原因；
-确认要重建（会清空账号、角色、道具、战绩）就加一个参数：
-
-```bash
-sudo bash bfserver-install.sh --rebuild-db   # 先备份到 /opt/bf-backup-<库名>-<时间>.sql.gz，再重建
-```
-
-云主机如果自动探测到的是内网地址（NAT 环境），脚本会停下并要求明确给出公网 IP：
-
-```bash
-sudo bash bfserver-install.sh --ip 203.0.113.10        # 不安参数时交互模式会直接问
-```
-
-- 公网 IP 自动探测（探到内网会提醒）、邀请码随机、数据库密码随机 24 位（不打印只落盘）
-- 装完会提示：三个端口要放行、以及**管理后台默认关闭**和怎么开启（见下文「管理后台（可选）」）
-- 其他用法：`--dry-run`（只看会做什么，不改系统）、`--yes`（全自动）、`--uninstall`（卸载，库默认保留）
-- 安装目录 `/opt/bfserver`，服务名 `bfserver`，日志 `Logs/Server.log`，密码与邀请码在 `/root/.bfserver-secrets`
-- **云主机要放行 26100 / 26102 / 26104**，只放行 26100 会出现「能登录、进对局转圈」
-
-> 安装脚本只从**仓库**（main 或某个 tag）取，**不随 Release 发布**：Release 里只放二进制包和
-> `SHA256SUMS`。脚本里锁定版本与 sha256，所以从 main 拿到的始终是「当前发布版」的安装器。
-> 完整发布流程见 [`docs/release.md`](docs/release.md)。
-> 想固定装某个旧版本：把上面 `main` 换成对应 tag（如 `v0.4.0`）即可；
-> 但**脚本本身建议始终从 `main` 拉** —— tag 里的脚本是当时的快照，不含之后的修复。
-
-手动安装、数据库准备与登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
+安装细节、手动安装、登录器打包：见 [`docs/manual-install.md`](docs/manual-install.md)。
 
 ## 登录器（可选）
 
-`launcher/` 是一套 Windows 用的图形登录器（Python 3.9+ / tkinter），替代原版启动器，
-把「登录 → 拉起客户端」收成一次点击：
-
-- **登录与注册**：填服务器 IP 与认证端口（默认 `26102`），可直接在登录器里注册
-  （账号、密码、角色名、邀请码），服务端按 IP 限流；**不保存密码**，
-  只在 `%APPDATA%\BubbleFighterCN0261Launcher\config.json` 里记住服务器地址、端口与账号名。
-- **票据注入**：登录成功后自行拉起 `BubbleFighter.exe`，把一次性登录票据直接写进客户端内存，
-  不用手改配置或命令行参数，**不往客户端目录写任何文件**。
-- **单机多开**：每个实例启动时把客户端的单实例互斥体名改成 `B261_<实例号>`，
-  同一台机器可以开多个客户端（要用不同账号，同一角色同时进广场会被服务端拒绝）。
-- **高分辨率扩展（可选）**：勾选后启动时给客户端打一组内存补丁，设置菜单里会出现显示器
-  真正支持的分辨率（上限 1920×1080，超出会拉伸失真）；只改内存不改文件，不勾选就完全不碰客户端。
-- **启动前校验**：用 SHA-256 校验客户端镜像，版本不对直接拒绝启动，不会把票据注入到错误的客户端。
-
-源码在 [`launcher/`](launcher/)，打包成单文件 exe 与使用步骤见
-[`docs/manual-install.md`](docs/manual-install.md)；分辨率扩展的补丁点来自
-`Wasabi-FantasyTaleDev/FantasyTale.Launcher` 的 `resolution-extension` 插件（MIT），
-细节与上架规则同样记在那份文档里。
+`launcher/` 是一套 Windows 图形登录器（Python 3.9+ / tkinter）：填服务器 IP 与 26102 端口即可注册/登录，
+登录成功后自己拉起客户端并把一次性票据写进内存（不落文件）；支持单机多开（互斥体改名）与可选的
+高分辨率内存补丁。源码在 [`launcher/`](launcher/)，打包与用法见 [`docs/manual-install.md`](docs/manual-install.md)。
 
 ## 构建
 
 ```bash
 go build -o bin/bfserver ./cmd/bfserver
 
-# 发布构建（-s -w 不能省：否则 exe 多出约 4 MB 符号表与 DWARF）
+# 发布构建（-s -w 与 -buildvcs=false 不能省：前者省 4 MB 符号表，后者保证产物可复现）
 CGO_ENABLED=0 go build -trimpath -buildvcs=false -ldflags "-s -w" -o bfserver ./cmd/bfserver
-./bfserver --version
-# BubbleFighter CN0261 Go Server v1.2.0  By:rurudoo
-
-# 版本号写在 cmd/bfserver/main.go 的 Version 变量里；需要出号时再改，
-# 不要用 -X main.Version 在命令行覆盖（会与 CHANGELOG/发布包不一致）
+./bfserver --version    # BubbleFighter CN0261 Go Server v1.2.0  By:rurudoo
 ```
 
-发布树里不带单元测试（`go build` 也不会把它们编进二进制）。需要回归测试时从历史取回：
-
-```bash
-git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
-```
+版本号写在 `cmd/bfserver/main.go` 的 `Version`，出号时与 README badge、CHANGELOG、安装脚本四处一起改。
+发布树不带单元测试（`*_test.go` 在 `.gitignore`），回归时从历史取回。完整流程见 [`docs/release.md`](docs/release.md)。
 
 ## 端口
 
@@ -213,77 +120,32 @@ git checkout 440570a -- internal/game/*_test.go && go test ./internal/game
 | 26104 | 对局中继 | 自定义 TCP + 预约 key |
 | 26110 | 管理后台（**可选，默认不监听**） | HTTP + Bearer token |
 
-三个端口都要对客户端可达；只开 26100/26102 能登录，但进对局会因中继连不上而失败。
-
 ## 配置
 
-默认配置 `config/server.json`，`--check-config` 可在不连数据库的情况下校验。
+默认 `config/server.json`，`--check-config` 可在不连库的情况下校验。字段级说明见
+[`docs/configuration.md`](docs/configuration.md)。
 
 | 段 | 关键字段 | 说明 |
 | --- | --- | --- |
 | 顶层 | `gameMapsFile` 等 6 个 | 数据表路径，指向 `config/*.json` |
 | `network` | `listenPort` 26100 | 游戏端口、连接数、空闲超时 |
 | `relay` | `listenPort` 26104、`advertisedAddress` | 中继端口，**必须填公网 IP**，否则对局连不上 |
-| `database` | `host`/`port`/`databaseName`/`username`/`password` | MariaDB 连接；库名任意（非空即可），对不对由启动时的表结构校验决定 |
-| `authentication` | `listenPort` 26102、`inviteCode`、限流 | 登录器认证；证书用 `./gen-cert.sh` 生成 |
-| `logging` | `level`、轮转 | `trace/debug/info/warn/error`；默认 `info`，一局只写几行骨架 |
-| `zombie` | `humanTurnMs` 12000、`zombiniTurnMs` 18000 | 换队通知的等待（真机量出来的），范围 500–60000，整段可省略 |
-
-字段级说明、日志级别约定与各段默认值：见 [`docs/configuration.md`](docs/configuration.md)
-
-管理后台（概览、在线玩家、房间、日志、战绩、公告、改钱包）：**默认关闭**，
-开启方法与安全说明见 [`docs/admin.md`](docs/admin.md)。
+| `database` | `host` / `port` / `databaseName` / `username` / `password` | MariaDB 连接；结构对不对由启动校验决定 |
+| `authentication` | `listenPort` 26102、`inviteCode`、限流 | 证书用 `./gen-cert.sh` 或安装脚本生成 |
+| `logging` | `level`、轮转 | `trace/debug/info/warn/error`，默认 `info` |
+| `zombie` | `humanTurnMs` / `zombiniTurnMs` | 换队通知等待，默认 12000 / 18000 ms |
 
 ## 管理后台（可选）
 
-仓库里的 `config/server.json` 带的是 `"enabled": false` 和**空 token**——**默认不监听任何端口**。
-这是刻意的：后台 token 一旦进了公开提交历史就等于泄露，不应该“开箱即开”地被扫到。
-
-开启四步：
-
-```bash
-# 1. 生成一个 token
-openssl rand -hex 32
-
-# 2. 编辑 config/server.json 的 admin 段：enabled 改 true，token 填上一步的值
-#    "admin": { "enabled": true, "listenAddress": "127.0.0.1", "listenPort": 26110, "token": "***" }
-
-# 3. 重启
-systemctl restart bfserver
-
-# 4. 本机访问（远程用 SSH 隧道，不要把 listenAddress 改成 0.0.0.0）
-ssh -L 26110:127.0.0.1:26110 你的用户@服务器
-# 然后浏览器开 http://127.0.0.1:26110/
-```
-
-- `enabled` 为 `true` 而 `token` 不合规（少于 16 字符 / 占位值）时，**服务端直接拒绝启动**
-- 连续 10 次 token 错误，该地址会被挡 1 分钟（HTTP 429）
-- 绑定成功时服务端会在日志和控制台打印 `Admin console : http://127.0.0.1:26110/`
-- 功能清单、接口与权限说明：见 [`docs/admin.md`](docs/admin.md)
+仓库里的配置是 `"enabled": false` 且 token 为空——**默认不监听任何端口**，因为 token 一旦进公开提交历史就等于泄露。
+开启四步与安全说明见 [`docs/admin.md`](docs/admin.md)（`openssl rand -hex 32` 生成 token → 填 `admin` 段 →
+重启 → SSH 隧道访问 `127.0.0.1:26110`）。token 不合规时服务端直接拒绝启动。
 
 ## 日志
 
-默认 `info`，文件在 `Logs/Server.log`（5 MB 自动轮转，保留 3 份）。一局通常只写十几行，
-适合直接贴给作者定位问题。
-
-- **级别**：`info` 只有开局/结算/退房这类骨架（每局个位数）；`warn` 是**预期外的降级**但服务端已兜底、
-  玩家基本无感；`debug` 才是逐包逐帧细节
-- **子系统前缀**（`Info`/`Warn`/`Error` 一律带）：`[Application]` `[Database]` `[Round]` `[Room]` `[Plaza]`
-  `[Channel]` `[Session]` `[Login]` `[Authentication]` `[Relay]` `[Supplies]` `[Defense]` `[Zombie]`
-  `[Bomb]` `[Pirate]` `[Tutorial]` `[Captain]` `[Shop]` `[Admin]`
-- **该 grep 哪几句**：
-  - `[Round] started` / `[Round] ended` —— 一局的起止（带比分、结束原因）
-  - `[Relay] transport lost` / `[Relay] registration timeout` —— 中继链路出问题
-  - `loading timed out` —— 有人卡在加载，回合被取消（`[Round]` / `[Bomb]` 两种前缀）
-  - `[Round] settlement clamped` —— 满级或钱包到上限，属正常
-  - `[Round] result packet rejected` —— 结算包被拒，通常是角色数据异常
-  - `[Defense] seeds forced without every character report` —— 有座位没报角色，防御种子被迫提前下发
-
-分级原则（哪些事件走 Info、哪些只能 Debug）见 [`docs/logging.md`](docs/logging.md)；
-各段默认值与轮转行为见 [`docs/configuration.md`](docs/configuration.md)。
-
-> 排查计分问题时把级别调到 `debug`，`peer life` / `peer kick` 两行会打印每个攻击事件的
-> `kind` / `accepted` / `victimState` / `direct` / `special` —— 这是判断「这刀算没算分」的依据。
+默认 `info`，文件 `Logs/Server.log`（5 MB 轮转、保留 3 份），一局只写十几行骨架。
+`warn` 是已兜底的降级，`debug` 才是逐包细节。级别约定、`[子系统]` 前缀表与排查 grep 清单见
+[`docs/logging.md`](docs/logging.md)。
 
 ## 命令行参数
 
@@ -298,65 +160,44 @@ ssh -L 26110:127.0.0.1:26110 你的用户@服务器
 
 ## 数据库
 
-- **整库只有一份基线**：`database/baseline.sql`（schema revision 1，22 张业务表 + 商店/角色/饰品数据），
-  用 `database/migrate.sh` 导入；不要手动 `cat *.sql`
-- **重建**：`database/migrate.sh --force`（会 DROP 同名表，先自己备份）
-- **结构校验**：服务端只比对表结构（表 / 列 / 类型 / 可空 / 键 / 自增），比对对象是编译进去的
-  `internal/store/schema_expected.go`。**只改数据（上架/改价/发卡/玩家数据）完全不受影响**；
-  改结构才需要重新生成清单并重打服务端，不一致时启动会列出差异
-- 表按用途分组：账号与角色、房间与对局（`game_results*`）、商店与背包、聊天与社交
-- 结构清单的再生成与改结构流程：见 [`database/README.md`](database/README.md)
-- 详细表结构、初始化校验与手工建库步骤：见 [`docs/database.md`](docs/database.md)
+- **只有一份基线**：`database/baseline.sql`（schema revision 1，22 张业务表 + 资料表数据 + `schema_version`），
+  用 `database/migrate.sh` 导入；非空库默认拒绝，`--force` 才重建
+- **结构校验**：服务端只比对表结构（表/列/类型/可空/键/自增，`internal/store/schema_expected.go`），
+  只改数据（上架/改价/发卡/玩家数据）完全不受影响；改结构要重新生成清单并重打二进制
+- ⚠ **CHECK 约束不在比对范围**：例如 `chk_game_result_players_slot CHECK (slot < 12)`，
+  放宽它必须手工 `ALTER`，否则运行期写入会被拒
+- 改结构流程见 [`database/README.md`](database/README.md)，表结构与手工建库见 [`docs/database.md`](docs/database.md)
 
-## 商店数据（已并入数据库基线）
+## 商店数据
 
-商店内容全部在数据库基线里（早期是独立的补丁文件，已并入基线并删除该目录）：
-
-| 内容 | 件数 | 现所在 |
-|---|---|---|
-| HC 五件套 8 套（帽/上衣/裤/手套/鞋） | 40 | baseline |
-| 武器 | 31 | baseline |
-| 能量水晶 4 + 起跳手镯 1 + 推进器 6 + 小饰品 2 | 13 | baseline |
-| 投掷物（子类 307，按个数卖） | 7 | baseline |
-| 新角色乖小爷 / 葱头 + 装备掩码 | 2 | baseline |
-| 功能饰品（视野 / 臂章 / 头饰 / 尾饰 / 复活腕饰） | 14 | baseline |
-
-- **新装**：不用再导任何商店补丁，`database/migrate.sh` 已经包含
-- **HC 装扮的作用是激活能量水晶**（客户端 `PPAequipCheckValue = 5`：穿满 5 件 HC 才触发）
-- **角色卡不在商店出售**：建号时自动发放两张（皮蛋 + 黑妞），不需要额外维护脚本
-- ⚠️ 武器包有已知定价问题（HC 版与普通版数值相同但更便宜；16 件货币与客户端不一致），尚未修正
+商店内容全部在数据库基线里：HC 五件套 8 套（40 件）、武器 31 件、能量水晶/手镯/推进器/饰品 13 件、
+投掷物 7 件（子类 307，按个数卖）、新角色 2 个。新装不用再导任何补丁。
+⚠ 武器包有已知定价问题（HC 版与普通版数值相同但更便宜），尚未修正。
 
 ## 目录结构
 
 ```
 cmd/bfserver/      入口（参数解析、启动、账号工具）
 internal/config/   配置加载与校验
-internal/game/     房间、对局、生命状态机、道具补给、僵尸模式
-internal/net/      游戏连接与中继
+internal/game/     房间、对局、生命状态机、道具补给、各模式
+internal/net/      游戏连接、认证(TLS)与中继
 internal/protocol/ 封包编解码
-internal/store/    持久化
+internal/store/    持久化与结构校验
 config/            默认配置与数据表（地图、武器、防御、角色、复活、成长）
 database/          数据库基线（baseline.sql）与导入脚本（migrate.sh）
-docs/              细节文档（手动安装、配置、数据库、管理后台、实现说明、发布、日志约定）
+docs/              细节文档（安装、配置、数据库、后台、实现、发布、日志）
 launcher/          登录器（Python）
-tools/             一键安装脚本
-ZOMBIE.md          僵尸模式规则与真机验收记录
-CAPTAIN.md         队长战（mode 20）规则、协议证据与真机验收记录
-BOMB.md            爆破模式（mode 19）规则、协议证据与真机验收记录
-TUTORIAL.md        教程模式（单人 25 关）设计稿、协议与真机验收记录
-PIRATE.md          海盗模式（mode 101）方案、协议清单与待审项
+tools/             一键安装脚本与结构清单生成
 ```
 
 ## 已知限制
 
-- 模式白名单只有竞技（1）、道具战（3）、僵尸（8）、狙击（12）、热血个人（13）、热血团队（14）、狙击团队（18）、爆破（19）、队长战（20）、海盗（101）、僵尸 BOSS 战（16），其余房间创建会被拒
-- 教程（单人 25 关）走落地页入口，不建房间，规则见 [`TUTORIAL.md`](TUTORIAL.md)
-- 道具战与僵尸的规则由客户端保有（与 2015 原版一致），服务端只做状态与结算
+- 模式白名单只有上表 11 个模式 + 教程，其余房间创建会被拒
+- 战斗判定依赖客户端上报，服务端不做反作弊；道具战与僵尸的规则同样由客户端保有（与 2015 原版一致）
 - 单大厅频道，无跨频道分流
-- 战斗判定依赖客户端上报，无服务端反作弊
-- 同一账号重复登录会**接管**：旧连接被踢下线（`claimAccount`），不会两条连接共用一个账号
+- 同一账号重复登录会**接管**：旧连接被踢下线，不会两条连接共用一个账号
 - 个人热血（13）的出生点仍只有 8 个，12 人局会有座位复用
-- 广场刷新外观时没做变化检测：广场里购买成功（即使外观没变）也会广播一次相同的座位卡；也没补发位置包
+- 广场刷新外观时没做变化检测：购买成功（即使外观没变）也会广播一次相同的座位卡；也没补发位置包
 
 ## 常见问题
 
@@ -364,34 +205,21 @@ PIRATE.md          海盗模式（mode 101）方案、协议清单与待审项
 | --- | --- |
 | `errno: 150 Foreign key constraint is incorrectly formed` | 手工按字母序跑了 SQL；用 `database/migrate.sh` 导基线 |
 | `Unknown collation: 'utf8mb4_0900_ai_ci'` | 这是 MySQL 8 的排序规则；本项目只支持 MariaDB |
-| 启动报 `database structure does not match this build` | 库结构与二进制不一致：按报错补结构，或 `bash database/migrate.sh --force` 重建（先备份） |
+| 启动报 `database structure does not match this build` | 库结构与二进制不一致：按报错补结构，或 `migrate.sh --force` 重建（先备份） |
 | 启动报找不到 `authentication_certificate.pem` | 跑 `./gen-cert.sh`，或把 `authentication.enabled` 置 false |
-| 登录器提示「邀请码不正确」 | 填入与服务端 `authentication.inviteCode` 相同的码；留空表示开放注册 |
+| 登录器提示「邀请码不正确」 | 填与服务端 `authentication.inviteCode` 相同的码；留空表示开放注册 |
 | 登录器提示「服务繁忙」 | 触发按 IP 限流（默认 5/小时、20/天），等窗口过去或调配置 |
-| 对局中对方定住不动（v0.1.2 及更早） | 同步阻塞写缺陷，升级即可，见 [`docs/design.md`](docs/design.md#发送队列与背压) |
-| 复活后和队友叠在一个点（v0.1.2 及更早） | 无复活点轮换，升级即可，见 [`docs/design.md`](docs/design.md#复活点) |
-| 满级角色结算显示 +0 经验 | 正常：经验被夹到等级表上限，日志有 `[Round] settlement clamped` |
-| 金币到上限不再增加 | 正常：上限 `store.MaxLucci = 100,000,000`（1 亿） |
 | 打完一局没有结算界面 | 搜日志 `game result packet rejected`（WARN），多为角色数据异常 |
-| 对局里有人的位置不更新、但还能被打 | 他的中继连接没建立起来，搜 `registration timeout`；先确认 **26104** 对客户端可达 |
-| 管理后台打不开 | 默认就没有监听：先把 `admin.enabled` 改成 `true` 并自己填 `token`（至少 16 字符），否则服务端会拒绝启动 |
+| 对局里有人的位置不更新、但还能被打 | 他的中继连接没建立起来，搜 `registration timeout`；先确认 **26104** 可达 |
+| 管理后台打不开 | 默认没监听：把 `admin.enabled` 改 `true` 并自填 token（≥16 字符） |
 
 ## 发布
 
-打 tag、构建产物、回填 `BIN_SHA256`、上传 Release 资产的完整顺序：见 [`docs/release.md`](docs/release.md)。
-Release 资产只包含**二进制包**与 `SHA256SUMS`；安装脚本一直在仓库里（`tools/bfserver-install.sh`），
-通过 raw 链接获取，不跟着 Release 发。
+打 tag、构建、回填 `BIN_SHA256`、上传资产的顺序见 [`docs/release.md`](docs/release.md)；
+每个交付包对应的 commit/tag/哈希见 [`docs/releases.md`](docs/releases.md)。
+Release 只放二进制包与 `SHA256SUMS`，安装脚本一直在仓库里（raw 链接）。
 
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。版权所有 (c) 2026 kanomahoro；
-部分协议行为与数据库结构参考 BubbleFighter_CN0261_Server（MIT，Copyright (c) 2026 Albert Gong），
-中继与部分模式行为参考 BubbleFighter.Fantasy（MIT，Copyright (c) 2026 Fantasy Tale Studio）。
-
-> 本项目仅供**学习与技术研究**（网络协议、服务端架构、数据库设计）参考，请勿用于商业运营
-> 或任何侵犯他人权利的场景。游戏名称、商标、美术与音频等素材的权利归原权利人所有。
-
-## 文档
-
-完整索引见 [`docs/README.md`](docs/README.md)（使用/架构/模式/素材四类）；
-各版本改了什么、为什么改，见 [`CHANGELOG.md`](CHANGELOG.md)（最新在最上面）。
+另见文件顶部的参考实现与免责声明。

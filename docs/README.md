@@ -6,7 +6,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
-| [`../README.md`](../README.md) | 项目总览、**模式一览（含加入版本）**、快速启动、部署与排障 |
+| [`../README.md`](../README.md) | 项目总览、**模式一览（含加入版本）**、一键安装、配置与端口、已知限制与排障 |
 | [`manual-install.md`](manual-install.md) | 手动安装、登录器与客户端连接步骤 |
 | [`configuration.md`](configuration.md) | `config/server.json` 每个字段的含义（端口、relay、日志、认证） |
 | [`database.md`](database.md) | 表结构、迁移脚本、结算落库的字段来源 |
