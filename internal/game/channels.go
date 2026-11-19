@@ -336,9 +336,9 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		return setting, fmt.Errorf("map could not be resolved")
 	}
 
-	limit := request.Values128[2]
-	if limit == 0 {
-		limit = chosen.TimeLimitMilliseconds
+	timeLimit := request.Values128[2]
+	if timeLimit == 0 {
+		timeLimit = chosen.TimeLimitMilliseconds
 	}
 	// The kill limit is this server's own: every create dialog copies MapMeta's
 	// stale DeathMatchKillLimit (20) into Values128[0], and the reference echoed it
@@ -348,21 +348,21 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 	// The zombie battle always runs the mode's own length: the client forces 180 s
 	// into the rule record at create time and keeps no rule of its own.
 	if request.Mode == zombieModeID {
-		limit = zombieRoundLimitMs
+		timeLimit = zombieRoundLimitMs
 	}
 	// The pirate battle runs the 300 s its MapMeta row states, and its round is
 	// decided by the waves rather than by a kill limit.
 	if request.Mode == pirateModeID {
-		limit = chosen.TimeLimitMilliseconds
+		timeLimit = chosen.TimeLimitMilliseconds
 		score = 0
 	}
 	// The raid runs its maps' TimeAttack limit (600 s) and no kill limit: the round
 	// is decided by the stage word, never by a pang count.
 	if request.Mode == pveBossModeID {
-		limit = chosen.TimeLimitMilliseconds
+		timeLimit = chosen.TimeLimitMilliseconds
 		score = 0
 	}
-	if limit < 60000 || limit > 1800000 || limit%1000 != 0 || score > 200 {
+	if timeLimit < 60000 || timeLimit > 1800000 || timeLimit%1000 != 0 || score > 200 {
 		return setting, fmt.Errorf("room rules are outside the supported range")
 	}
 
@@ -462,7 +462,7 @@ func normalizeGameSetting(request protocol.GameSetting, maps world.Maps) (protoc
 		}
 	}
 	setting.Values128[0] = score
-	setting.Values128[2] = limit
+	setting.Values128[2] = timeLimit
 	if request.Mode == pirateModeID {
 		// Values128 is the reference server's own block for this map: the kill limit (20,
 		// the map's DeathMatchKillLimit) followed by four time limits of 240000. This

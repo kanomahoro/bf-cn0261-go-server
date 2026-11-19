@@ -51,10 +51,12 @@ func (s *Server) broadcastScores(room *Room) bool {
 		return false
 	}
 	var teamScores [2]uint32
-	limit := room.Setting.Game.Values128[0]
-	if limit == 0 {
+	// killLimit is the round's kill limit (Values128[0]), the pang total that ends the
+	// round. The time limit sits at Values128[2] and is not read here.
+	killLimit := room.Setting.Game.Values128[0]
+	if killLimit == 0 {
 		// A room whose card states no kill limit still races one: the server's own.
-		limit = matchScoreLimit
+		killLimit = matchScoreLimit
 	}
 	teamless := room.Setting.Game.Mode == singlePvpModeID
 	limitReached := false
@@ -84,9 +86,9 @@ func (s *Server) broadcastScores(room *Room) bool {
 		if teamIndex >= 0 && !teamless {
 			teamScores[teamIndex] += uint32(score.PangCount)
 		}
-		// A teamless round has no team total to race: each seat reaches the limit
+		// A teamless round has no team total to race: each seat reaches the kill limit
 		// on its own pang count, which is what ends the individual round.
-		if teamless && uint32(score.PangCount) >= limit {
+		if teamless && uint32(score.PangCount) >= killLimit {
 			limitReached = true
 		}
 		if score != room.published[slot] {
@@ -110,7 +112,7 @@ func (s *Server) broadcastScores(room *Room) bool {
 				updates = append(updates, update{packet: reply})
 			}
 		}
-		if !teamless && clamped >= limit {
+		if !teamless && clamped >= killLimit {
 			limitReached = true
 		}
 	}
